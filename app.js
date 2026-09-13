@@ -52,7 +52,11 @@ loginForm.addEventListener("submit", async (e) => {
     loginScreen.classList.add("hidden");
     dashScreen.classList.remove("hidden");
 
-    if (currentUser.isClassTeacher && currentUser.classTeacherOf) {
+    if (currentUser.role === "admin") {
+      activeView = "admin";
+      renderDashboardShell();
+      loadAdminView();
+    } else if (currentUser.isClassTeacher && currentUser.classTeacherOf) {
       activeView = "classTeacher";
       activeAssignment = null;
       renderDashboardShell();
@@ -81,10 +85,31 @@ document.getElementById("logoutBtn").addEventListener("click", () => {
 
 function renderDashboardShell() {
   document.getElementById("userLabel").textContent =
-    currentUser.name + (currentUser.isClassTeacher ? " · Class Teacher" : "");
+    currentUser.name + (currentUser.role === "admin" ? " · Admin" : currentUser.isClassTeacher ? " · Class Teacher" : "");
 
   const list = document.getElementById("assignmentList");
   list.innerHTML = "";
+
+  // ADMIN sidebar — completely different set of options, no class/subject assignments
+  if (currentUser.role === "admin") {
+    const adminSections = [
+      { key: "registerStudent", label: "➕ Register New Student", sub: "Add a student" },
+      { key: "viewStudents", label: "📋 All Students", sub: "Search & view records" },
+      { key: "recordFee", label: "💰 Record Fee Payment", sub: "This term's payment" },
+    ];
+    adminSections.forEach((section) => {
+      const btn = document.createElement("button");
+      btn.className = "assign-btn" + (activeView === section.key ? " active" : "");
+      btn.innerHTML = `<div><div style="font-weight:600;">${section.label}</div><div class="sub">${section.sub}</div></div>`;
+      btn.addEventListener("click", () => {
+        activeView = section.key;
+        renderDashboardShell();
+        loadAdminView();
+      });
+      list.appendChild(btn);
+    });
+    return;
+  }
 
   // Class teacher section (view-only master sheet + report card) — shown first if applicable
   if (currentUser.isClassTeacher && currentUser.classTeacherOf) {
@@ -124,8 +149,217 @@ function renderDashboardShell() {
   });
 }
 
-async function loadClassTeacherView(className) {
+// ============================================================
+// ADMIN VIEWS
+// ============================================================
+
+function hideAllPanels() {
   document.getElementById("scoreEntryPanel").classList.add("hidden");
+  document.getElementById("classTeacherPanel").classList.add("hidden");
+  document.getElementById("adminPanel").classList.add("hidden");
+}
+
+function loadAdminView() {
+  hideAllPanels();
+  document.getElementById("adminPanel").classList.remove("hidden");
+
+  if (activeView === "registerStudent") renderRegisterStudentForm();
+  else if (activeView === "viewStudents") renderViewStudents();
+  else if (activeView === "recordFee") renderRecordFeeForm();
+  else renderRegisterStudentForm(); // default
+}
+
+function adminFieldRow(label, id, type = "text", options = null) {
+  if (type === "select") {
+    const opts = options.map((o) => `<option value="${o}">${o}</option>`).join("");
+    return `
+      <label style="display:block; font-size:12px; font-weight:600; color:#5B5546; margin-bottom:4px;">${label}</label>
+      <select id="${id}" style="width:100%; padding:9px; border:1.5px solid var(--line); border-radius:3px; margin-bottom:14px;">
+        <option value="">— Select —</option>${opts}
+      </select>
+    `;
+  }
+  return `
+    <label style="display:block; font-size:12px; font-weight:600; color:#5B5546; margin-bottom:4px;">${label}</label>
+    <input id="${id}" type="${type}" style="width:100%; padding:9px; border:1.5px solid var(--line); border-radius:3px; margin-bottom:14px;" />
+  `;
+}
+
+function renderRegisterStudentForm() {
+  document.getElementById("adminPanelTitle").textContent = "Register New Student";
+  const CLASS_LIST = ["KG 1","KG 2","Nursery 1","Nursery 2","Primary 1","Primary 2","Primary 3","Primary 4","Primary 5","JSS 1","JSS 2","JSS 3","SS 1","SS 2","SS 3"];
+
+  const content = document.getElementById("adminPanelContent");
+  content.innerHTML = `
+    <div style="background:#fff; border:1px solid var(--line); border-radius:4px; padding:24px; max-width:600px;">
+      ${adminFieldRow("Admission Number *", "regAdmissionNo")}
+      ${adminFieldRow("Full Name *", "regFullName")}
+      ${adminFieldRow("Date of Birth", "regDob", "date")}
+      ${adminFieldRow("Gender", "regGender", "select", ["Male", "Female"])}
+      ${adminFieldRow("Current Class *", "regClass", "select", CLASS_LIST)}
+      ${adminFieldRow("Date of Enrollment", "regEnrollDate", "date")}
+      ${adminFieldRow("Previous School", "regPrevSchool")}
+      ${adminFieldRow("Parent/Guardian Name", "regGuardianName")}
+      ${adminFieldRow("Parent/Guardian Phone", "regGuardianPhone")}
+      ${adminFieldRow("Home Address", "regAddress")}
+      ${adminFieldRow("Emergency Contact", "regEmergency")}
+      ${adminFieldRow("Blood Group", "regBloodGroup", "select", ["A+","A-","B+","B-","AB+","AB-","O+","O-","Unknown"])}
+      ${adminFieldRow("Allergies / Medical Conditions", "regAllergies")}
+      ${adminFieldRow("Religion", "regReligion")}
+      <button id="submitRegisterBtn" class="submit-btn" style="width:100%; margin-top:6px;">Register Student</button>
+      <div id="registerResult" class="hidden" style="margin-top:12px;"></div>
+    </div>
+  `;
+
+  document.getElementById("submitRegisterBtn").addEventListener("click", async () => {
+    const payload = {
+      admissionNo: document.getElementById("regAdmissionNo").value.trim(),
+      fullName: document.getElementById("regFullName").value.trim(),
+      dob: document.getElementById("regDob").value,
+      gender: document.getElementById("regGender").value,
+      currentClass: document.getElementById("regClass").value,
+      enrollmentDate: document.getElementById("regEnrollDate").value,
+      previousSchool: document.getElementById("regPrevSchool").value.trim(),
+      guardianName: document.getElementById("regGuardianName").value.trim(),
+      guardianPhone: document.getElementById("regGuardianPhone").value.trim(),
+      address: document.getElementById("regAddress").value.trim(),
+      emergencyContact: document.getElementById("regEmergency").value.trim(),
+      bloodGroup: document.getElementById("regBloodGroup").value,
+      allergies: document.getElementById("regAllergies").value.trim(),
+      religion: document.getElementById("regReligion").value.trim(),
+    };
+
+    const resultBox = document.getElementById("registerResult");
+    resultBox.classList.remove("hidden");
+    resultBox.innerHTML = "Registering…";
+
+    try {
+      const res = await fetch(`${SERVER_URL}/api/students`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      resultBox.innerHTML = `<span style="color:#2F6B4F;">✓ ${data.message}</span>`;
+      document.querySelectorAll("#adminPanelContent input").forEach((i) => (i.value = ""));
+      document.querySelectorAll("#adminPanelContent select").forEach((s) => (s.value = ""));
+    } catch (err) {
+      resultBox.innerHTML = `<span style="color:#8C3A2E;">${err.message}</span>`;
+    }
+  });
+}
+
+async function renderViewStudents() {
+  document.getElementById("adminPanelTitle").textContent = "All Students";
+  const content = document.getElementById("adminPanelContent");
+  content.innerHTML = `
+    <div style="margin-bottom:16px; display:flex; gap:10px;">
+      <input id="studentSearchInput" placeholder="Search by name or admission no…" style="flex:1; padding:9px; border:1.5px solid var(--line); border-radius:3px;" />
+      <button id="studentSearchBtn" class="submit-btn">Search</button>
+    </div>
+    <div id="studentListResult" class="note">Loading students…</div>
+  `;
+
+  async function doSearch() {
+    const search = document.getElementById("studentSearchInput").value.trim();
+    const resultDiv = document.getElementById("studentListResult");
+    resultDiv.textContent = "Loading…";
+    try {
+      const res = await fetch(`${SERVER_URL}/api/students${search ? `?search=${encodeURIComponent(search)}` : ""}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      renderStudentTable(data.students);
+    } catch (err) {
+      resultDiv.innerHTML = `<span style="color:#8C3A2E;">${err.message}</span>`;
+    }
+  }
+
+  function renderStudentTable(students) {
+    const resultDiv = document.getElementById("studentListResult");
+    if (!students.length) {
+      resultDiv.innerHTML = "No students found.";
+      return;
+    }
+    let html = `<table class="score-table"><thead><tr>
+      <th>Admission No.</th><th>Name</th><th>Class</th><th>Guardian Phone</th><th>Status</th>
+    </tr></thead><tbody>`;
+    students.forEach((s) => {
+      html += `<tr><td>${s[0] ?? ""}</td><td>${s[1] ?? ""}</td><td style="text-align:center;">${s[4] ?? ""}</td><td>${s[8] ?? ""}</td><td style="text-align:center;">${s[14] ?? ""}</td></tr>`;
+    });
+    html += "</tbody></table>";
+    resultDiv.innerHTML = html;
+  }
+
+  document.getElementById("studentSearchBtn").addEventListener("click", doSearch);
+  document.getElementById("studentSearchInput").addEventListener("keypress", (e) => {
+    if (e.key === "Enter") doSearch();
+  });
+
+  doSearch();
+}
+
+function renderRecordFeeForm() {
+  document.getElementById("adminPanelTitle").textContent = "Record Fee Payment";
+  const CLASS_LIST = ["KG 1","KG 2","Nursery 1","Nursery 2","Primary 1","Primary 2","Primary 3","Primary 4","Primary 5","JSS 1","JSS 2","JSS 3","SS 1","SS 2","SS 3"];
+
+  const content = document.getElementById("adminPanelContent");
+  content.innerHTML = `
+    <div style="background:#fff; border:1px solid var(--line); border-radius:4px; padding:24px; max-width:600px;">
+      ${adminFieldRow("Admission Number *", "feeAdmissionNo")}
+      ${adminFieldRow("Student Name", "feeStudentName")}
+      ${adminFieldRow("Session (e.g. 2025/2026) *", "feeSession")}
+      ${adminFieldRow("Term *", "feeTerm", "select", ["First Term", "Second Term", "Third Term"])}
+      ${adminFieldRow("Class at Time", "feeClass", "select", CLASS_LIST)}
+      ${adminFieldRow("Amount Expected", "feeExpected", "number")}
+      ${adminFieldRow("Amount Paid", "feePaid", "number")}
+      ${adminFieldRow("Status", "feeStatus", "select", ["Paid", "Owing", "Partial"])}
+      ${adminFieldRow("Date Paid", "feeDatePaid", "date")}
+      ${adminFieldRow("Payment Method", "feeMethod", "select", ["Cash", "Bank Transfer", "POS", "Cheque", "Online"])}
+      <button id="submitFeeBtn" class="submit-btn" style="width:100%; margin-top:6px;">Record Payment</button>
+      <div id="feeResult" class="hidden" style="margin-top:12px;"></div>
+    </div>
+  `;
+
+  document.getElementById("submitFeeBtn").addEventListener("click", async () => {
+    const payload = {
+      admissionNo: document.getElementById("feeAdmissionNo").value.trim(),
+      studentName: document.getElementById("feeStudentName").value.trim(),
+      session: document.getElementById("feeSession").value.trim(),
+      term: document.getElementById("feeTerm").value,
+      classAtTime: document.getElementById("feeClass").value,
+      amountExpected: document.getElementById("feeExpected").value,
+      amountPaid: document.getElementById("feePaid").value,
+      status: document.getElementById("feeStatus").value,
+      datePaid: document.getElementById("feeDatePaid").value,
+      paymentMethod: document.getElementById("feeMethod").value,
+    };
+
+    const resultBox = document.getElementById("feeResult");
+    resultBox.classList.remove("hidden");
+    resultBox.innerHTML = "Saving…";
+
+    try {
+      const res = await fetch(`${SERVER_URL}/api/fees`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      resultBox.innerHTML = `<span style="color:#2F6B4F;">✓ ${data.message}</span>`;
+      document.querySelectorAll("#adminPanelContent input").forEach((i) => (i.value = ""));
+      document.querySelectorAll("#adminPanelContent select").forEach((s) => (s.value = ""));
+    } catch (err) {
+      resultBox.innerHTML = `<span style="color:#8C3A2E;">${err.message}</span>`;
+    }
+  });
+}
+
+async function loadClassTeacherView(className) {
+  hideAllPanels();
   document.getElementById("classTeacherPanel").classList.remove("hidden");
   document.getElementById("ctClassName").textContent = className;
   document.getElementById("ctLoading").classList.remove("hidden");
@@ -366,7 +600,7 @@ function drawReportCard() {
 }
 
 async function loadAssignment(assignment) {
-  document.getElementById("classTeacherPanel").classList.add("hidden");
+  hideAllPanels();
   document.getElementById("scoreEntryPanel").classList.remove("hidden");
   document.getElementById("activeClass").textContent = assignment.class;
   document.getElementById("activeSubject").textContent = assignment.subject;
