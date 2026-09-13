@@ -21,10 +21,39 @@ const dashScreen = document.getElementById("dashScreen");
 const loginForm = document.getElementById("loginForm");
 const loginError = document.getElementById("loginError");
 const configWarning = document.getElementById("configWarning");
+const landingChoice = document.getElementById("landingChoice");
+const studentComingSoon = document.getElementById("studentComingSoon");
+const demoBox = document.getElementById("demoBox");
 
 if (SERVER_URL.includes("PASTE_YOUR")) {
   configWarning.classList.remove("hidden");
 }
+
+function showLanding() {
+  landingChoice.classList.remove("hidden");
+  studentComingSoon.classList.add("hidden");
+  loginForm.classList.add("hidden");
+  demoBox.classList.add("hidden");
+}
+
+function showStaffLogin() {
+  landingChoice.classList.add("hidden");
+  studentComingSoon.classList.add("hidden");
+  loginForm.classList.remove("hidden");
+  demoBox.classList.remove("hidden");
+}
+
+function showStudentComingSoon() {
+  landingChoice.classList.add("hidden");
+  studentComingSoon.classList.remove("hidden");
+  loginForm.classList.add("hidden");
+  demoBox.classList.add("hidden");
+}
+
+document.getElementById("staffLoginBtn").addEventListener("click", showStaffLogin);
+document.getElementById("studentLoginBtn").addEventListener("click", showStudentComingSoon);
+document.getElementById("backToLandingFromStaff").addEventListener("click", showLanding);
+document.getElementById("backToLandingFromStudent").addEventListener("click", showLanding);
 
 loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -81,6 +110,7 @@ document.getElementById("logoutBtn").addEventListener("click", () => {
   loginScreen.classList.remove("hidden");
   document.getElementById("username").value = "";
   document.getElementById("password").value = "";
+  showLanding();
 });
 
 function renderDashboardShell() {
