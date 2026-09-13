@@ -10,6 +10,7 @@ const SERVER_URL = "https://donann-portal-server.onrender.com";
 let token = null;
 let currentUser = null;
 let activeAssignment = null;
+let activeView = "scoreEntry"; // "scoreEntry" | "classTeacher"
 let currentStudents = [];
 let currentMode = "test_exam";
 
@@ -45,12 +46,21 @@ loginForm.addEventListener("submit", async (e) => {
 
     token = data.token;
     currentUser = data;
-    activeAssignment = data.assignments[0];
 
     loginScreen.classList.add("hidden");
     dashScreen.classList.remove("hidden");
-    renderDashboardShell();
-    loadAssignment(activeAssignment);
+
+    if (currentUser.isClassTeacher && currentUser.classTeacherOf) {
+      activeView = "classTeacher";
+      activeAssignment = null;
+      renderDashboardShell();
+      loadClassTeacherView(currentUser.classTeacherOf);
+    } else {
+      activeView = "scoreEntry";
+      activeAssignment = data.assignments[0];
+      renderDashboardShell();
+      loadAssignment(activeAssignment);
+    }
   } catch (err) {
     loginError.textContent = "Could not reach the server. Check your connection or try again shortly.";
     loginError.classList.remove("hidden");
@@ -73,11 +83,37 @@ function renderDashboardShell() {
 
   const list = document.getElementById("assignmentList");
   list.innerHTML = "";
+
+  // Class teacher section (view-only master sheet + report card) — shown first if applicable
+  if (currentUser.isClassTeacher && currentUser.classTeacherOf) {
+    const classTeacherBtn = document.createElement("button");
+    classTeacherBtn.className = "assign-btn" + (activeView === "classTeacher" ? " active" : "");
+    classTeacherBtn.innerHTML = `<div><div style="font-weight:600;">📋 Master Sheet & Report Cards</div><div class="sub">${currentUser.classTeacherOf}</div></div>`;
+    classTeacherBtn.addEventListener("click", () => {
+      activeView = "classTeacher";
+      activeAssignment = null;
+      renderDashboardShell();
+      loadClassTeacherView(currentUser.classTeacherOf);
+    });
+    list.appendChild(classTeacherBtn);
+
+    const divider = document.createElement("div");
+    divider.style.cssText = "border-top:1px solid var(--line); margin: 12px 0;";
+    list.appendChild(divider);
+
+    const subjLabel = document.createElement("div");
+    subjLabel.className = "sidebar-label";
+    subjLabel.style.marginTop = "4px";
+    subjLabel.textContent = "YOUR SUBJECTS TO SUBMIT";
+    list.appendChild(subjLabel);
+  }
+
   currentUser.assignments.forEach((a) => {
     const btn = document.createElement("button");
-    btn.className = "assign-btn" + (a === activeAssignment ? " active" : "");
+    btn.className = "assign-btn" + (activeView === "scoreEntry" && a === activeAssignment ? " active" : "");
     btn.innerHTML = `<div><div style="font-weight:600;">${a.subject}</div><div class="sub">${a.class}</div></div>`;
     btn.addEventListener("click", () => {
+      activeView = "scoreEntry";
       activeAssignment = a;
       renderDashboardShell();
       loadAssignment(a);
@@ -86,7 +122,116 @@ function renderDashboardShell() {
   });
 }
 
+async function loadClassTeacherView(className) {
+  document.getElementById("scoreEntryPanel").classList.add("hidden");
+  document.getElementById("classTeacherPanel").classList.remove("hidden");
+  document.getElementById("ctClassName").textContent = className;
+  document.getElementById("ctLoading").classList.remove("hidden");
+  document.getElementById("ctContent").classList.add("hidden");
+  document.getElementById("ctReportCardResult").classList.add("hidden");
+
+  if (SERVER_URL.includes("PASTE_YOUR")) {
+    document.getElementById("ctLoading").textContent = "Demo mode: connect a real server to see live master sheet data.";
+    return;
+  }
+
+  try {
+    const res = await fetch(
+      `${SERVER_URL}/api/master-sheet?className=${encodeURIComponent(className)}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    renderMasterSheetTable(data);
+    populateReportCardStudentPicker(data.students);
+    document.getElementById("ctLoading").classList.add("hidden");
+    document.getElementById("ctContent").classList.remove("hidden");
+  } catch (err) {
+    document.getElementById("ctLoading").textContent = "Could not load master sheet: " + err.message;
+  }
+}
+
+function renderMasterSheetTable(data) {
+  const table = document.getElementById("ctMasterTable");
+  const subjects = data.subjects || [];
+  const perSubject = data.mode === "score100" ? 1 : 3;
+
+  let headerHtml = "<tr><th>#</th><th>Student</th>";
+  subjects.forEach((s) => {
+    headerHtml += `<th style="text-align:center;">${s}</th>`;
+  });
+  headerHtml += "<th style='text-align:center;'>Missing</th></tr>";
+  table.querySelector("thead").innerHTML = headerHtml;
+
+  let bodyHtml = "";
+  (data.students || []).forEach((row, i) => {
+    const sn = row[0] || i + 1;
+    const name = row[1] || "";
+    bodyHtml += `<tr><td>${sn}</td><td>${name}</td>`;
+    const missingSubjects = [];
+    subjects.forEach((subj, si) => {
+      const colStart = 2 + si * perSubject; // offset from A/B columns
+      const totalColOffset = perSubject === 1 ? colStart : colStart + 2;
+      const val = row[totalColOffset];
+      if (!val || val === "") missingSubjects.push(subj);
+      bodyHtml += `<td style="text-align:center;">${val || "—"}</td>`;
+    });
+    const missingCell = missingSubjects.length
+      ? `<span style="color:#8C3A2E; font-size:12px;">${missingSubjects.length} missing</span>`
+      : `<span style="color:#2F6B4F; font-size:12px;">✓ complete</span>`;
+    bodyHtml += `<td style="text-align:center;">${missingCell}</td></tr>`;
+  });
+  table.querySelector("tbody").innerHTML = bodyHtml;
+}
+
+function populateReportCardStudentPicker(students) {
+  const select = document.getElementById("ctStudentPicker");
+  select.innerHTML = "";
+  (students || []).forEach((row, i) => {
+    const sn = row[0] || i + 1;
+    const name = row[1] || "";
+    if (!name) return;
+    const opt = document.createElement("option");
+    opt.value = sn;
+    opt.textContent = `${sn}. ${name}`;
+    select.appendChild(opt);
+  });
+}
+
+document.getElementById("ctGenerateReportBtn")?.addEventListener("click", async () => {
+  const sn = document.getElementById("ctStudentPicker").value;
+  const className = currentUser.classTeacherOf;
+  const resultBox = document.getElementById("ctReportCardResult");
+  resultBox.classList.remove("hidden");
+  resultBox.innerHTML = "Generating report card…";
+
+  try {
+    const res = await fetch(
+      `${SERVER_URL}/api/report-card?className=${encodeURIComponent(className)}&sn=${encodeURIComponent(sn)}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    renderReportCard(data.rows);
+  } catch (err) {
+    resultBox.innerHTML = `<span style="color:#8C3A2E;">Could not generate report card: ${err.message}</span>`;
+  }
+});
+
+function renderReportCard(rows) {
+  const resultBox = document.getElementById("ctReportCardResult");
+  let html = "<table class='score-table' style='margin-top:16px;'>";
+  rows.forEach((row) => {
+    html += "<tr>" + row.map((cell) => `<td>${cell ?? ""}</td>`).join("") + "</tr>";
+  });
+  html += "</table>";
+  html += `<button onclick="window.print()" class="submit-btn" style="margin-top:16px;">🖨️ Print this report card</button>`;
+  resultBox.innerHTML = html;
+}
+
 async function loadAssignment(assignment) {
+  document.getElementById("classTeacherPanel").classList.add("hidden");
+  document.getElementById("scoreEntryPanel").classList.remove("hidden");
   document.getElementById("activeClass").textContent = assignment.class;
   document.getElementById("activeSubject").textContent = assignment.subject;
   document.getElementById("scoreTable").classList.add("hidden");

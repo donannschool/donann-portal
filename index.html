@@ -157,36 +157,75 @@
         until the SERVER_URL is set in app.js and the backend is deployed.
       </div>
 
-      <div class="main-header-row">
-        <div>
-          <div class="eyebrow" id="activeClass"></div>
-          <h2 class="main-title" id="activeSubject"></h2>
+      <!-- SCORE ENTRY PANEL (subject teachers) -->
+      <div id="scoreEntryPanel">
+        <div class="main-header-row">
+          <div>
+            <div class="eyebrow" id="activeClass"></div>
+            <h2 class="main-title" id="activeSubject"></h2>
+          </div>
+        </div>
+
+        <div id="loadingRow" class="note">Loading students…</div>
+        <table class="score-table hidden" id="scoreTable">
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th id="col1Header" style="text-align:center;">Test (40)</th>
+              <th id="col2Header" style="text-align:center;">Exam (60)</th>
+              <th style="text-align:center;">Total</th>
+            </tr>
+          </thead>
+          <tbody id="scoreBody"></tbody>
+        </table>
+
+        <div class="submit-row">
+          <button class="submit-btn" id="submitBtn">Submit to master sheet</button>
+          <div id="savedFlash" class="saved-flash hidden">✓ Scores saved</div>
+        </div>
+
+        <div class="note" id="liveNote"></div>
+      </div>
+
+      <!-- CLASS TEACHER PANEL (view-only master sheet + report card generator) -->
+      <div id="classTeacherPanel" class="hidden">
+        <div class="main-header-row">
+          <div>
+            <div class="eyebrow">CLASS TEACHER VIEW · READ-ONLY</div>
+            <h2 class="main-title" id="ctClassName"></h2>
+          </div>
+        </div>
+
+        <div class="note" style="margin-bottom:16px;">
+          This view is read-only — scores here are entered by subject teachers or the school
+          admin. Use it to see which subjects are still missing scores, and to generate a
+          student's report card.
+        </div>
+
+        <div id="ctLoading" class="note">Loading master sheet…</div>
+
+        <div id="ctContent" class="hidden">
+          <div style="overflow-x:auto; background:#fff; border-radius:4px; margin-bottom:24px;">
+            <table class="score-table" id="ctMasterTable" style="min-width:600px;">
+              <thead></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <div style="background:#fff; border:1px solid var(--line); border-radius:4px; padding:20px; max-width:480px;">
+            <div style="font-weight:600; margin-bottom:10px;">Generate a report card</div>
+            <select id="ctStudentPicker" style="width:100%; padding:8px; border:1.5px solid var(--line); border-radius:3px; margin-bottom:12px;"></select>
+            <button class="submit-btn" id="ctGenerateReportBtn" style="width:100%;">Generate Report Card</button>
+          </div>
+
+          <div id="ctReportCardResult" class="hidden"></div>
         </div>
       </div>
-
-      <div id="loadingRow" class="note">Loading students…</div>
-      <table class="score-table hidden" id="scoreTable">
-        <thead>
-          <tr>
-            <th>Student</th>
-            <th id="col1Header" style="text-align:center;">Test (40)</th>
-            <th id="col2Header" style="text-align:center;">Exam (60)</th>
-            <th style="text-align:center;">Total</th>
-          </tr>
-        </thead>
-        <tbody id="scoreBody"></tbody>
-      </table>
-
-      <div class="submit-row">
-        <button class="submit-btn" id="submitBtn">Submit to master sheet</button>
-        <div id="savedFlash" class="saved-flash hidden">✓ Scores saved</div>
-      </div>
-
-      <div class="note" id="liveNote"></div>
     </main>
   </div>
 </div>
 
 <script src="app.js"></script>
+
 </body>
 </html>
