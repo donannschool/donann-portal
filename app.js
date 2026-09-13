@@ -220,12 +220,111 @@ document.getElementById("ctGenerateReportBtn")?.addEventListener("click", async 
 
 function renderReportCard(rows) {
   const resultBox = document.getElementById("ctReportCardResult");
-  let html = "<table class='score-table' style='margin-top:16px;'>";
-  rows.forEach((row) => {
-    html += "<tr>" + row.map((cell) => `<td>${cell ?? ""}</td>`).join("") + "</tr>";
+
+  // rows[] mirrors the Report Card sheet layout: row indices match our xlsx template
+  // Row 0: [selector label, "", "", "SELECT STUDENT S/N:", sn, ...]
+  // Row 5 (index 5): student name row  -> ["Student Name:", name, "", "", "Term/Session:", term]
+  // Row 6 (index 6): class row -> ["Class:", class, "", "", "Position:", position]
+  // Row 8 (index 8): table header -> ["S/N","SUBJECT","TEST (40)","EXAM (60)","TOTAL (100)","GRADE","REMARK"]
+  // rows 9.. : subject rows until a blank row, then Total/Average/Percentage/comments
+
+  const studentName = rows[5]?.[1] || "";
+  const term = rows[5]?.[5] || "";
+  const className = rows[6]?.[1] || "";
+  const position = rows[6]?.[5] || "";
+
+  const headerRowIdx = rows.findIndex((r) => r[0] === "S/N");
+  const subjectRows = [];
+  let i = headerRowIdx + 1;
+  while (i < rows.length && rows[i][0] && rows[i][0] !== "") {
+    subjectRows.push(rows[i]);
+    i++;
+  }
+
+  // find Total/Average/Percentage/comments after the subject rows
+  let totalScore = "", average = "", percentage = "", teacherComment = "", principalComment = "";
+  for (let j = i; j < rows.length; j++) {
+    const label = (rows[j][0] || "").toLowerCase();
+    if (label.includes("total score")) totalScore = rows[j][2] || "";
+    if (label.includes("average")) average = rows[j][2] || "";
+    if (label.includes("percentage")) percentage = rows[j][2] || "";
+    if (label.includes("class teacher")) teacherComment = rows[j + 1]?.[0] || "";
+    if (label.includes("principal")) principalComment = rows[j + 1]?.[0] || "";
+  }
+
+  let html = `
+    <div id="printableReportCard" style="background:#fff; border:1px solid var(--line); border-radius:4px; padding:24px; margin-top:16px;">
+      <div style="display:flex; align-items:center; gap:14px; margin-bottom:16px;">
+        <div class="crest-sm" style="width:48px;height:48px;">🎓</div>
+        <div>
+          <div style="font-family:Georgia,serif; font-size:20px;">Don-Ann Schools</div>
+          <div style="font-size:13px; color:#8A8477;">Student Report Card — ${currentUser.classTeacherOf}</div>
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; font-size:13.5px; margin-bottom:4px;">
+        <div><b>Student Name:</b> ${studentName}</div>
+        <div><b>Term/Session:</b> ${term || "—"}</div>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:13.5px; margin-bottom:14px;">
+        <div><b>Class:</b> ${className}</div>
+        <div><b>Position:</b> ${position}</div>
+      </div>
+
+      <table style="width:100%; border-collapse:collapse; font-size:13px;">
+        <thead>
+          <tr style="background:var(--navy); color:#fff;">
+            <th style="padding:6px 8px; text-align:left;">S/N</th>
+            <th style="padding:6px 8px; text-align:left;">SUBJECT</th>
+            <th style="padding:6px 8px;">TEST (40)</th>
+            <th style="padding:6px 8px;">EXAM (60)</th>
+            <th style="padding:6px 8px;">TOTAL (100)</th>
+            <th style="padding:6px 8px;">GRADE</th>
+            <th style="padding:6px 8px;">REMARK</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  subjectRows.forEach((row, idx) => {
+    const bg = idx % 2 === 0 ? "#fff" : "#FAF8F3";
+    html += `
+      <tr style="background:${bg}; border-bottom:1px solid var(--line);">
+        <td style="padding:5px 8px;">${row[0] ?? ""}</td>
+        <td style="padding:5px 8px;">${row[1] ?? ""}</td>
+        <td style="padding:5px 8px; text-align:center;">${row[2] ?? ""}</td>
+        <td style="padding:5px 8px; text-align:center;">${row[3] ?? ""}</td>
+        <td style="padding:5px 8px; text-align:center; font-weight:600;">${row[4] ?? ""}</td>
+        <td style="padding:5px 8px; text-align:center;">${row[5] ?? ""}</td>
+        <td style="padding:5px 8px; text-align:center;">${row[6] ?? ""}</td>
+      </tr>
+    `;
   });
-  html += "</table>";
-  html += `<button onclick="window.print()" class="submit-btn" style="margin-top:16px;">🖨️ Print this report card</button>`;
+
+  html += `
+        </tbody>
+      </table>
+
+      <div style="margin-top:14px; font-size:13.5px;">
+        <div><b>Total Score:</b> ${totalScore}</div>
+        <div><b>Average:</b> ${average}</div>
+        <div><b>Percentage:</b> ${percentage}</div>
+      </div>
+
+      <div style="margin-top:14px; font-size:13.5px;">
+        <b>Class Teacher's Comment:</b>
+        <div style="border:1px solid var(--line); padding:8px; margin-top:4px; min-height:20px;">${teacherComment}</div>
+      </div>
+
+      <div style="margin-top:10px; font-size:13.5px;">
+        <b>Principal's Comment:</b>
+        <div style="border:1px solid var(--line); padding:8px; margin-top:4px; min-height:20px;">${principalComment}</div>
+      </div>
+    </div>
+
+    <button id="printReportCardBtn" onclick="window.print()" class="submit-btn" style="margin-top:16px;">🖨️ Print this report card</button>
+  `;
+
   resultBox.innerHTML = html;
 }
 

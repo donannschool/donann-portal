@@ -100,6 +100,37 @@
     background: #FDF3E7; border: 1px solid #E8C99A; color: #7A5426; font-size: 13px;
     padding: 12px 16px; border-radius: 4px; margin-bottom: 20px; max-width: 700px;
   }
+
+  /* PRINT STYLES: when printing, show ONLY the report card, formatted to fit one page */
+  @media print {
+    body * {
+      visibility: hidden;
+    }
+    #printableReportCard, #printableReportCard * {
+      visibility: visible;
+    }
+    #printableReportCard {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      padding: 12px 20px;
+    }
+    #printableReportCard table {
+      font-size: 11px;
+      width: 100%;
+    }
+    #printableReportCard th, #printableReportCard td {
+      padding: 4px 8px !important;
+    }
+    #printReportCardBtn {
+      display: none;
+    }
+    @page {
+      size: A4;
+      margin: 10mm;
+    }
+  }
 </style>
 </head>
 <body>
