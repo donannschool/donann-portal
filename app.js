@@ -218,6 +218,18 @@ document.getElementById("ctGenerateReportBtn")?.addEventListener("click", async 
   }
 });
 
+function getPrincipalComment(percentage) {
+  const pct = Number(percentage);
+  if (isNaN(pct)) return "";
+  if (pct >= 90) return "Outstanding performance, keep it up!";
+  if (pct >= 80) return "An excellent result, bravo!";
+  if (pct >= 70) return "Very good result, keep pushing higher.";
+  if (pct >= 60) return "A little above average, well done — do better next term.";
+  if (pct >= 50) return "Average performance — don't relent, put in more effort.";
+  if (pct >= 40) return "Below average — you need to buckle up with your studies.";
+  return "Very poor performance — try harder next term.";
+}
+
 function renderReportCard(rows) {
   const resultBox = document.getElementById("ctReportCardResult");
 
@@ -241,16 +253,26 @@ function renderReportCard(rows) {
     i++;
   }
 
-  // find Total/Average/Percentage/comments after the subject rows
-  let totalScore = "", average = "", percentage = "", teacherComment = "", principalComment = "";
+  let totalScore = "", average = "", percentage = "";
   for (let j = i; j < rows.length; j++) {
     const label = (rows[j][0] || "").toLowerCase();
     if (label.includes("total score")) totalScore = rows[j][2] || "";
     if (label.includes("average")) average = rows[j][2] || "";
     if (label.includes("percentage")) percentage = rows[j][2] || "";
-    if (label.includes("class teacher")) teacherComment = rows[j + 1]?.[0] || "";
-    if (label.includes("principal")) principalComment = rows[j + 1]?.[0] || "";
   }
+
+  const principalComment = getPrincipalComment(percentage);
+
+  reportCardState = { studentName, term, className, position, subjectRows, totalScore, average, percentage, principalComment, teacherComment: "" };
+  drawReportCard();
+}
+
+let reportCardState = null;
+
+function drawReportCard() {
+  if (!reportCardState) return;
+  const { studentName, term, className, position, subjectRows, totalScore, average, percentage, principalComment, teacherComment } = reportCardState;
+  const resultBox = document.getElementById("ctReportCardResult");
 
   let html = `
     <div id="printableReportCard" style="background:#fff; border:1px solid var(--line); border-radius:4px; padding:24px; margin-top:16px;">
@@ -313,12 +335,15 @@ function renderReportCard(rows) {
 
       <div style="margin-top:14px; font-size:13.5px;">
         <b>Class Teacher's Comment:</b>
-        <div style="border:1px solid var(--line); padding:8px; margin-top:4px; min-height:20px;">${teacherComment}</div>
+        <textarea id="teacherCommentInput" rows="2"
+          style="width:100%; border:1px solid var(--line); padding:8px; margin-top:4px; font-family:inherit; font-size:13.5px; resize:vertical;"
+          placeholder="Type your comment for this student…">${teacherComment}</textarea>
+        <div id="teacherCommentPrintView" class="print-only" style="display:none; border:1px solid var(--line); padding:8px; margin-top:4px; min-height:20px;">${teacherComment}</div>
       </div>
 
       <div style="margin-top:10px; font-size:13.5px;">
-        <b>Principal's Comment:</b>
-        <div style="border:1px solid var(--line); padding:8px; margin-top:4px; min-height:20px;">${principalComment}</div>
+        <b>Principal's Comment:</b> <span style="font-size:11px; color:#8A8477;">(auto-generated from percentage, not editable)</span>
+        <div style="border:1px solid var(--line); padding:8px; margin-top:4px; min-height:20px; background:#FAF8F3;">${principalComment}</div>
       </div>
     </div>
 
@@ -326,6 +351,16 @@ function renderReportCard(rows) {
   `;
 
   resultBox.innerHTML = html;
+
+  // Keep the print-only div in sync with what she types, since some browsers
+  // don't reliably print live textarea content — this guarantees the printed
+  // version always shows exactly what she typed.
+  const input = document.getElementById("teacherCommentInput");
+  const printView = document.getElementById("teacherCommentPrintView");
+  input.addEventListener("input", (e) => {
+    reportCardState.teacherComment = e.target.value;
+    printView.textContent = e.target.value;
+  });
 }
 
 async function loadAssignment(assignment) {
