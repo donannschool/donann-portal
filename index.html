@@ -598,11 +598,11 @@
       const user = data.user;
       const role = user?.user_metadata?.role; // e.g. 'student', 'staff', 'admin'
       if (role === 'student') {
-        window.location.href = 'student-dashboard.html';
+        window.location.href = 'student.html';
       } else if (role === 'admin') {
-        window.location.href = 'admin-dashboard.html';
+        window.location.href = 'admin.html';
       } else {
-        window.location.href = 'staff-dashboard.html';
+        window.location.href = 'staff.html';
       }
     });
   </script>
