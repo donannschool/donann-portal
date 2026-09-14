@@ -439,8 +439,8 @@
   <div id="credentials-modal" class="hidden fixed inset-0 z-50 bg-navy-dark/60 flex items-center justify-center p-4">
     <div class="modal-enter bg-white max-w-md w-full p-8 border-t-4 border-sky">
       <p class="text-xs uppercase tracking-wide text-sky font-medium mb-2">Account created</p>
-      <h2 class="font-display text-2xl text-navy mb-4">Portal login generated</h2>
-      <p class="text-sm text-navy/60 mb-5">Share these with the student's parent/guardian. The student should change their password after first login if that feature is enabled.</p>
+      <h2 id="cred-modal-title" class="font-display text-2xl text-navy mb-4">Portal login generated</h2>
+      <p id="cred-modal-subtitle" class="text-sm text-navy/60 mb-5">Share these with the student's parent/guardian. The student should change their password after first login if that feature is enabled.</p>
       <div class="space-y-3 mb-6">
         <div class="flex items-center justify-between bg-[#F5F7FA] border border-navy/10 px-4 py-3">
           <div>
@@ -470,8 +470,8 @@
     // =================================================================
     // 1. INITIALIZE — replace with your real Supabase project values
     // =================================================================
-    const SUPABASE_URL = 'https://fenalkzgdfqaqpeoffub.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_n9AvI5YHzv51tqHzxjSAog_h85DjytA';
+    const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
 
     const isSupabaseConfigured =
       typeof SUPABASE_URL === 'string' &&
@@ -1008,6 +1008,9 @@
       loadStats();
 
       if (generatedUsername) {
+        document.getElementById('cred-modal-title').textContent = 'Portal login generated';
+        document.getElementById('cred-modal-subtitle').textContent =
+          "Share these with the student's parent/guardian. The student should change their password after first login if that feature is enabled.";
         document.getElementById('cred-username').textContent = generatedUsername;
         document.getElementById('cred-password').textContent = generatedPassword;
         document.getElementById('credentials-modal').classList.remove('hidden');
@@ -1226,6 +1229,72 @@
 
     renderAllAssignmentRows();
 
+    // =================================================================
+    // STAFF PORTAL CREDENTIALS GENERATION
+    // =================================================================
+    // Mirrors the student credential pattern, but staff don't have a DOB
+    // field to derive a password from, so a short random alphanumeric
+    // string is used instead.
+    //
+    // Username pattern: an honorific if one was typed into the name field
+    // (e.g. "Mrs Chisom Adiri" -> "MrsChisom"), otherwise FirstNameSurname
+    // (e.g. "Chisom Adiri" -> "ChisomAdiri"). A numeric suffix is appended
+    // only if needed to resolve a collision, matching the student flow.
+    const HONORIFICS = ['MR', 'MRS', 'MISS', 'MS', 'DR', 'PROF', 'REV', 'ENGR', 'BARR'];
+
+    function formatStaffUsernameBase(fullName) {
+      const parts = fullName.trim().split(/\s+/).filter(Boolean);
+      if (!parts.length) return 'Staff';
+
+      const titleCase = (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+      const firstUpper = (parts[0] || '').toUpperCase().replace(/\./g, '');
+
+      if (HONORIFICS.includes(firstUpper) && parts.length > 1) {
+        // "Mrs Chisom Adiri" -> honorific + first given name -> "MrsChisom"
+        return titleCase(firstUpper) + titleCase(parts[1]);
+      }
+
+      // No honorific typed: FirstName + Surname, e.g. "ChisomAdiri"
+      const first = parts[0];
+      const last = parts.length > 1 ? parts[parts.length - 1] : '';
+      return titleCase(first) + (last ? titleCase(last) : '');
+    }
+
+    // Temp password: 8-character random alphanumeric string, easy to read
+    // and type (excludes visually ambiguous characters like 0/O, 1/l/I).
+    function generateStaffTempPassword() {
+      const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+      let out = '';
+      for (let i = 0; i < 8; i++) out += chars.charAt(Math.floor(Math.random() * chars.length));
+      return out;
+    }
+
+    async function generateUniqueStaffUsername(fullName) {
+      const base = formatStaffUsernameBase(fullName);
+      if (!supabaseClient) return base + Math.floor(Math.random() * 9 + 1);
+
+      // Check the base with no suffix first, mirroring how a human admin
+      // would expect the cleanest possible username.
+      const { data: exact, error: exactErr } = await supabaseClient
+        .from('staff')
+        .select('id')
+        .eq('portal_username', base)
+        .limit(1);
+      if (!exactErr && (!exact || exact.length === 0)) return base;
+
+      for (let suffix = 1; suffix <= 50; suffix++) {
+        const candidate = base + suffix;
+        const { data, error } = await supabaseClient
+          .from('staff')
+          .select('id')
+          .eq('portal_username', candidate)
+          .limit(1);
+        if (!error && (!data || data.length === 0)) return candidate;
+      }
+      // Extremely unlikely fallback
+      return base + Date.now().toString().slice(-4);
+    }
+
     const staffForm = document.getElementById('staff-form');
     const staffStatus = document.getElementById('staff-status');
     const staffBtn = document.getElementById('staff-btn');
@@ -1237,12 +1306,24 @@
       staffBtn.disabled = true;
       staffBtn.textContent = 'Registering…';
 
+      const fullName = document.getElementById('st-name').value.trim();
+
+      // Generate portal credentials up front so they can be attached to
+      // the very insert that creates the profile row — no auth.signUp(),
+      // no server call, nothing that could touch or replace the admin's
+      // own session.
+      const generatedUsername = await generateUniqueStaffUsername(fullName);
+      const generatedPassword = generateStaffTempPassword();
+
       const payload = {
-        full_name: document.getElementById('st-name').value.trim(),
+        full_name: fullName,
         email: document.getElementById('st-email').value.trim(),
         role: document.getElementById('st-role').value,
         phone: document.getElementById('st-phone').value.trim() || null,
         status: 'Active',
+        portal_username: generatedUsername,
+        portal_temp_password: generatedPassword,
+        credentials_generated_at: new Date().toISOString(),
       };
 
       const { data: staffRow, error } = await supabaseClient.from('staff').insert(payload).select().single();
@@ -1292,6 +1373,16 @@
       staffBtn.disabled = false;
       staffBtn.textContent = 'Register staff member';
       showStatus(staffStatus, `${payload.full_name} has been added to the staff roster.`, false);
+
+      // Show the generated login straight away so it can be copied and
+      // texted to the teacher — this is the only place these credentials
+      // are surfaced, since no invite email is being sent.
+      document.getElementById('cred-modal-title').textContent = 'Staff portal login generated';
+      document.getElementById('cred-modal-subtitle').textContent =
+        `Copy these and send them to ${payload.full_name} directly. They should change the password after first login if that feature is enabled.`;
+      document.getElementById('cred-username').textContent = generatedUsername;
+      document.getElementById('cred-password').textContent = generatedPassword;
+      document.getElementById('credentials-modal').classList.remove('hidden');
       staffForm.reset();
       assignmentRows = [];
       renderAllAssignmentRows();
