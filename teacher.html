@@ -141,6 +141,9 @@
         <p id="masterclass-subtitle" class="text-navy/60 mb-6"></p>
 
         <div class="flex flex-wrap gap-3 mb-6">
+          <div id="master-class-wrap" class="hidden">
+            <select id="master-class" class="field-input text-sm max-w-[220px]"></select>
+          </div>
           <select id="master-session" class="field-input text-sm max-w-[220px]"></select>
           <select id="master-term" class="field-input text-sm max-w-[160px]">
             <option>1st Term</option><option>2nd Term</option><option>3rd Term</option>
@@ -201,7 +204,7 @@
     // =================================================================
     let currentStaff = null;        // row from `staff` table
     let currentAssignments = [];    // staff_subject_assignments joined with class/subject
-    let currentClassTeacherOf = null; // { classId, className } or null
+    let currentClassTeacherOf = []; // array of { classId, className }, empty if not a class teacher
     let sessionsCache = [];
     let classesCache = [];
     let activeAssignment = null;    // currently selected { classId, subjectId, className, subjectName }
@@ -342,23 +345,43 @@
       }));
       renderAssignmentList();
 
-      // 4. Class teacher check — show/hide the Master Sheet tab entirely
-      const { data: classTeacherRow } = await supabaseClient
+      // 4. Class teacher check — show/hide the Master Sheet tab entirely.
+      // A teacher can be class teacher of more than one class (common at
+      // Crèche–Primary level, e.g. one teacher covering both Crèche and
+      // KG1), so this loads every assignment, not just one.
+      const { data: classTeacherRows } = await supabaseClient
         .from('staff_class_teacher')
         .select('class_id, classes(class_name)')
-        .eq('staff_id', currentStaff.id)
-        .maybeSingle();
+        .eq('staff_id', currentStaff.id);
 
       const masterTab = document.querySelector('[data-tab="masterclass"]');
-      if (classTeacherRow) {
-        currentClassTeacherOf = { classId: classTeacherRow.class_id, className: classTeacherRow.classes?.class_name };
+      if (classTeacherRows && classTeacherRows.length) {
+        currentClassTeacherOf = classTeacherRows.map(r => ({
+          classId: r.class_id, className: r.classes?.class_name,
+        }));
         masterTab.classList.remove('hidden');
+        populateMasterClassSelect();
         document.getElementById('masterclass-subtitle').textContent =
-          `Read-only overview for ${currentClassTeacherOf.className}. Subject scores are entered by each subject teacher.`;
+          currentClassTeacherOf.length > 1
+            ? 'Read-only overview for your assigned classes. Subject scores are entered by each subject teacher.'
+            : `Read-only overview for ${currentClassTeacherOf[0].className}. Subject scores are entered by each subject teacher.`;
       } else {
-        currentClassTeacherOf = null;
+        currentClassTeacherOf = [];
         masterTab.classList.add('hidden');
       }
+    }
+
+    function populateMasterClassSelect() {
+      const wrap = document.getElementById('master-class-wrap');
+      const select = document.getElementById('master-class');
+      if (currentClassTeacherOf.length <= 1) {
+        wrap.classList.add('hidden');
+        return;
+      }
+      wrap.classList.remove('hidden');
+      select.innerHTML = currentClassTeacherOf
+        .map(c => `<option value="${c.classId}">${escapeHtml(c.className || 'Unnamed class')}</option>`)
+        .join('');
     }
 
     function populateSessionSelect(id) {
@@ -509,10 +532,19 @@
     // =================================================================
     document.getElementById('master-session').addEventListener('change', loadMasterSheet);
     document.getElementById('master-term').addEventListener('change', loadMasterSheet);
+    document.getElementById('master-class').addEventListener('change', loadMasterSheet);
     document.querySelector('[data-tab="masterclass"]')?.addEventListener('click', loadMasterSheet);
 
+    function getSelectedMasterClass() {
+      if (!currentClassTeacherOf.length) return null;
+      if (currentClassTeacherOf.length === 1) return currentClassTeacherOf[0];
+      const selectedId = document.getElementById('master-class').value;
+      return currentClassTeacherOf.find(c => c.classId === selectedId) || currentClassTeacherOf[0];
+    }
+
     async function loadMasterSheet() {
-      if (!currentClassTeacherOf) return;
+      const activeClass = getSelectedMasterClass();
+      if (!activeClass) return;
       const rowsEl = document.getElementById('master-rows');
       rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="4">Loading class roster…</td></tr>';
 
@@ -524,7 +556,7 @@
       const { data: students } = await supabaseClient
         .from('students')
         .select('id, full_name')
-        .eq('current_class_id', currentClassTeacherOf.classId)
+        .eq('current_class_id', activeClass.classId)
         .eq('is_active', true)
         .order('full_name');
 
