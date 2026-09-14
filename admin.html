@@ -190,8 +190,16 @@
               <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Student details</p>
               <div class="grid sm:grid-cols-2 gap-5">
                 <div>
-                  <label class="field-label" for="en-name">Full name</label>
-                  <input id="en-name" class="field-input" type="text" required>
+                  <label class="field-label" for="en-surname">Surname</label>
+                  <input id="en-surname" class="field-input" type="text" required>
+                </div>
+                <div>
+                  <label class="field-label" for="en-firstname">First name</label>
+                  <input id="en-firstname" class="field-input" type="text" required>
+                </div>
+                <div>
+                  <label class="field-label" for="en-othernames">Other names</label>
+                  <input id="en-othernames" class="field-input" type="text" placeholder="Optional">
                 </div>
                 <div>
                   <label class="field-label" for="en-class">Class</label>
@@ -250,6 +258,10 @@
             <div>
               <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Parent / guardian contact</p>
               <div class="grid sm:grid-cols-2 gap-5">
+                <div class="sm:col-span-2">
+                  <label class="field-label" for="en-parent-name">Parent / guardian name</label>
+                  <input id="en-parent-name" class="field-input" type="text">
+                </div>
                 <div class="sm:col-span-2">
                   <label class="field-label" for="en-parent-address">Contact address</label>
                   <input id="en-parent-address" class="field-input" type="text">
@@ -951,7 +963,13 @@
 
       const classId = document.getElementById('en-class').value;
       const cls = classesCache.find(c => c.id === classId);
-      const fullName = document.getElementById('en-name').value.trim();
+      const surname = document.getElementById('en-surname').value.trim();
+      const firstName = document.getElementById('en-firstname').value.trim();
+      const otherNames = document.getElementById('en-othernames').value.trim();
+      // full_name stays derived from the three parts so every existing
+      // reference to it (username generation, credentials modal, staff
+      // lookups, etc.) keeps working without being rewritten.
+      const fullName = [surname, firstName, otherNames].filter(Boolean).join(' ');
       const dob = document.getElementById('en-dob').value;
 
       // Look up department id (defaults to General; app supplies explicitly
@@ -966,11 +984,15 @@
 
       const payload = {
         full_name: fullName,
+        surname: surname,
+        first_name: firstName,
+        other_names: otherNames || null,
         gender: document.getElementById('en-gender').value,
         date_of_birth: dob,
         religion: document.getElementById('en-religion').value.trim() || null,
         blood_group: document.getElementById('en-blood').value || null,
         allergies: document.getElementById('en-allergies').value.trim() || null,
+        parent_name: document.getElementById('en-parent-name').value.trim() || null,
         parent_contact_address: document.getElementById('en-parent-address').value.trim() || null,
         parent_email: document.getElementById('en-parent-email').value.trim() || null,
         parent_phone: document.getElementById('en-parent-phone').value.trim(),
