@@ -470,8 +470,8 @@
     // =================================================================
     // 1. INITIALIZE — replace with your real Supabase project values
     // =================================================================
-    const SUPABASE_URL = 'https://fenalkzgdfqaqpeoffub.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_n9AvI5YHzv51tqHzxjSAog_h85DjytA';
+    const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
 
     const isSupabaseConfigured =
       typeof SUPABASE_URL === 'string' &&
@@ -580,14 +580,51 @@
     const EARLY_YEARS_TIERS = ['CRECHE', 'TODDLER', 'PRE-KINDERGARTEN', 'PRE KINDERGARTEN', 'NURSERY 1', 'NURSERY 2', 'KG 1', 'KG 2'];
     const PRIMARY_TIERS = ['PRIMARY 1', 'PRIMARY 2', 'PRIMARY 3', 'PRIMARY 4', 'PRIMARY 5'];
 
-    const EARLY_YEARS_SUBJECTS = ['Numeracy', 'Literacy', 'Phonics', 'Science/Sensory Play', 'Social Habits', 'Creative Arts', 'Understanding the World'];
-    const PRIMARY_SUBJECTS = ['Mathematics', 'English Studies', 'Basic Science & Tech', 'NVE', 'CCA', 'Pre-Vocational', 'CRS', 'History', 'Verbal', 'Quantitative', 'Handwriting', 'Computer', 'French', 'Local Language'];
+    // Strict per-class curriculum blueprint. "ALL SUBJECTS" now maps to
+    // the exact list for the SPECIFIC class the row targets, instead of
+    // one shared list for a whole tier — so a teacher covering both
+    // Crèche and KG 1 gets Crèche's placeholder entry AND KG 1's own
+    // 8 subjects, never a blended/incorrect set.
+    //
+    // Crèche has no real subjects — a single non-numeric placeholder
+    // ('General Performance') is used for promotion/comment tracking.
+    const CLASS_SUBJECT_MAP = {
+      'CRECHE': ['General Performance'],
+      'KG 1': ['Number work', 'Letter work', 'Health habit', 'Social Habit', 'Poem', 'Fine Art', 'CRS', 'Science'],
+      'KG 2': ['Number work', 'Letter work', 'Health habit', 'Social Habit', 'Poem', 'Creative Art', 'CRS', 'Science', 'Quantitative', 'Verbal'],
+      'NURSERY 1': ['Mathematics', 'English', 'Writing', 'Social Habit', 'Health Habit', 'Spellings', 'Science', 'Creative Arts', 'CRK', 'Quantitative', 'Verbal'],
+      'NURSERY 2': ['Mathematics', 'English', 'Writing', 'Social Habit', 'Health Habit', 'Spellings', 'Science', 'Creative Arts', 'CRK', 'Quantitative', 'Verbal'],
+      'PRIMARY 1': ['Mathematics', 'English', 'PHE', 'Spelling', 'Social studies', 'Handwriting', 'Basic science', 'CCA', 'CRK', 'Quantitative', 'Verbal'],
+      'PRIMARY 2': ['Mathematics', 'English', 'PHE', 'Spelling', 'Social studies', 'Handwriting', 'Basic science', 'CCA', 'CRK', 'Civic Education', 'Home Economics', 'Computer', 'Quantitative', 'Verbal'],
+      'PRIMARY 3': ['Mathematics', 'English', 'PHE', 'Spelling', 'Social studies', 'Handwriting', 'Basic science', 'CCA', 'CRK', 'History', 'Civic Education', 'Home Economics', 'Computer', 'Quantitative', 'Verbal'],
+      'PRIMARY 4': ['Mathematics', 'English', 'PHE', 'Spelling', 'Social studies', 'Handwriting', 'Basic science', 'CCA', 'CRK', 'History', 'Civic Education', 'Agric', 'Home Economics', 'Computer', 'Quantitative', 'Verbal'],
+      'PRIMARY 5': ['Mathematics', 'English', 'PHE', 'Spelling', 'Social studies', 'Handwriting', 'Basic science', 'CCA', 'CRK', 'History', 'Civic Education', 'Home Economics', 'Computer', 'Quantitative', 'Verbal'],
+    };
+
+    // A single non-numeric marker so downstream reporting/gradebook code
+    // can recognise "General Performance" as text-comment/promotion-only
+    // and never render a numeric score field for it.
+    const NON_NUMERIC_SUBJECTS = ['General Performance'];
 
     function classTier(className) {
       const upper = (className || '').toUpperCase().trim();
       if (EARLY_YEARS_TIERS.includes(upper)) return 'early-years';
       if (PRIMARY_TIERS.includes(upper)) return 'primary';
       return 'secondary';
+    }
+
+    // Returns the exact subject list for one specific class name (used by
+    // ALL SUBJECTS mapping). Falls back to an empty list — logged via
+    // console.warn — if a class isn't in the blueprint yet, rather than
+    // silently borrowing another class's subjects.
+    function subjectsForClass(className) {
+      const upper = (className || '').toUpperCase().trim();
+      const list = CLASS_SUBJECT_MAP[upper];
+      if (!list) {
+        console.warn(`No curriculum blueprint entry for class "${className}" — ALL SUBJECTS mapping skipped for this class.`);
+        return [];
+      }
+      return list;
     }
 
     async function loadReferenceData() {
@@ -1061,10 +1098,22 @@
 
       let subjectAreaHtml;
       if (smartTier && row.allSubjects) {
-        const list = smartTier === 'early-years' ? EARLY_YEARS_SUBJECTS : PRIMARY_SUBJECTS;
+        // Mapping is strictly per-class now — a row spanning e.g. Crèche
+        // + KG 1 shows Crèche's placeholder AND KG 1's own 8 subjects,
+        // never one blended list. Build one line per selected class.
+        const perClassHtml = Array.from(row.selectedClassIds).map(classId => {
+          const cls = classesCache.find(c => c.id === classId);
+          const className = cls ? cls.class_name : '';
+          const list = subjectsForClass(className);
+          if (!list.length) return '';
+          return `
+            <div class="text-sm text-navy/70">
+              <span class="font-medium text-navy">${escapeHtml(className)} (${list.length}):</span> ${list.map(escapeHtml).join(', ')}
+            </div>`;
+        }).join('');
         subjectAreaHtml = `
-          <div class="text-sm text-navy/70 bg-white border border-navy/10 px-3 py-2">
-            <span class="font-medium text-navy">Mapped subjects (${list.length}):</span> ${list.map(escapeHtml).join(', ')}
+          <div class="space-y-2 bg-white border border-navy/10 px-3 py-2">
+            ${perClassHtml || '<p class="text-sm text-navy/40">No classes selected yet.</p>'}
           </div>`;
       } else {
         const subjectOpts = subjectsCache.map(s => `<option value="${s.id}" ${row.subjectId === s.id ? 'selected' : ''}>${escapeHtml(s.subject_name)}</option>`).join('');
@@ -1121,11 +1170,16 @@
       return wrap;
     }
 
-    // Expands all rows into flat { classId, className, subjectId, subjectName }
+    // Expands all rows into flat { classId, className, subjectId, subjectName, isNonNumeric }
     // records ready to insert into staff_subject_assignments. For an
-    // ALL SUBJECTS row, this maps every mapped-curriculum subject name to
-    // a real subject_id via subjectsCache (by name, case-insensitive),
-    // skipping any subject not found in the database with a console warning.
+    // ALL SUBJECTS row, mapping is done STRICTLY PER CLASS via
+    // CLASS_SUBJECT_MAP / subjectsForClass — never per-tier — so a
+    // teacher covering multiple rooms (e.g. Crèche + KG 1) gets Crèche's
+    // 'General Performance' placeholder for the Crèche allocation and
+    // KG 1's exact 8 subjects for the KG 1 allocation, with no bleed
+    // between classes. Subject names are matched to a real subject_id
+    // via subjectsCache (by name, case-insensitive); anything not found
+    // in the database is skipped with a console warning.
     function expandAssignmentRows() {
       const out = [];
       const seen = new Set();
@@ -1135,25 +1189,35 @@
         if (!classIds.length) continue;
 
         const tier = rowTierSummary(row);
-        let subjectNames;
-        if (row.allSubjects && (tier === 'early-years' || tier === 'primary')) {
-          subjectNames = tier === 'early-years' ? EARLY_YEARS_SUBJECTS : PRIMARY_SUBJECTS;
-        } else if (row.subjectId) {
-          const s = subjectsCache.find(s => s.id === row.subjectId);
-          subjectNames = s ? [s.subject_name] : [];
-        } else {
-          continue;
-        }
+        const isSmartRow = row.allSubjects && (tier === 'early-years' || tier === 'primary');
 
         for (const classId of classIds) {
           const className = classesCache.find(c => c.id === classId)?.class_name || '';
+
+          let subjectNames;
+          if (isSmartRow) {
+            // Per-class lookup — NOT a shared tier list.
+            subjectNames = subjectsForClass(className);
+          } else if (row.subjectId) {
+            const s = subjectsCache.find(s => s.id === row.subjectId);
+            subjectNames = s ? [s.subject_name] : [];
+          } else {
+            continue;
+          }
+
           for (const subjectName of subjectNames) {
             const subj = subjectsCache.find(s => s.subject_name.toLowerCase() === subjectName.toLowerCase());
             if (!subj) { console.warn(`Subject "${subjectName}" not found in subjects table — skipped.`); continue; }
             const key = `${classId}::${subj.id}`;
             if (seen.has(key)) continue;
             seen.add(key);
-            out.push({ classId, className, subjectId: subj.id, subjectName: subj.subject_name });
+            out.push({
+              classId,
+              className,
+              subjectId: subj.id,
+              subjectName: subj.subject_name,
+              isNonNumeric: NON_NUMERIC_SUBJECTS.includes(subj.subject_name),
+            });
           }
         }
       }
