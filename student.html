@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Student Portal — Don-Ann Schools</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+
+<!-- Tailwind CSS v4 official browser build -->
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3"></script>
+
+<!-- Supabase client SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style type="text/tailwindcss">
+  @theme {
+    --font-display: 'Fraunces', serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --color-navy: #1B3A6B;
+    --color-navy-dark: #12203A;
+    --color-sky: #2E6BB8;
+    --color-brown: #6B4226;
+  }
+
+  body { font-family: 'Inter', sans-serif; }
+  .font-display { font-family: 'Fraunces', serif; }
+  .font-mono { font-family: 'JetBrains Mono', monospace; }
+  ::selection { background: #2E6BB8; color: white; }
+
+  .notice-border {
+    border: 2px solid #1B3A6B;
+    box-shadow: 5px 5px 0 #2E6BB8;
+  }
+
+  .seal {
+    background: radial-gradient(circle at 30% 30%, #2E6BB8, #1B3A6B 70%);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .fade-in { animation: fadeIn 0.5s ease-out both; }
+    @keyframes fadeIn { from { opacity:0; transform: translateY(6px);} to {opacity:1; transform:none;} }
+  }
+
+  /* ---- Print styles: only the report card sheet is shown, everything else vanishes ---- */
+  @media print {
+    @page { size: A4 portrait; margin: 12mm; }
+    body * { visibility: hidden; }
+    #print-sheet, #print-sheet * { visibility: visible; }
+    #print-sheet {
+      position: absolute; inset: 0; width: 100%;
+      box-shadow: none !important; border: none !important;
+    }
+    .no-print { display: none !important; }
+  }
+</style>
+</head>
+<body class="bg-[#F7F9FC] text-navy-dark min-h-screen">
+
+  <!-- ============ CONFIG BANNER ============ -->
+  <div id="config-banner" class="hidden bg-amber-50 border-b-2 border-amber-400 text-amber-900 text-sm text-center px-4 py-2">
+    This portal isn't connected to Supabase yet — add your project URL and anon key near the bottom of the file.
+  </div>
+
+  <!-- ============ TOP BAR ============ -->
+  <header class="no-print border-b-4 border-navy bg-white">
+    <div class="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-full border-2 border-navy bg-navy text-white flex items-center justify-center font-display text-base">DA</div>
+        <div>
+          <p class="font-display text-lg leading-none text-navy">Don-Ann Schools</p>
+          <p class="text-xs text-sky mt-1">Student Portal</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 text-sm">
+        <span id="student-name-pill" class="hidden sm:inline text-navy/60"></span>
+        <button id="logout-btn" class="border border-navy/30 text-navy px-4 py-2 hover:bg-navy hover:text-white transition-colors">
+          Sign out
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ NOT LOGGED IN ============ -->
+  <main id="state-guest" class="hidden max-w-md mx-auto px-6 py-24 text-center">
+    <p class="font-display text-2xl text-navy mb-3">You're not signed in</p>
+    <p class="text-navy/60 mb-6 leading-relaxed">Please sign in with your student username and password on the school portal to view your results.</p>
+    <a href="index.html#portal-login" class="inline-block bg-navy text-white px-6 py-3 font-medium hover:bg-navy-dark transition-colors">
+      Go to login
+    </a>
+  </main>
+
+  <!-- ============ LOADING ============ -->
+  <main id="state-loading" class="max-w-md mx-auto px-6 py-24 text-center text-navy/50">
+    Checking your account…
+  </main>
+
+  <!-- ============ PAYWALL: UNPAID ============ -->
+  <div id="paywall-overlay" class="hidden fixed inset-0 bg-navy-dark/90 z-50 flex items-center justify-center px-6">
+    <div class="notice-border bg-white max-w-sm w-full p-8 text-center fade-in">
+      <div class="w-14 h-14 rounded-full bg-red-50 border-2 border-red-300 text-red-600 flex items-center justify-center mx-auto mb-5 text-2xl">
+        &#128274;
+      </div>
+      <p class="font-display text-2xl text-navy mb-3">Access Denied</p>
+      <p class="text-navy/70 leading-relaxed mb-6">
+        Please contact the Bursar's office to settle outstanding term fees.
+      </p>
+      <div class="text-sm text-navy/50 border-t border-navy/10 pt-4 mb-6">
+        Clearance status for <span id="paywall-term" class="font-medium text-navy/70"></span>:
+        <span class="font-medium text-red-600">Unpaid</span>
+      </div>
+      <button id="paywall-signout" class="w-full bg-navy text-white py-3 font-medium hover:bg-navy-dark transition-colors">
+        Sign out
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ DASHBOARD (CLEARED) ============ -->
+  <main id="state-dashboard" class="hidden max-w-4xl mx-auto px-6 py-10">
+
+    <div class="no-print flex items-start justify-between gap-4 flex-wrap mb-8">
+      <div>
+        <p class="text-sky font-medium text-sm uppercase tracking-wide mb-1">Digital statement of results</p>
+        <h1 class="font-display text-3xl text-navy" id="dash-title">Report card</h1>
+      </div>
+      <button id="print-btn" class="bg-brown text-white px-5 py-3 font-medium hover:bg-brown/90 transition-colors flex items-center gap-2">
+        <span>&#128424;</span> Print report card
+      </button>
+    </div>
+
+    <!-- ===== PRINTABLE SHEET ===== -->
+    <div id="print-sheet" class="notice-border bg-white p-8 sm:p-10">
+
+      <!-- Sheet header -->
+      <div class="flex items-start justify-between gap-4 border-b-4 border-navy pb-5 mb-6">
+        <div class="flex items-center gap-4">
+          <div class="seal w-16 h-16 rounded-full text-white flex items-center justify-center font-display text-xl shrink-0">DA</div>
+          <div>
+            <p class="font-display text-xl sm:text-2xl text-navy leading-tight">Don-Ann Schools</p>
+            <p class="text-xs text-navy/60 italic">Peace Estate, Tedi Ojo, Lagos</p>
+            <p class="text-xs text-navy/60">Determined to be the best &middot; Est. 2015</p>
+          </div>
+        </div>
+        <div class="text-right">
+          <p class="font-mono text-xs text-navy/50 uppercase tracking-wide">Statement of results</p>
+          <p class="font-mono text-sm text-navy" id="sheet-term"></p>
+        </div>
+      </div>
+
+      <!-- Student identity strip -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm mb-8 pb-6 border-b border-navy/15">
+        <div>
+          <p class="text-navy/50 text-xs mb-1">Student name</p>
+          <p class="font-medium text-navy" id="stat-name">&mdash;</p>
+        </div>
+        <div>
+          <p class="text-navy/50 text-xs mb-1">Class</p>
+          <p class="font-medium text-navy" id="stat-class">&mdash;</p>
+        </div>
+        <div>
+          <p class="text-navy/50 text-xs mb-1">Username</p>
+          <p class="font-medium text-navy font-mono" id="stat-username">&mdash;</p>
+        </div>
+        <div>
+          <p class="text-navy/50 text-xs mb-1">Clearance status</p>
+          <p class="font-medium text-emerald-700">Cleared</p>
+        </div>
+      </div>
+
+      <!-- Scores table -->
+      <table class="w-full text-sm mb-8 border-collapse">
+        <thead>
+          <tr class="text-left text-navy/60 text-xs uppercase tracking-wide">
+            <th class="pb-2 border-b-2 border-navy">Subject</th>
+            <th class="pb-2 border-b-2 border-navy text-center">CA (40)</th>
+            <th class="pb-2 border-b-2 border-navy text-center">Exam (60)</th>
+            <th class="pb-2 border-b-2 border-navy text-center">Total (100)</th>
+            <th class="pb-2 border-b-2 border-navy text-center">Class avg.</th>
+            <th class="pb-2 border-b-2 border-navy text-center">Grade</th>
+          </tr>
+        </thead>
+        <tbody id="scores-body">
+          <!-- rows injected by JS -->
+        </tbody>
+      </table>
+
+      <!-- Summary + comments -->
+      <div class="grid sm:grid-cols-2 gap-6 mb-2">
+        <div class="border border-navy/15 p-5">
+          <p class="text-xs uppercase tracking-wide text-navy/50 mb-3">Term summary</p>
+          <div class="space-y-2 text-sm">
+            <div class="flex justify-between"><span class="text-navy/60">Total score</span><span class="font-medium text-navy" id="sum-total">&mdash;</span></div>
+            <div class="flex justify-between"><span class="text-navy/60">Overall percentage</span><span class="font-medium text-navy" id="sum-pct">&mdash;</span></div>
+            <div class="flex justify-between"><span class="text-navy/60">Number of subjects</span><span class="font-medium text-navy" id="sum-count">&mdash;</span></div>
+          </div>
+        </div>
+        <div class="border border-navy/15 p-5">
+          <p class="text-xs uppercase tracking-wide text-navy/50 mb-3">Principal's comment</p>
+          <p class="font-display text-lg text-navy" id="principal-comment">&mdash;</p>
+          <p class="text-xs text-navy/40 mt-1">Automatically generated from overall percentage</p>
+        </div>
+      </div>
+
+      <div class="border border-navy/15 p-5 mt-6">
+        <p class="text-xs uppercase tracking-wide text-navy/50 mb-2">Class teacher's comment</p>
+        <p class="text-navy/80 leading-relaxed" id="teacher-comment">&mdash;</p>
+      </div>
+
+      <!-- Signature strip -->
+      <div class="grid grid-cols-2 gap-8 mt-10 pt-6 border-t border-navy/15 text-sm">
+        <div>
+          <div class="border-b border-navy/40 h-10"></div>
+          <p class="text-xs text-navy/50 mt-1">Class teacher's signature</p>
+        </div>
+        <div>
+          <div class="border-b border-navy/40 h-10"></div>
+          <p class="text-xs text-navy/50 mt-1">Principal's signature</p>
+        </div>
+      </div>
+
+      <p class="text-center text-xs text-navy/30 mt-8">Generated on <span id="print-date"></span> &middot; Don-Ann Schools Student Portal</p>
+    </div>
+    <!-- ===== END PRINTABLE SHEET ===== -->
+
+  </main>
+
+  <script>
+    // ---------------------------------------------------------------
+    // SUPABASE SETUP — replace with your real project values.
+    // Everything below is guarded so that leaving these as placeholders
+    // will NOT crash the page: the dashboard will show a friendly
+    // "not connected yet" message instead of throwing console errors.
+    // ---------------------------------------------------------------
+    const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+    const isSupabaseConfigured =
+      typeof SUPABASE_URL === 'string' &&
+      typeof SUPABASE_ANON_KEY === 'string' &&
+      SUPABASE_URL.startsWith('https://') &&
+      !SUPABASE_URL.includes('YOUR_SUPABASE') &&
+      !SUPABASE_ANON_KEY.includes('YOUR_SUPABASE');
+
+    let supabaseClient = null;
+    if (isSupabaseConfigured) {
+      try {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      } catch (err) {
+        console.error('Supabase failed to initialise:', err);
+        supabaseClient = null;
+      }
+    } else {
+      document.getElementById('config-banner').classList.remove('hidden');
+      console.warn('Supabase is not configured yet — replace SUPABASE_URL and SUPABASE_ANON_KEY. Running in preview mode.');
+    }
+
+    // ---------------------------------------------------------------
+    // Element references
+    // ---------------------------------------------------------------
+    const stateGuest = document.getElementById('state-guest');
+    const stateLoading = document.getElementById('state-loading');
+    const stateDashboard = document.getElementById('state-dashboard');
+    const paywallOverlay = document.getElementById('paywall-overlay');
+    const studentNamePill = document.getElementById('student-name-pill');
+
+    function showOnly(el) {
+      [stateGuest, stateLoading, stateDashboard].forEach(s => s.classList.add('hidden'));
+      el.classList.remove('hidden');
+    }
+
+    // ---------------------------------------------------------------
+    // Grading helpers
+    // ---------------------------------------------------------------
+    function letterGrade(total) {
+      if (total >= 75) return 'A';
+      if (total >= 65) return 'B';
+      if (total >= 55) return 'C';
+      if (total >= 45) return 'D';
+      if (total >= 40) return 'E';
+      return 'F';
+    }
+
+    // Automated Principal's comment based on overall percentage tiers.
+    function principalComment(pct) {
+      if (pct >= 91) return 'OUTSTANDING!';
+      if (pct >= 81) return 'EXCELLENT';
+      if (pct >= 71) return 'Very good, keep it up';
+      if (pct >= 61) return 'Above average, keep pushing';
+      if (pct >= 51) return 'Average result, do better';
+      if (pct >= 41) return 'Below average, pick up';
+      return 'POOR PERFORMANCE';
+    }
+
+    function escapeHtml(str) {
+      const d = document.createElement('div');
+      d.textContent = str ?? '';
+      return d.innerHTML;
+    }
+
+    // ---------------------------------------------------------------
+    // AUTH CHECK
+    // Confirms the student authenticated via index.html's Supabase
+    // Auth session (username → synthetic email@donann.local mapping).
+    // ---------------------------------------------------------------
+    async function init() {
+      if (!supabaseClient) {
+        // Preview mode: nothing to check against, show guest state.
+        showOnly(stateGuest);
+        return;
+      }
+
+      showOnly(stateLoading);
+
+      const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+
+      if (sessionError || !session || !session.user) {
+        showOnly(stateGuest);
+        return;
+      }
+
+      const user = session.user;
+      const role = user?.user_metadata?.role;
+
+      // This page is for students only — redirect staff/admin elsewhere.
+      if (role && role !== 'student') {
+        window.location.href = 'staff-dashboard.html';
+        return;
+      }
+
+      await loadStudentData(user);
+    }
+
+    // ---------------------------------------------------------------
+    // LOAD STUDENT RECORD + CLEARANCE STATUS + SCORES
+    //
+    // Expected tables (adjust names/columns to match your schema):
+    //   students (id, auth_user_id, full_name, username, class_name)
+    //   clearance_ledger (student_id, term, status)            -- status: 'cleared' | 'unpaid'
+    //   report_scores (student_id, term, subject, ca_score,
+    //                  exam_score, total_score, class_average)
+    //   teacher_comments (student_id, term, comment)
+    //
+    // "Active term" is resolved from a school_settings table so the
+    // office can flip it once per term without touching this file.
+    // ---------------------------------------------------------------
+    async function loadStudentData(user) {
+      try {
+        // 1. Resolve the active term.
+        const { data: settings, error: settingsError } = await supabaseClient
+          .from('school_settings')
+          .select('active_term')
+          .single();
+
+        if (settingsError || !settings) {
+          throw new Error('Could not determine the active term.');
+        }
+        const activeTerm = settings.active_term;
+
+        // 2. Resolve the student record tied to this auth user.
+        const { data: student, error: studentError } = await supabaseClient
+          .from('students')
+          .select('id, full_name, username, class_name')
+          .eq('auth_user_id', user.id)
+          .single();
+
+        if (studentError || !student) {
+          throw new Error('Could not find your student record.');
+        }
+
+        studentNamePill.textContent = student.full_name;
+        studentNamePill.classList.remove('hidden');
+
+        // 3. PAYWALL GUARD — check clearance for the active term
+        //    BEFORE any score data is requested or rendered.
+        const { data: clearance, error: clearanceError } = await supabaseClient
+          .from('clearance_ledger')
+          .select('status')
+          .eq('student_id', student.id)
+          .eq('term', activeTerm)
+          .single();
+
+        const isCleared = !clearanceError && clearance && clearance.status === 'cleared';
+
+        if (!isCleared) {
+          document.getElementById('paywall-term').textContent = activeTerm;
+          paywallOverlay.classList.remove('hidden');
+          showOnly(stateLoading); // keep everything else hidden behind the modal
+          stateLoading.classList.add('hidden');
+          return; // hard stop — no score data is ever fetched or shown
+        }
+
+        // 4. Cleared — fetch scores and comment, then render.
+        const { data: scores, error: scoresError } = await supabaseClient
+          .from('report_scores')
+          .select('subject, ca_score, exam_score, total_score, class_average')
+          .eq('student_id', student.id)
+          .eq('term', activeTerm)
+          .order('subject', { ascending: true });
+
+        if (scoresError || !scores || scores.length === 0) {
+          throw new Error('No results have been published for this term yet.');
+        }
+
+        const { data: commentRow } = await supabaseClient
+          .from('teacher_comments')
+          .select('comment')
+          .eq('student_id', student.id)
+          .eq('term', activeTerm)
+          .single();
+
+        renderReportCard({
+          student,
+          activeTerm,
+          scores,
+          teacherComment: commentRow?.comment || 'No comment provided yet.',
+        });
+
+        showOnly(stateDashboard);
+
+      } catch (err) {
+        console.error(err);
+        showOnly(stateDashboard);
+        document.getElementById('scores-body').innerHTML =
+          `<tr><td colspan="6" class="py-6 text-center text-navy/50">${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // RENDER REPORT CARD
+    // ---------------------------------------------------------------
+    function renderReportCard({ student, activeTerm, scores, teacherComment }) {
+      document.getElementById('dash-title').textContent = `${student.full_name.split(' ')[0]}'s report card`;
+      document.getElementById('sheet-term').textContent = activeTerm;
+      document.getElementById('stat-name').textContent = student.full_name;
+      document.getElementById('stat-class').textContent = student.class_name;
+      document.getElementById('stat-username').textContent = student.username;
+
+      const tbody = document.getElementById('scores-body');
+      tbody.innerHTML = scores.map(row => `
+        <tr class="border-b border-navy/10">
+          <td class="py-2.5 font-medium text-navy">${escapeHtml(row.subject)}</td>
+          <td class="py-2.5 text-center">${escapeHtml(String(row.ca_score))}</td>
+          <td class="py-2.5 text-center">${escapeHtml(String(row.exam_score))}</td>
+          <td class="py-2.5 text-center font-medium">${escapeHtml(String(row.total_score))}</td>
+          <td class="py-2.5 text-center text-navy/60">${escapeHtml(String(row.class_average))}</td>
+          <td class="py-2.5 text-center font-medium">${letterGrade(row.total_score)}</td>
+        </tr>
+      `).join('');
+
+      const totalScore = scores.reduce((sum, r) => sum + Number(r.total_score), 0);
+      const maxPossible = scores.length * 100;
+      const overallPct = maxPossible > 0 ? (totalScore / maxPossible) * 100 : 0;
+
+      document.getElementById('sum-total').textContent = `${totalScore} / ${maxPossible}`;
+      document.getElementById('sum-pct').textContent = `${overallPct.toFixed(1)}%`;
+      document.getElementById('sum-count').textContent = scores.length;
+      document.getElementById('principal-comment').textContent = principalComment(overallPct);
+      document.getElementById('teacher-comment').textContent = teacherComment;
+      document.getElementById('print-date').textContent = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+
+    // ---------------------------------------------------------------
+    // PRINT + SIGN OUT
+    // ---------------------------------------------------------------
+    document.getElementById('print-btn').addEventListener('click', () => window.print());
+
+    async function signOut() {
+      if (supabaseClient) {
+        await supabaseClient.auth.signOut();
+      }
+      window.location.href = 'index.html';
+    }
+    document.getElementById('logout-btn').addEventListener('click', signOut);
+    document.getElementById('paywall-signout').addEventListener('click', signOut);
+
+    init();
+  </script>
+</body>
+</html>
