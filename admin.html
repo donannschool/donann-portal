@@ -444,7 +444,7 @@
       <div class="space-y-3 mb-6">
         <div class="flex items-center justify-between bg-[#F5F7FA] border border-navy/10 px-4 py-3">
           <div>
-            <p class="text-xs text-navy/50">Username</p>
+            <p id="cred-username-label" class="text-xs text-navy/50">Username</p>
             <p id="cred-username" class="font-display text-lg text-navy"></p>
           </div>
           <button data-copy="cred-username" class="copy-btn text-sky text-sm font-medium hover:underline">Copy</button>
@@ -1011,6 +1011,7 @@
         document.getElementById('cred-modal-title').textContent = 'Portal login generated';
         document.getElementById('cred-modal-subtitle').textContent =
           "Share these with the student's parent/guardian. The student should change their password after first login if that feature is enabled.";
+        document.getElementById('cred-username-label').textContent = 'Username';
         document.getElementById('cred-username').textContent = generatedUsername;
         document.getElementById('cred-password').textContent = generatedPassword;
         document.getElementById('credentials-modal').classList.remove('hidden');
@@ -1426,10 +1427,15 @@
       // Show the generated login straight away so it can be copied and
       // texted to the teacher — this is the only place these credentials
       // are surfaced, since no invite email is being sent.
+      // NOTE: Supabase Auth signs in with email + password, not the
+      // generated portal_username — so this modal must hand the teacher
+      // their email, not the username, or their login will fail even
+      // with the right password.
       document.getElementById('cred-modal-title').textContent = 'Staff portal login generated';
       document.getElementById('cred-modal-subtitle').textContent =
         `Copy these and send them to ${payload.full_name} directly. They should change the password after first login if that feature is enabled.`;
-      document.getElementById('cred-username').textContent = generatedUsername;
+      document.getElementById('cred-username-label').textContent = 'Login email';
+      document.getElementById('cred-username').textContent = teacherEmail;
       document.getElementById('cred-password').textContent = generatedPassword;
       document.getElementById('credentials-modal').classList.remove('hidden');
       staffForm.reset();
