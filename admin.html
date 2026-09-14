@@ -313,10 +313,10 @@
             </div>
 
             <div class="border-t border-navy/10 pt-5">
-              <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Class teacher assignment (optional, max 1 class)</p>
-              <select id="st-class-teacher" class="field-input">
-                <option value="">Not a class teacher</option>
-              </select>
+              <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Class teacher assignment (optional — select all that apply)</p>
+              <div id="st-class-teacher-grid" class="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto border border-navy/10 p-3">
+                <p class="text-sm text-navy/40 col-span-full">Loading classes…</p>
+              </div>
             </div>
 
             <div class="border-t border-navy/10 pt-5">
@@ -473,8 +473,8 @@
     // =================================================================
     // 1. INITIALIZE — replace with your real Supabase project values
     // =================================================================
-    const SUPABASE_URL = 'https://fenalkzgdfqaqpeoffub.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_n9AvI5YHzv51tqHzxjSAog_h85DjytA';
+    const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
 
     const isSupabaseConfigured =
       typeof SUPABASE_URL === 'string' &&
@@ -597,8 +597,29 @@
       const opts = classesCache.map(c => `<option value="${c.id}">${c.class_name}</option>`).join('');
       const enClass = document.getElementById('en-class');
       enClass.innerHTML = '<option value="" disabled selected>Select class</option>' + opts;
-      document.getElementById('st-class-teacher').innerHTML = '<option value="">Not a class teacher</option>' + opts;
       document.getElementById('st-assign-class').innerHTML = '<option value="">Class…</option>' + opts;
+      populateClassTeacherGrid();
+    }
+
+    // Class teacher assignment now supports multiple classes per staff
+    // member (e.g. one teacher covering both Crèche and KG 1), so this
+    // renders a checkbox grid instead of a single-select dropdown.
+    function populateClassTeacherGrid() {
+      const grid = document.getElementById('st-class-teacher-grid');
+      if (!classesCache.length) {
+        grid.innerHTML = '<p class="text-sm text-navy/40 col-span-full">No classes yet — run Initialize School Structure first.</p>';
+        return;
+      }
+      grid.innerHTML = classesCache.map(c => `
+        <label class="flex items-center gap-2 text-sm text-navy px-2 py-1.5 hover:bg-navy/5 cursor-pointer">
+          <input type="checkbox" name="st-class-teacher-option" value="${c.id}" class="accent-navy">
+          <span>${c.class_name}</span>
+        </label>
+      `).join('');
+    }
+
+    function getSelectedClassTeacherIds() {
+      return Array.from(document.querySelectorAll('input[name="st-class-teacher-option"]:checked')).map(cb => cb.value);
     }
 
     function populateSubjectSelects() {
@@ -1014,12 +1035,24 @@
       }
 
       const activeSession = sessionsCache.find(s => s.is_active) || sessionsCache[0];
-      const classTeacherId = document.getElementById('st-class-teacher').value;
+      const classTeacherIds = getSelectedClassTeacherIds();
 
-      if (classTeacherId && activeSession) {
-        await supabaseClient.from('staff_class_teacher').insert({
-          staff_id: staffRow.id, class_id: classTeacherId, session_id: activeSession.id,
-        });
+      if (classTeacherIds.length && activeSession) {
+        // A class can only have one class teacher per session, but a
+        // teacher can now be the class teacher for several classes (e.g.
+        // Crèche + KG 1). Upserting on (class_id, session_id) means
+        // picking a new teacher for a class simply reassigns it, instead
+        // of throwing a duplicate-key error.
+        const { error: ctError } = await supabaseClient.from('staff_class_teacher').upsert(
+          classTeacherIds.map(classId => ({
+            staff_id: staffRow.id, class_id: classId, session_id: activeSession.id,
+          })),
+          { onConflict: 'class_id,session_id' }
+        );
+        if (ctError) {
+          console.error(ctError);
+          showToast('Staff saved, but class teacher assignment failed — please retry from the roster.');
+        }
       }
 
       if (pendingAssignments.length && activeSession) {
