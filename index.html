@@ -266,10 +266,10 @@
 
         <!-- Staff fields -->
         <div id="staff-fields" class="hidden">
-          <label for="login-email" class="block text-sm font-medium text-navy mb-1.5">Email</label>
-          <input id="login-email" type="email" autocomplete="username"
+          <label for="login-email" class="block text-sm font-medium text-navy mb-1.5">Email or username</label>
+          <input id="login-email" type="text" autocomplete="username"
                  class="w-full border border-navy/30 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-sky"
-                 placeholder="staff email">
+                 placeholder="staff email or username">
         </div>
 
         <div>
@@ -500,7 +500,11 @@
     // UNIFIED PORTAL LOGIN
     // Students (JSS1-SS3) log in with the generated username; the app
     // maps that to a synthetic email (username@donann.local) to work
-    // with Supabase Auth. Staff log in with their real email directly.
+    // with Supabase Auth. Staff can sign in with either their real
+    // email or their auto-generated portal_username — a username is
+    // resolved to its real email via a lookup on the staff table
+    // before calling Supabase Auth, since Auth itself only accepts
+    // an email.
     // ---------------------------------------------------------------
     const loginForm = document.getElementById('login-form');
     const loginError = document.getElementById('login-error');
@@ -573,8 +577,29 @@
 
       let email;
       if (activeLoginTab === 'staff') {
-        // Staff sign in with their real email directly.
-        email = loginEmailInput.value.trim();
+        // Staff can type either their real email or their auto-generated
+        // portal username (e.g. "ChidiChinonye"). Only look the username
+        // up when there's no '@' — a real email is passed straight
+        // through untouched.
+        const rawStaffId = loginEmailInput.value.trim();
+        if (rawStaffId.includes('@')) {
+          email = rawStaffId;
+        } else {
+          const { data: staffRow, error: lookupError } = await supabaseClient
+            .from('staff')
+            .select('email')
+            .eq('portal_username', rawStaffId)
+            .maybeSingle();
+
+          if (lookupError || !staffRow?.email) {
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Sign in';
+            loginError.textContent = 'That username/email or password is incorrect. Please try again.';
+            loginError.classList.remove('hidden');
+            return;
+          }
+          email = staffRow.email;
+        }
       } else {
         // Students sign in with their generated username, mapped to the
         // synthetic Supabase Auth email.
