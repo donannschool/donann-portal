@@ -320,20 +320,17 @@
             </div>
 
             <div class="border-t border-navy/10 pt-5">
-              <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Subject assignments</p>
-              <div class="grid sm:grid-cols-3 gap-3 mb-3">
-                <select id="st-assign-class" class="field-input">
-                  <option value="">Class…</option>
-                </select>
-                <select id="st-assign-subject" class="field-input">
-                  <option value="">Subject…</option>
-                </select>
-                <button type="button" id="st-add-assignment"
-                        class="border border-navy text-navy px-4 py-2.5 text-sm font-medium hover:bg-navy hover:text-white transition-colors">
-                  + Add assignment
-                </button>
-              </div>
-              <div id="st-assignment-list" class="flex flex-wrap gap-2"></div>
+              <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Subject &amp; class allocation</p>
+              <p class="text-sm text-navy/50 mb-4">
+                Add a row per teaching assignment. Check multiple classes on a row to apply the same subject to all of them at once.
+                For Crèche/Toddler/Nursery and Primary tiers, check <span class="font-medium text-navy">ALL SUBJECTS</span> to auto-map the
+                full childhood or primary curriculum for that row instead of picking one subject at a time.
+              </p>
+              <div id="st-assignment-rows" class="space-y-4"></div>
+              <button type="button" id="st-add-row"
+                      class="mt-1 w-full sm:w-auto border-2 border-navy text-navy px-5 py-3 text-sm font-semibold hover:bg-navy hover:text-white transition-colors">
+                + Add Subject Assignment Row
+              </button>
             </div>
 
             <p id="staff-status" class="hidden text-sm px-3 py-2 border"></p>
@@ -473,8 +470,8 @@
     // =================================================================
     // 1. INITIALIZE — replace with your real Supabase project values
     // =================================================================
-    const SUPABASE_URL = 'https://fenalkzgdfqaqpeoffub.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_n9AvI5YHzv51tqHzxjSAog_h85DjytA';
+    const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
 
     const isSupabaseConfigured =
       typeof SUPABASE_URL === 'string' &&
@@ -576,6 +573,23 @@
     let subjectsCache = [];
     let sessionsCache = [];
 
+    // Tiers that use the "ALL SUBJECTS" smart curriculum mapping instead
+    // of a single-subject dropdown. Matching is done against the class
+    // name (uppercased) so it tolerates minor label variants like
+    // "Pre-Kindergarten" / "PRE-KINDERGARTEN".
+    const EARLY_YEARS_TIERS = ['CRECHE', 'TODDLER', 'PRE-KINDERGARTEN', 'PRE KINDERGARTEN', 'NURSERY 1', 'NURSERY 2', 'KG 1', 'KG 2'];
+    const PRIMARY_TIERS = ['PRIMARY 1', 'PRIMARY 2', 'PRIMARY 3', 'PRIMARY 4', 'PRIMARY 5'];
+
+    const EARLY_YEARS_SUBJECTS = ['Numeracy', 'Literacy', 'Phonics', 'Science/Sensory Play', 'Social Habits', 'Creative Arts', 'Understanding the World'];
+    const PRIMARY_SUBJECTS = ['Mathematics', 'English Studies', 'Basic Science & Tech', 'NVE', 'CCA', 'Pre-Vocational', 'CRS', 'History', 'Verbal', 'Quantitative', 'Handwriting', 'Computer', 'French', 'Local Language'];
+
+    function classTier(className) {
+      const upper = (className || '').toUpperCase().trim();
+      if (EARLY_YEARS_TIERS.includes(upper)) return 'early-years';
+      if (PRIMARY_TIERS.includes(upper)) return 'primary';
+      return 'secondary';
+    }
+
     async function loadReferenceData() {
       if (!supabaseClient) return;
 
@@ -597,8 +611,10 @@
       const opts = classesCache.map(c => `<option value="${c.id}">${c.class_name}</option>`).join('');
       const enClass = document.getElementById('en-class');
       enClass.innerHTML = '<option value="" disabled selected>Select class</option>' + opts;
-      document.getElementById('st-assign-class').innerHTML = '<option value="">Class…</option>' + opts;
       populateClassTeacherGrid();
+      // Re-render any existing assignment rows so their class checkbox
+      // grids stay in sync if reference data reloads.
+      assignmentRows.forEach(row => renderAssignmentRow(row));
     }
 
     // Class teacher assignment now supports multiple classes per staff
@@ -623,8 +639,9 @@
     }
 
     function populateSubjectSelects() {
-      const opts = subjectsCache.map(s => `<option value="${s.id}">${s.subject_name}</option>`).join('');
-      document.getElementById('st-assign-subject').innerHTML = '<option value="">Subject…</option>' + opts;
+      // Single-subject dropdowns are now rendered per-row (see
+      // renderAssignmentRow), so there's no static select to fill here.
+      // Kept as a function for symmetry with the reference-data loader.
     }
 
     function populateSessionSelects() {
@@ -972,38 +989,178 @@
     });
 
     // =================================================================
-    // 4. STAFF ROSTER
+    // 4. STAFF ROSTER — dynamic subject & class allocation rows
     // =================================================================
-    let pendingAssignments = []; // { classId, className, subjectId, subjectName }
+    // Each row: { id, selectedClassIds: Set<string>, allSubjects: bool, subjectId: string|null }
+    let assignmentRows = [];
+    let rowSeq = 0;
 
-    document.getElementById('st-add-assignment').addEventListener('click', () => {
-      const classId = document.getElementById('st-assign-class').value;
-      const subjectId = document.getElementById('st-assign-subject').value;
-      if (!classId || !subjectId) return;
+    function addAssignmentRow() {
+      const row = { id: ++rowSeq, selectedClassIds: new Set(), allSubjects: false, subjectId: '' };
+      assignmentRows.push(row);
+      renderAllAssignmentRows();
+    }
+    document.getElementById('st-add-row').addEventListener('click', addAssignmentRow);
 
-      const className = classesCache.find(c => c.id === classId)?.class_name;
-      const subjectName = subjectsCache.find(s => s.id === subjectId)?.subject_name;
-      if (pendingAssignments.some(a => a.classId === classId && a.subjectId === subjectId)) return;
+    function removeAssignmentRow(rowId) {
+      assignmentRows = assignmentRows.filter(r => r.id !== rowId);
+      renderAllAssignmentRows();
+    }
 
-      pendingAssignments.push({ classId, className, subjectId, subjectName });
-      renderAssignmentChips();
-    });
+    function renderAllAssignmentRows() {
+      const container = document.getElementById('st-assignment-rows');
+      if (!assignmentRows.length) {
+        container.innerHTML = '<p class="text-sm text-navy/40">No assignment rows yet — click "+ Add Subject Assignment Row" to start.</p>';
+        return;
+      }
+      container.innerHTML = '';
+      assignmentRows.forEach(row => container.appendChild(buildRowElement(row)));
+    }
 
-    function renderAssignmentChips() {
-      const wrap = document.getElementById('st-assignment-list');
-      wrap.innerHTML = pendingAssignments.map((a, i) => `
-        <span class="inline-flex items-center gap-2 bg-sky/10 text-navy text-sm px-3 py-1.5 border border-sky/30">
-          ${a.className} — ${a.subjectName}
-          <button type="button" data-remove="${i}" class="text-navy/50 hover:text-red-600">&times;</button>
-        </span>
-      `).join('');
-      wrap.querySelectorAll('[data-remove]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          pendingAssignments.splice(Number(btn.dataset.remove), 1);
-          renderAssignmentChips();
+    // Rebuilds just one row's DOM (used when reference data reloads).
+    function renderAssignmentRow(row) {
+      const el = document.getElementById(`assign-row-${row.id}`);
+      if (!el) return;
+      el.replaceWith(buildRowElement(row));
+    }
+
+    function rowTierSummary(row) {
+      const tiers = new Set(Array.from(row.selectedClassIds).map(id => {
+        const cls = classesCache.find(c => c.id === id);
+        return cls ? classTier(cls.class_name) : 'secondary';
+      }));
+      // If a row spans mixed tiers, only offer ALL SUBJECTS when every
+      // checked class shares the same non-secondary tier.
+      if (tiers.size === 1) return Array.from(tiers)[0];
+      return 'mixed';
+    }
+
+    function buildRowElement(row) {
+      const wrap = document.createElement('div');
+      wrap.id = `assign-row-${row.id}`;
+      wrap.className = 'border border-navy/15 p-4 space-y-3 relative bg-[#F5F7FA]/60';
+
+      const tier = rowTierSummary(row);
+      const smartTier = (tier === 'early-years' || tier === 'primary') ? tier : null;
+
+      const classGridHtml = classesCache.length
+        ? classesCache.map(c => `
+            <label class="flex items-center gap-2 text-sm text-navy px-2 py-1 hover:bg-navy/5 cursor-pointer">
+              <input type="checkbox" data-row="${row.id}" class="assign-row-class accent-navy" value="${c.id}" ${row.selectedClassIds.has(c.id) ? 'checked' : ''}>
+              <span>${escapeHtml(c.class_name)}</span>
+            </label>
+          `).join('')
+        : '<p class="text-sm text-navy/40 col-span-full">No classes yet — run Initialize School Structure first.</p>';
+
+      const allSubjectsToggleHtml = smartTier ? `
+        <label class="flex items-center gap-2 text-sm font-medium text-navy px-3 py-2 border border-sky/40 bg-sky/5 cursor-pointer w-fit">
+          <input type="checkbox" data-row="${row.id}" class="assign-row-allsubjects accent-navy" ${row.allSubjects ? 'checked' : ''}>
+          <span>ALL SUBJECTS ${smartTier === 'early-years' ? '(childhood curriculum)' : '(primary curriculum)'}</span>
+        </label>
+      ` : '';
+
+      let subjectAreaHtml;
+      if (smartTier && row.allSubjects) {
+        const list = smartTier === 'early-years' ? EARLY_YEARS_SUBJECTS : PRIMARY_SUBJECTS;
+        subjectAreaHtml = `
+          <div class="text-sm text-navy/70 bg-white border border-navy/10 px-3 py-2">
+            <span class="font-medium text-navy">Mapped subjects (${list.length}):</span> ${list.map(escapeHtml).join(', ')}
+          </div>`;
+      } else {
+        const subjectOpts = subjectsCache.map(s => `<option value="${s.id}" ${row.subjectId === s.id ? 'selected' : ''}>${escapeHtml(s.subject_name)}</option>`).join('');
+        subjectAreaHtml = `
+          <select data-row="${row.id}" class="assign-row-subject field-input max-w-xs">
+            <option value="">Subject…</option>
+            ${subjectOpts}
+          </select>`;
+      }
+
+      wrap.innerHTML = `
+        <button type="button" data-row="${row.id}" class="assign-row-remove absolute top-3 right-3 text-navy/40 hover:text-red-600 text-lg leading-none" title="Remove row">&times;</button>
+        <div>
+          <p class="text-xs uppercase tracking-wide text-navy/50 font-medium mb-2">Classes for this row</p>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-1 max-h-40 overflow-y-auto border border-navy/10 p-2 bg-white">
+            ${classGridHtml}
+          </div>
+        </div>
+        ${allSubjectsToggleHtml}
+        <div>
+          <p class="text-xs uppercase tracking-wide text-navy/50 font-medium mb-2">Subject</p>
+          ${subjectAreaHtml}
+        </div>
+      `;
+
+      wrap.querySelectorAll('.assign-row-class').forEach(cb => {
+        cb.addEventListener('change', () => {
+          if (cb.checked) row.selectedClassIds.add(cb.value);
+          else row.selectedClassIds.delete(cb.value);
+          // Selecting classes from a different tier can invalidate a
+          // previously-checked ALL SUBJECTS toggle, so re-render the row.
+          const newTier = rowTierSummary(row);
+          if (row.allSubjects && newTier !== 'early-years' && newTier !== 'primary') row.allSubjects = false;
+          renderAssignmentRow(row);
         });
       });
+
+      const allSubjectsCb = wrap.querySelector('.assign-row-allsubjects');
+      if (allSubjectsCb) {
+        allSubjectsCb.addEventListener('change', () => {
+          row.allSubjects = allSubjectsCb.checked;
+          row.subjectId = '';
+          renderAssignmentRow(row);
+        });
+      }
+
+      const subjectSelect = wrap.querySelector('.assign-row-subject');
+      if (subjectSelect) {
+        subjectSelect.addEventListener('change', () => { row.subjectId = subjectSelect.value; });
+      }
+
+      wrap.querySelector('.assign-row-remove').addEventListener('click', () => removeAssignmentRow(row.id));
+
+      return wrap;
     }
+
+    // Expands all rows into flat { classId, className, subjectId, subjectName }
+    // records ready to insert into staff_subject_assignments. For an
+    // ALL SUBJECTS row, this maps every mapped-curriculum subject name to
+    // a real subject_id via subjectsCache (by name, case-insensitive),
+    // skipping any subject not found in the database with a console warning.
+    function expandAssignmentRows() {
+      const out = [];
+      const seen = new Set();
+
+      for (const row of assignmentRows) {
+        const classIds = Array.from(row.selectedClassIds);
+        if (!classIds.length) continue;
+
+        const tier = rowTierSummary(row);
+        let subjectNames;
+        if (row.allSubjects && (tier === 'early-years' || tier === 'primary')) {
+          subjectNames = tier === 'early-years' ? EARLY_YEARS_SUBJECTS : PRIMARY_SUBJECTS;
+        } else if (row.subjectId) {
+          const s = subjectsCache.find(s => s.id === row.subjectId);
+          subjectNames = s ? [s.subject_name] : [];
+        } else {
+          continue;
+        }
+
+        for (const classId of classIds) {
+          const className = classesCache.find(c => c.id === classId)?.class_name || '';
+          for (const subjectName of subjectNames) {
+            const subj = subjectsCache.find(s => s.subject_name.toLowerCase() === subjectName.toLowerCase());
+            if (!subj) { console.warn(`Subject "${subjectName}" not found in subjects table — skipped.`); continue; }
+            const key = `${classId}::${subj.id}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            out.push({ classId, className, subjectId: subj.id, subjectName: subj.subject_name });
+          }
+        }
+      }
+      return out;
+    }
+
+    renderAllAssignmentRows();
 
     const staffForm = document.getElementById('staff-form');
     const staffStatus = document.getElementById('staff-status');
@@ -1055,20 +1212,25 @@
         }
       }
 
-      if (pendingAssignments.length && activeSession) {
-        await supabaseClient.from('staff_subject_assignments').insert(
-          pendingAssignments.map(a => ({
+      const expandedAssignments = expandAssignmentRows();
+      if (expandedAssignments.length && activeSession) {
+        const { error: saError } = await supabaseClient.from('staff_subject_assignments').insert(
+          expandedAssignments.map(a => ({
             staff_id: staffRow.id, class_id: a.classId, subject_id: a.subjectId, session_id: activeSession.id,
           }))
         );
+        if (saError) {
+          console.error(saError);
+          showToast('Staff saved, but subject assignments failed — please retry from the roster.');
+        }
       }
 
       staffBtn.disabled = false;
       staffBtn.textContent = 'Register staff member';
       showStatus(staffStatus, `${payload.full_name} has been added to the staff roster.`, false);
       staffForm.reset();
-      pendingAssignments = [];
-      renderAssignmentChips();
+      assignmentRows = [];
+      renderAllAssignmentRows();
       loadStaffList();
       loadStats();
     });
