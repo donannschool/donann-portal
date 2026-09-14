@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Don-Ann Schools — Teacher Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- Tailwind CSS v4 official browser build -->
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3"></script>
+
+<!-- Supabase client SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style type="text/tailwindcss">
+  @theme {
+    --font-display: 'Fraunces', serif;
+    --font-body: 'Inter', sans-serif;
+    --color-navy: #1B3A6B;
+    --color-navy-dark: #12203A;
+    --color-sky: #2E6BB8;
+    --color-brown: #6B4226;
+  }
+  body { font-family: 'Inter', sans-serif; }
+  .font-display { font-family: 'Fraunces', serif; }
+  .field-label { display:block; font-size:.8125rem; font-weight:500; color:#1B3A6B; margin-bottom:.35rem; }
+  .field-input {
+    width:100%; border:1px solid rgba(27,58,107,0.25); padding:.6rem .75rem;
+    background:white; font-size:.9rem;
+  }
+  .field-input:focus { outline:none; box-shadow:0 0 0 2px #2E6BB8; border-color:#2E6BB8; }
+  .score-input { width:100%; border:1px solid rgba(27,58,107,0.25); padding:.5rem; text-align:center; font-size:.95rem; }
+  .score-input:focus { outline:none; box-shadow:0 0 0 2px #2E6BB8; border-color:#2E6BB8; }
+  .tab-btn.active { border-color:#1B3A6B; color:#1B3A6B; }
+  ::selection { background:#2E6BB8; color:white; }
+  .panel { display:none; }
+  .panel.active { display:block; }
+</style>
+</head>
+<body class="bg-[#F5F7FA] text-navy-dark font-body min-h-screen">
+
+  <div id="config-banner" class="hidden bg-amber-50 border-b-2 border-amber-400 text-amber-900 text-sm text-center px-4 py-2">
+    Not connected to Supabase yet — add your project URL and anon key in the script block at the bottom of this file.
+  </div>
+
+  <!-- ============ LOGIN SCREEN ============ -->
+  <div id="login-screen" class="min-h-screen flex items-center justify-center px-4">
+    <div class="w-full max-w-sm">
+      <div class="text-center mb-8">
+        <p class="font-display text-2xl text-navy">Don-Ann Schools</p>
+        <p class="text-sm text-sky">Teacher portal</p>
+      </div>
+      <form id="login-form" class="bg-white border border-navy/10 p-8 space-y-5" style="box-shadow:4px 4px 0 #2E6BB8;">
+        <div>
+          <label class="field-label" for="login-email">Email</label>
+          <input id="login-email" class="field-input" type="email" required autocomplete="username">
+        </div>
+        <div>
+          <label class="field-label" for="login-pass">Password</label>
+          <input id="login-pass" class="field-input" type="password" required autocomplete="current-password">
+        </div>
+        <p id="login-error" class="hidden text-sm px-3 py-2 border text-red-700 bg-red-50 border-red-200"></p>
+        <button type="submit" id="login-btn" class="w-full bg-navy text-white py-3 font-medium hover:bg-navy-dark transition-colors">
+          Sign in
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ ACCESS DENIED (Inactive staff) ============ -->
+  <div id="denied-screen" class="hidden min-h-screen flex items-center justify-center px-4">
+    <div class="max-w-sm w-full bg-white border-t-4 border-red-500 p-8 text-center">
+      <p class="text-red-600 font-display text-2xl mb-2">Access revoked</p>
+      <p class="text-navy/60 text-sm mb-6">Your staff profile is currently marked <strong>Inactive</strong>. Portal access has been switched off. Please contact the school administrator if you believe this is a mistake.</p>
+      <button id="denied-signout" class="w-full border border-navy text-navy py-2.5 font-medium hover:bg-navy hover:text-white transition-colors">
+        Sign out
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ MAIN APP ============ -->
+  <div id="app-screen" class="hidden">
+    <header class="border-b-4 border-navy bg-white">
+      <div class="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <p class="font-display text-xl text-navy leading-none">Don-Ann Schools</p>
+          <p id="teacher-name" class="text-sm text-sky mt-1"></p>
+        </div>
+        <button id="signout-btn" class="text-sm text-navy/60 hover:text-navy border border-navy/20 px-4 py-2">
+          Sign out
+        </button>
+      </div>
+      <nav class="max-w-5xl mx-auto px-4 sm:px-6 flex gap-1 -mb-px overflow-x-auto" id="tab-nav">
+        <button data-tab="subjects" class="tab-btn active border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">My subjects</button>
+        <button data-tab="masterclass" class="tab-btn hidden border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">My Class Master Sheet</button>
+      </nav>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+
+      <!-- ========================================================= -->
+      <!-- TAB: MY SUBJECTS (strict subject-teacher scoring view)     -->
+      <!-- ========================================================= -->
+      <section id="tab-subjects" class="panel active">
+        <h1 class="font-display text-2xl text-navy mb-1">My subjects</h1>
+        <p class="text-navy/60 mb-6">Only the classes and subjects assigned to you appear here.</p>
+
+        <div id="assignment-list" class="grid sm:grid-cols-2 gap-3 mb-8">
+          <p class="text-navy/40 text-sm">Loading your assignments…</p>
+        </div>
+
+        <div id="scoring-panel" class="hidden bg-white border border-navy/10">
+          <div class="px-6 py-4 border-b border-navy/10 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p id="scoring-title" class="font-display text-lg text-navy"></p>
+              <p class="text-sm text-navy/50">CA is out of 40, Exam is out of 60. Term totals calculate automatically.</p>
+            </div>
+            <div class="flex gap-2">
+              <select id="scoring-session" class="field-input text-sm"></select>
+              <select id="scoring-term" class="field-input text-sm">
+                <option>1st Term</option><option>2nd Term</option><option>3rd Term</option>
+              </select>
+            </div>
+          </div>
+          <div id="scoring-rows" class="divide-y divide-navy/10"></div>
+          <div class="px-6 py-4 border-t border-navy/10 flex items-center justify-between">
+            <p id="scoring-status" class="hidden text-sm px-3 py-2 border"></p>
+            <button id="scoring-save" class="bg-navy text-white px-6 py-2.5 font-medium hover:bg-navy-dark transition-colors ml-auto">
+              Save all scores
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB: CLASS MASTER SHEET (read-only, class-teacher only)    -->
+      <!-- ========================================================= -->
+      <section id="tab-masterclass" class="panel">
+        <h1 class="font-display text-2xl text-navy mb-1">My Class Master Sheet</h1>
+        <p id="masterclass-subtitle" class="text-navy/60 mb-6"></p>
+
+        <div class="flex flex-wrap gap-3 mb-6">
+          <select id="master-session" class="field-input text-sm max-w-[220px]"></select>
+          <select id="master-term" class="field-input text-sm max-w-[160px]">
+            <option>1st Term</option><option>2nd Term</option><option>3rd Term</option>
+          </select>
+        </div>
+
+        <div class="bg-white border border-navy/10 overflow-x-auto">
+          <table class="w-full text-sm min-w-[720px]">
+            <thead class="bg-navy/5 text-navy text-left">
+              <tr>
+                <th class="px-4 py-3 font-medium">Student</th>
+                <th class="px-4 py-3 font-medium">Subjects &amp; scores (read-only)</th>
+                <th class="px-4 py-3 font-medium w-64">Class teacher comment</th>
+                <th id="promotion-col-header" class="hidden px-4 py-3 font-medium w-44">End-of-year standing</th>
+              </tr>
+            </thead>
+            <tbody id="master-rows" class="divide-y divide-navy/10">
+              <tr><td class="px-4 py-6 text-navy/40" colspan="4">Loading class roster…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p id="master-status" class="hidden text-sm px-3 py-2 border mt-4"></p>
+      </section>
+
+    </main>
+  </div>
+
+  <div id="toast" class="hidden fixed bottom-5 right-5 z-50 bg-navy text-white px-5 py-3 text-sm shadow-lg max-w-xs"></div>
+
+  <script>
+    // =================================================================
+    // 1. INITIALIZE — replace with your real Supabase project values
+    // =================================================================
+    const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+    const isSupabaseConfigured =
+      typeof SUPABASE_URL === 'string' &&
+      typeof SUPABASE_ANON_KEY === 'string' &&
+      SUPABASE_URL.startsWith('https://') &&
+      !SUPABASE_URL.includes('YOUR_SUPABASE') &&
+      !SUPABASE_ANON_KEY.includes('YOUR_SUPABASE');
+
+    let supabaseClient = null;
+    if (isSupabaseConfigured) {
+      try {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      } catch (err) {
+        console.error('Supabase failed to initialise:', err);
+      }
+    } else {
+      document.getElementById('config-banner').classList.remove('hidden');
+      console.warn('Supabase is not configured yet — replace SUPABASE_URL and SUPABASE_ANON_KEY.');
+    }
+
+    // =================================================================
+    // STATE
+    // =================================================================
+    let currentStaff = null;        // row from `staff` table
+    let currentAssignments = [];    // staff_subject_assignments joined with class/subject
+    let currentClassTeacherOf = null; // { classId, className } or null
+    let sessionsCache = [];
+    let classesCache = [];
+    let activeAssignment = null;    // currently selected { classId, subjectId, className, subjectName }
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.remove('hidden');
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => toast.classList.add('hidden'), 3500);
+    }
+    function showStatus(el, message, isError) {
+      el.textContent = message;
+      el.classList.remove('hidden', 'text-emerald-700', 'bg-emerald-50', 'border-emerald-200', 'text-red-700', 'bg-red-50', 'border-red-200');
+      el.classList.add(isError ? 'text-red-700' : 'text-emerald-700', isError ? 'bg-red-50' : 'bg-emerald-50', isError ? 'border-red-200' : 'border-emerald-200');
+    }
+    function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str ?? ''; return d.innerHTML; }
+
+    // =================================================================
+    // 2. LOGIN & ROSTER (Active/Inactive) CHECK
+    // Staff status lives on the `staff` table (staff.status), linked via
+    // staff.auth_user_id to the authenticated Supabase Auth user — there
+    // is no separate `profiles` table in this schema.
+    // =================================================================
+    const loginForm = document.getElementById('login-form');
+    const loginError = document.getElementById('login-error');
+    const loginBtn = document.getElementById('login-btn');
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      loginError.classList.add('hidden');
+
+      if (!supabaseClient) {
+        loginError.textContent = 'Login is unavailable — this page is not connected to Supabase yet.';
+        loginError.classList.remove('hidden');
+        return;
+      }
+
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Signing in…';
+
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-pass').value;
+
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'Sign in';
+
+      if (error) {
+        loginError.textContent = 'That email or password is incorrect. Please try again.';
+        loginError.classList.remove('hidden');
+        return;
+      }
+
+      await afterLogin(data.user);
+    });
+
+    async function afterLogin(authUser) {
+      const { data: staffRow, error } = await supabaseClient
+        .from('staff')
+        .select('id, full_name, role, email, status, auth_user_id')
+        .eq('auth_user_id', authUser.id)
+        .maybeSingle();
+
+      if (error || !staffRow) {
+        loginError.textContent = 'We could not find a staff profile linked to this account. Please contact the administrator.';
+        loginError.classList.remove('hidden');
+        await supabaseClient.auth.signOut();
+        return;
+      }
+
+      if (staffRow.status !== 'Active') {
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('denied-screen').classList.remove('hidden');
+        return;
+      }
+
+      currentStaff = staffRow;
+      document.getElementById('login-screen').classList.add('hidden');
+      document.getElementById('app-screen').classList.remove('hidden');
+      document.getElementById('teacher-name').textContent = `${staffRow.full_name} · ${staffRow.role}`;
+      await loadTeacherWorkspace();
+    }
+
+    // Restore session on page load (e.g. after refresh)
+    async function checkExistingSession() {
+      if (!supabaseClient) return;
+      const { data } = await supabaseClient.auth.getSession();
+      if (data?.session?.user) await afterLogin(data.session.user);
+    }
+    checkExistingSession();
+
+    document.getElementById('signout-btn').addEventListener('click', doSignOut);
+    document.getElementById('denied-signout').addEventListener('click', doSignOut);
+    async function doSignOut() {
+      if (supabaseClient) await supabaseClient.auth.signOut();
+      currentStaff = null;
+      document.getElementById('app-screen').classList.add('hidden');
+      document.getElementById('denied-screen').classList.add('hidden');
+      document.getElementById('login-screen').classList.remove('hidden');
+      loginForm.reset();
+    }
+
+    // =================================================================
+    // TABS
+    // =================================================================
+    document.getElementById('tab-nav').addEventListener('click', (e) => {
+      const btn = e.target.closest('.tab-btn');
+      if (!btn) return;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+    });
+
+    // =================================================================
+    // LOAD TEACHER WORKSPACE: assignments, class-teacher status, sessions
+    // =================================================================
+    async function loadTeacherWorkspace() {
+      const { data: sessions } = await supabaseClient.from('academic_sessions').select('id, session_label, is_active').order('session_label', { ascending: false });
+      sessionsCache = sessions || [];
+
+      const { data: classes } = await supabaseClient.from('classes').select('id, class_name, level_order, requires_portal_credentials').order('level_order');
+      classesCache = classes || [];
+
+      populateSessionSelect('scoring-session');
+      populateSessionSelect('master-session');
+
+      // 3. Subject assignments — strict privacy: only rows assigned to this teacher
+      const { data: assignments } = await supabaseClient
+        .from('staff_subject_assignments')
+        .select('class_id, subject_id, classes(class_name), subjects(subject_name)')
+        .eq('staff_id', currentStaff.id);
+      currentAssignments = (assignments || []).map(a => ({
+        classId: a.class_id, subjectId: a.subject_id,
+        className: a.classes?.class_name, subjectName: a.subjects?.subject_name,
+      }));
+      renderAssignmentList();
+
+      // 4. Class teacher check — show/hide the Master Sheet tab entirely
+      const { data: classTeacherRow } = await supabaseClient
+        .from('staff_class_teacher')
+        .select('class_id, classes(class_name)')
+        .eq('staff_id', currentStaff.id)
+        .maybeSingle();
+
+      const masterTab = document.querySelector('[data-tab="masterclass"]');
+      if (classTeacherRow) {
+        currentClassTeacherOf = { classId: classTeacherRow.class_id, className: classTeacherRow.classes?.class_name };
+        masterTab.classList.remove('hidden');
+        document.getElementById('masterclass-subtitle').textContent =
+          `Read-only overview for ${currentClassTeacherOf.className}. Subject scores are entered by each subject teacher.`;
+      } else {
+        currentClassTeacherOf = null;
+        masterTab.classList.add('hidden');
+      }
+    }
+
+    function populateSessionSelect(id) {
+      const opts = sessionsCache.map(s => `<option value="${s.id}">${s.session_label}${s.is_active ? ' (active)' : ''}</option>`).join('');
+      document.getElementById(id).innerHTML = opts || '<option value="">No sessions found</option>';
+    }
+
+    // =================================================================
+    // MY SUBJECTS: assignment list + strict scoring grid
+    // =================================================================
+    function renderAssignmentList() {
+      const wrap = document.getElementById('assignment-list');
+      if (currentAssignments.length === 0) {
+        wrap.innerHTML = '<p class="text-navy/40 text-sm">No subjects have been assigned to you yet. Contact the administrator.</p>';
+        return;
+      }
+      wrap.innerHTML = currentAssignments.map((a, i) => `
+        <button data-index="${i}" class="assignment-card text-left bg-white border border-navy/10 p-4 hover:border-sky transition-colors">
+          <p class="font-medium text-navy">${escapeHtml(a.subjectName)}</p>
+          <p class="text-sm text-navy/50">${escapeHtml(a.className)}</p>
+        </button>
+      `).join('');
+      wrap.querySelectorAll('.assignment-card').forEach(btn => {
+        btn.addEventListener('click', () => openScoring(currentAssignments[Number(btn.dataset.index)]));
+      });
+    }
+
+    async function openScoring(assignment) {
+      activeAssignment = assignment;
+      document.getElementById('scoring-panel').classList.remove('hidden');
+      document.getElementById('scoring-title').textContent = `${assignment.subjectName} — ${assignment.className}`;
+      await loadScoringRoster();
+    }
+
+    document.getElementById('scoring-session').addEventListener('change', loadScoringRoster);
+    document.getElementById('scoring-term').addEventListener('change', loadScoringRoster);
+
+    async function loadScoringRoster() {
+      if (!activeAssignment) return;
+      const rowsEl = document.getElementById('scoring-rows');
+      rowsEl.innerHTML = '<p class="px-6 py-6 text-navy/40 text-sm">Loading students…</p>';
+
+      const sessionId = document.getElementById('scoring-session').value;
+      const term = document.getElementById('scoring-term').value;
+
+      // Teachers never type student names manually — the roster is pulled
+      // dynamically for the assigned class.
+      const { data: students } = await supabaseClient
+        .from('students')
+        .select('id, full_name')
+        .eq('current_class_id', activeAssignment.classId)
+        .eq('is_active', true)
+        .order('full_name');
+
+      if (!students || students.length === 0) {
+        rowsEl.innerHTML = '<p class="px-6 py-6 text-navy/40 text-sm">No active students in this class.</p>';
+        return;
+      }
+
+      const { data: existingScores } = await supabaseClient
+        .from('scores')
+        .select('student_id, ca_score, exam_score')
+        .eq('subject_id', activeAssignment.subjectId)
+        .eq('session_id', sessionId)
+        .eq('term', term)
+        .in('student_id', students.map(s => s.id));
+
+      const scoreMap = {};
+      (existingScores || []).forEach(s => { scoreMap[s.student_id] = s; });
+
+      rowsEl.innerHTML = students.map(s => {
+        const existing = scoreMap[s.id] || {};
+        return `
+          <div class="px-6 py-4 grid grid-cols-[1fr_auto_auto] items-center gap-4" data-student-id="${s.id}">
+            <p class="text-navy font-medium truncate">${escapeHtml(s.full_name)}</p>
+            <div class="flex items-center gap-1">
+              <input type="number" min="0" max="40" placeholder="CA"
+                     value="${existing.ca_score ?? ''}"
+                     class="score-input ca-input w-16" data-max="40">
+              <span class="text-navy/30 text-xs">/40</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <input type="number" min="0" max="60" placeholder="Exam"
+                     value="${existing.exam_score ?? ''}"
+                     class="score-input exam-input w-16" data-max="60">
+              <span class="text-navy/30 text-xs">/60</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Clamp inputs to their max/min on the fly
+      rowsEl.querySelectorAll('.score-input').forEach(inp => {
+        inp.addEventListener('input', () => {
+          const max = Number(inp.dataset.max);
+          if (inp.value !== '' && Number(inp.value) > max) inp.value = max;
+          if (inp.value !== '' && Number(inp.value) < 0) inp.value = 0;
+        });
+      });
+    }
+
+    document.getElementById('scoring-save').addEventListener('click', async () => {
+      const statusEl = document.getElementById('scoring-status');
+      if (!supabaseClient || !activeAssignment) return;
+
+      const sessionId = document.getElementById('scoring-session').value;
+      const term = document.getElementById('scoring-term').value;
+      if (!sessionId) { showStatus(statusEl, 'Select an academic session first.', true); return; }
+
+      const rows = document.querySelectorAll('#scoring-rows > div[data-student-id]');
+      const payload = Array.from(rows).map(row => {
+        const ca = row.querySelector('.ca-input').value;
+        const exam = row.querySelector('.exam-input').value;
+        return {
+          student_id: row.dataset.studentId,
+          subject_id: activeAssignment.subjectId,
+          class_id: activeAssignment.classId,
+          session_id: sessionId,
+          term: term,
+          ca_score: ca === '' ? null : Number(ca),
+          exam_score: exam === '' ? null : Number(exam),
+          entered_by: currentStaff.id,
+        };
+      }).filter(r => r.ca_score !== null || r.exam_score !== null);
+
+      if (payload.length === 0) { showStatus(statusEl, 'Enter at least one score before saving.', true); return; }
+
+      const btn = document.getElementById('scoring-save');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+
+      const { error } = await supabaseClient.from('scores').upsert(payload, { onConflict: 'student_id,subject_id,session_id,term' });
+
+      btn.disabled = false;
+      btn.textContent = 'Save all scores';
+
+      if (error) {
+        showStatus(statusEl, 'Something went wrong saving these scores. Please try again.', true);
+        console.error(error);
+        return;
+      }
+      showStatus(statusEl, 'Scores saved.', false);
+    });
+
+    // =================================================================
+    // CLASS MASTER SHEET (read-only scores; editable comments;
+    // 3rd-Term promotion engine)
+    // =================================================================
+    document.getElementById('master-session').addEventListener('change', loadMasterSheet);
+    document.getElementById('master-term').addEventListener('change', loadMasterSheet);
+    document.querySelector('[data-tab="masterclass"]')?.addEventListener('click', loadMasterSheet);
+
+    async function loadMasterSheet() {
+      if (!currentClassTeacherOf) return;
+      const rowsEl = document.getElementById('master-rows');
+      rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="4">Loading class roster…</td></tr>';
+
+      const sessionId = document.getElementById('master-session').value;
+      const term = document.getElementById('master-term').value;
+      const isThirdTerm = term === '3rd Term';
+      document.getElementById('promotion-col-header').classList.toggle('hidden', !isThirdTerm);
+
+      const { data: students } = await supabaseClient
+        .from('students')
+        .select('id, full_name')
+        .eq('current_class_id', currentClassTeacherOf.classId)
+        .eq('is_active', true)
+        .order('full_name');
+
+      if (!students || students.length === 0) {
+        rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="4">No active students in this class.</td></tr>';
+        return;
+      }
+
+      const studentIds = students.map(s => s.id);
+
+      const [{ data: scores }, { data: comments }] = await Promise.all([
+        supabaseClient.from('scores').select('student_id, total_score, subjects(subject_name)').in('student_id', studentIds).eq('session_id', sessionId).eq('term', term),
+        supabaseClient.from('class_teacher_comments').select('student_id, comment').in('student_id', studentIds).eq('session_id', sessionId).eq('term', term),
+      ]);
+
+      const scoresByStudent = {};
+      (scores || []).forEach(s => {
+        (scoresByStudent[s.student_id] = scoresByStudent[s.student_id] || []).push(`${s.subjects?.subject_name}: ${s.total_score ?? '—'}`);
+      });
+      const commentByStudent = {};
+      (comments || []).forEach(c => { commentByStudent[c.student_id] = c.comment; });
+
+      rowsEl.innerHTML = students.map(s => `
+        <tr data-student-id="${s.id}">
+          <td class="px-4 py-3 align-top font-medium text-navy whitespace-nowrap">${escapeHtml(s.full_name)}</td>
+          <td class="px-4 py-3 align-top text-navy/70">
+            ${(scoresByStudent[s.id] || []).length
+              ? `<div class="flex flex-wrap gap-x-3 gap-y-1">${scoresByStudent[s.id].map(t => `<span>${escapeHtml(t)}</span>`).join('')}</div>`
+              : '<span class="text-navy/30">No scores yet</span>'}
+          </td>
+          <td class="px-4 py-3 align-top">
+            <textarea class="comment-input field-input" rows="2" placeholder="Term review…">${escapeHtml(commentByStudent[s.id] || '')}</textarea>
+          </td>
+          <td class="px-4 py-3 align-top ${isThirdTerm ? '' : 'hidden'} promotion-cell">
+            <select class="promotion-select field-input">
+              <option value="">No change yet</option>
+              <option value="Promoted">Promoted</option>
+              <option value="Repeated">Repeated</option>
+              <option value="Graduated">Graduated</option>
+            </select>
+          </td>
+        </tr>
+      `).join('');
+
+      rowsEl.querySelectorAll('.promotion-cell').forEach(td => td.classList.toggle('hidden', !isThirdTerm));
+
+      // Attach a small "Save" affordance per row via blur/change, batched with a single Save button below
+      renderMasterSaveBar(sessionId, term, isThirdTerm);
+    }
+
+    function renderMasterSaveBar(sessionId, term, isThirdTerm) {
+      let bar = document.getElementById('master-save-bar');
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'master-save-bar';
+        bar.className = 'flex justify-end mt-4';
+        bar.innerHTML = `<button id="master-save-btn" class="bg-navy text-white px-6 py-2.5 font-medium hover:bg-navy-dark transition-colors">Save comments${isThirdTerm ? ' & standings' : ''}</button>`;
+        document.getElementById('master-status').insertAdjacentElement('beforebegin', bar);
+      } else {
+        bar.querySelector('button').textContent = `Save comments${isThirdTerm ? ' & standings' : ''}`;
+      }
+
+      document.getElementById('master-save-btn').onclick = () => saveMasterSheet(sessionId, term, isThirdTerm);
+    }
+
+    async function saveMasterSheet(sessionId, term, isThirdTerm) {
+      const statusEl = document.getElementById('master-status');
+      if (!sessionId) { showStatus(statusEl, 'Select an academic session first.', true); return; }
+
+      const rows = document.querySelectorAll('#master-rows tr[data-student-id]');
+      const btn = document.getElementById('master-save-btn');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+
+      // 5. Save comments
+      const commentPayload = Array.from(rows).map(row => ({
+        student_id: row.dataset.studentId,
+        session_id: sessionId,
+        term: term,
+        comment: row.querySelector('.comment-input').value.trim() || null,
+        written_by: currentStaff.id,
+      }));
+
+      const { error: commentError } = await supabaseClient
+        .from('class_teacher_comments')
+        .upsert(commentPayload, { onConflict: 'student_id,session_id,term' });
+
+      if (commentError) {
+        btn.disabled = false;
+        btn.textContent = `Save comments${isThirdTerm ? ' & standings' : ''}`;
+        showStatus(statusEl, 'Could not save comments. Please try again.', true);
+        console.error(commentError);
+        return;
+      }
+
+      // 6. End-of-year promotion engine (3rd Term only)
+      if (isThirdTerm) {
+        const decisions = Array.from(rows)
+          .map(row => ({ studentId: row.dataset.studentId, decision: row.querySelector('.promotion-select').value }))
+          .filter(d => d.decision);
+
+        for (const d of decisions) {
+          await applyPromotionDecision(d.studentId, d.decision, sessionId, term);
+        }
+      }
+
+      btn.disabled = false;
+      btn.textContent = `Save comments${isThirdTerm ? ' & standings' : ''}`;
+      showStatus(statusEl, isThirdTerm ? 'Comments saved and standings applied.' : 'Comments saved.', false);
+      loadMasterSheet();
+    }
+
+    // Applies one promotion decision: logs it in student_promotions, and
+    // for 'Promoted' rolls the student to the class with the next
+    // level_order (JSS3 -> SS1 lands in 'General' department per the
+    // admin's later batch-assignment step); for 'Graduated' deactivates
+    // the student; 'Repeated' logs the decision with no class change.
+    async function applyPromotionDecision(studentId, decision, sessionId, term) {
+      const { data: student } = await supabaseClient
+        .from('students')
+        .select('id, current_class_id, full_name, date_of_birth')
+        .eq('id', studentId)
+        .single();
+      if (!student) return;
+
+      const fromClass = classesCache.find(c => c.id === student.current_class_id);
+      let toClassId = null;
+
+      if (decision === 'Promoted' && fromClass) {
+        const nextClass = classesCache
+          .filter(c => c.level_order > fromClass.level_order)
+          .sort((a, b) => a.level_order - b.level_order)[0];
+        toClassId = nextClass ? nextClass.id : null;
+
+        const updates = { current_class_id: toClassId, promotion_status: 'Active' };
+
+        // Auto-generate secondary credentials the moment a student rolls
+        // into a class that requires portal access for the first time
+        // (e.g. Primary 5 -> JSS 1) and doesn't already have a username.
+        if (nextClass?.requires_portal_credentials) {
+          const { data: fullStudent } = await supabaseClient.from('students').select('portal_username').eq('id', studentId).single();
+          if (!fullStudent?.portal_username) {
+            const base = formatUsernameBase(student.full_name);
+            let username = null;
+            for (let suffix = 1; suffix <= 50; suffix++) {
+              const candidate = base + suffix;
+              const { data: clash } = await supabaseClient.from('students').select('id').eq('portal_username', candidate).limit(1);
+              if (!clash || clash.length === 0) { username = candidate; break; }
+            }
+            updates.portal_username = username || (base + Date.now().toString().slice(-4));
+            updates.portal_temp_password = formatDobPassword(student.date_of_birth);
+            updates.credentials_generated_at = new Date().toISOString();
+          }
+        }
+
+        await supabaseClient.from('students').update(updates).eq('id', studentId);
+      } else if (decision === 'Graduated') {
+        await supabaseClient.from('students').update({ is_active: false, promotion_status: 'Graduated' }).eq('id', studentId);
+      } else if (decision === 'Repeated') {
+        await supabaseClient.from('students').update({ promotion_status: 'Repeated' }).eq('id', studentId);
+      }
+
+      await supabaseClient.from('student_promotions').insert({
+        student_id: studentId,
+        session_id: sessionId,
+        term: term,
+        from_class_id: student.current_class_id,
+        to_class_id: toClassId,
+        decision: decision,
+        decided_by: currentStaff.id,
+      });
+    }
+
+    function formatUsernameBase(fullName) {
+      const parts = fullName.trim().split(/\s+/);
+      const first = parts[0] || 'Student';
+      const last = parts.length > 1 ? parts[parts.length - 1] : 'X';
+      return (first.charAt(0).toUpperCase() + first.slice(1).toLowerCase()) +
+             (last.charAt(0).toUpperCase() + last.slice(1, 4).toLowerCase());
+    }
+    function formatDobPassword(dobStr) {
+      const d = new Date(dobStr + 'T00:00:00');
+      const month = d.toLocaleString('en-US', { month: 'long' });
+      return `${month}${d.getDate()}`;
+    }
+  </script>
+</body>
+</html>
