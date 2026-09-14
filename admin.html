@@ -1004,13 +1004,56 @@
 
       let generatedUsername = null;
       let generatedPassword = null;
+      let studentAuthUserId = null;
 
       if (cls && cls.requires_portal_credentials) {
         generatedUsername = await generateUniqueUsername(fullName);
         generatedPassword = formatDobPassword(dob);
+
+        // Provision the real Supabase Auth account behind a synthetic
+        // @donann.local email, via the same Edge Function used for
+        // staff — it just creates an Auth user from email/password/name,
+        // it doesn't care who the "email" belongs to.
+        const syntheticEmail = `${generatedUsername}@donann.local`;
+        const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/create-teacher-auth`;
+
+        try {
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          const authRes = await fetch(EDGE_FUNCTION_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session?.access_token || SUPABASE_ANON_KEY}`,
+              'apikey': SUPABASE_ANON_KEY,
+            },
+            body: JSON.stringify({
+              email: syntheticEmail,
+              password: generatedPassword,
+              fullName: fullName,
+            }),
+          });
+
+          if (!authRes.ok) {
+            const errBody = await authRes.json().catch(() => ({}));
+            throw new Error(errBody.error || `Edge Function returned ${authRes.status}`);
+          }
+          const authResBody = await authRes.json();
+          studentAuthUserId = authResBody.userId;
+          if (!studentAuthUserId) {
+            throw new Error('Auth user was created but no user ID was returned.');
+          }
+        } catch (authErr) {
+          enrollmentBtn.disabled = false;
+          enrollmentBtn.textContent = 'Register student';
+          showStatus(enrollmentStatus, 'Could not create the login for this student. Their profile was not saved — please try again.', true);
+          console.error('create-teacher-auth failed:', authErr);
+          return;
+        }
+
         payload.portal_username = generatedUsername;
         payload.portal_temp_password = generatedPassword;
         payload.credentials_generated_at = new Date().toISOString();
+        payload.auth_user_id = studentAuthUserId;
       }
 
       const { error } = await supabaseClient.from('students').insert(payload);
