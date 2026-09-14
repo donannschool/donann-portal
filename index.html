@@ -621,13 +621,13 @@
       // Route by role after successful auth — adjust paths once those
       // dashboard pages exist.
       const user = data.user;
-      const role = user?.user_metadata?.role; // e.g. 'student', 'staff', 'admin'
+      const role = user?.app_metadata?.role; // e.g. 'student', 'teacher', 'admin'
       if (role === 'student') {
         window.location.href = 'student.html';
       } else if (role === 'admin') {
         window.location.href = 'admin.html';
       } else {
-        window.location.href = 'staff.html';
+        window.location.href = 'teacher.html';
       }
     });
   </script>
