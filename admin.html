@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Don-Ann Schools — Admin Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- Tailwind CSS v4 official browser build -->
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3"></script>
+
+<!-- Supabase client SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style type="text/tailwindcss">
+  @theme {
+    --font-display: 'Fraunces', serif;
+    --font-body: 'Inter', sans-serif;
+    --color-navy: #1B3A6B;
+    --color-navy-dark: #12203A;
+    --color-sky: #2E6BB8;
+    --color-brown: #6B4226;
+  }
+  body { font-family: 'Inter', sans-serif; }
+  .font-display { font-family: 'Fraunces', serif; }
+  .nav-link { transition: background-color .15s, color .15s; }
+  .nav-link.active { background: rgba(255,255,255,0.12); color: white; }
+  .nav-link.active .nav-dot { background: #2E6BB8; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .field-label { display:block; font-size:.8125rem; font-weight:500; color:#1B3A6B; margin-bottom:.35rem; }
+  .field-input {
+    width:100%; border:1px solid rgba(27,58,107,0.25); padding:.6rem .75rem;
+    background:white; font-size:.9rem;
+  }
+  .field-input:focus { outline:none; box-shadow:0 0 0 2px #2E6BB8; border-color:#2E6BB8; }
+  ::selection { background:#2E6BB8; color:white; }
+  @keyframes slideUp { from{opacity:0; transform:translateY(12px);} to{opacity:1; transform:none;} }
+  .modal-enter { animation: slideUp .25s ease-out both; }
+  .toggle-dot { transition: transform .15s ease; }
+</style>
+</head>
+<body class="bg-[#F5F7FA] text-navy-dark font-body">
+
+  <!-- ============ CONFIG BANNER ============ -->
+  <div id="config-banner" class="hidden bg-amber-50 border-b-2 border-amber-400 text-amber-900 text-sm text-center px-4 py-2">
+    Not connected to Supabase yet — add your project URL and anon key in the script block at the bottom of this file.
+  </div>
+
+  <div class="flex min-h-screen">
+
+    <!-- ============ SIDEBAR (desktop) ============ -->
+    <aside class="hidden lg:flex flex-col w-64 bg-navy-dark text-white/80 shrink-0">
+      <div class="px-6 py-6 border-b border-white/10">
+        <p class="font-display text-xl text-white leading-none">Don-Ann Schools</p>
+        <p class="text-xs text-sky mt-1">Admin dashboard</p>
+      </div>
+      <nav class="flex-1 px-3 py-4 space-y-1" id="sidebar-nav">
+        <!-- populated by JS to stay in sync with mobile nav -->
+      </nav>
+      <div class="px-6 py-4 border-t border-white/10 text-xs text-white/40">
+        Signed in as school administrator
+      </div>
+    </aside>
+
+    <!-- ============ MOBILE TOP BAR ============ -->
+    <div class="lg:hidden fixed top-0 inset-x-0 z-30 bg-navy-dark text-white flex items-center justify-between px-4 py-3">
+      <p class="font-display text-lg">Don-Ann Admin</p>
+      <button id="mobile-menu-btn" class="p-2 -mr-2" aria-label="Open menu">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+    </div>
+    <div id="mobile-menu" class="hidden lg:hidden fixed inset-0 z-40 bg-navy-dark text-white/90">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-white/10">
+        <p class="font-display text-lg text-white">Menu</p>
+        <button id="mobile-menu-close" class="p-2" aria-label="Close menu">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <nav class="p-3 space-y-1" id="sidebar-nav-mobile"></nav>
+    </div>
+
+    <!-- ============ MAIN CONTENT ============ -->
+    <main class="flex-1 min-w-0 pt-16 lg:pt-0">
+      <div class="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+
+        <!-- ========================================================= -->
+        <!-- PANEL: OVERVIEW                                            -->
+        <!-- ========================================================= -->
+        <section id="panel-overview" class="panel active">
+          <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Welcome back</h1>
+          <p class="text-navy/60 mb-8">A quick snapshot of the school right now.</p>
+          <div class="grid sm:grid-cols-3 gap-4">
+            <div class="bg-white border border-navy/10 p-5">
+              <p class="text-sm text-navy/50 mb-1">Total students</p>
+              <p id="stat-students" class="font-display text-3xl text-navy">—</p>
+            </div>
+            <div class="bg-white border border-navy/10 p-5">
+              <p class="text-sm text-navy/50 mb-1">Active staff</p>
+              <p id="stat-staff" class="font-display text-3xl text-navy">—</p>
+            </div>
+            <div class="bg-white border border-navy/10 p-5">
+              <p class="text-sm text-navy/50 mb-1">Published news posts</p>
+              <p id="stat-news" class="font-display text-3xl text-navy">—</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- PANEL: STUDENT ENROLLMENT                                  -->
+        <!-- ========================================================= -->
+        <section id="panel-enrollment" class="panel">
+          <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Student enrollment</h1>
+          <p class="text-navy/60 mb-6">Register a student and build their full profile. Login credentials are generated automatically for JSS 1 and above.</p>
+
+          <form id="enrollment-form" class="bg-white border border-navy/10 p-6 sm:p-8 space-y-6">
+
+            <div>
+              <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Student details</p>
+              <div class="grid sm:grid-cols-2 gap-5">
+                <div>
+                  <label class="field-label" for="en-name">Full name</label>
+                  <input id="en-name" class="field-input" type="text" required>
+                </div>
+                <div>
+                  <label class="field-label" for="en-class">Class</label>
+                  <select id="en-class" class="field-input" required>
+                    <option value="" disabled selected>Select class</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="field-label" for="en-gender">Gender</label>
+                  <select id="en-gender" class="field-input" required>
+                    <option value="" disabled selected>Select gender</option>
+                    <option>Male</option>
+                    <option>Female</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="field-label" for="en-dob">Date of birth</label>
+                  <input id="en-dob" class="field-input" type="date" required>
+                </div>
+                <div>
+                  <label class="field-label" for="en-religion">Religion</label>
+                  <input id="en-religion" class="field-input" type="text">
+                </div>
+                <div id="en-department-wrap" class="hidden">
+                  <label class="field-label" for="en-department">Senior secondary department</label>
+                  <select id="en-department" class="field-input">
+                    <option value="">General (not yet assigned)</option>
+                    <option>Art</option>
+                    <option>Science</option>
+                    <option>Commercial</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Medical profile</p>
+              <div class="grid sm:grid-cols-2 gap-5">
+                <div>
+                  <label class="field-label" for="en-blood">Blood group</label>
+                  <select id="en-blood" class="field-input">
+                    <option value="">Not recorded</option>
+                    <option>O+</option><option>O-</option>
+                    <option>A+</option><option>A-</option>
+                    <option>B+</option><option>B-</option>
+                    <option>AB+</option><option>AB-</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="field-label" for="en-allergies">Allergies</label>
+                  <input id="en-allergies" class="field-input" type="text" placeholder="e.g. Peanuts, or leave blank">
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Parent / guardian contact</p>
+              <div class="grid sm:grid-cols-2 gap-5">
+                <div class="sm:col-span-2">
+                  <label class="field-label" for="en-parent-address">Contact address</label>
+                  <input id="en-parent-address" class="field-input" type="text">
+                </div>
+                <div>
+                  <label class="field-label" for="en-parent-email">Parent email</label>
+                  <input id="en-parent-email" class="field-input" type="email">
+                </div>
+                <div>
+                  <label class="field-label" for="en-parent-phone">Parent phone</label>
+                  <input id="en-parent-phone" class="field-input" type="tel" required>
+                </div>
+                <div>
+                  <label class="field-label" for="en-parent-whatsapp">Parent WhatsApp</label>
+                  <input id="en-parent-whatsapp" class="field-input" type="tel">
+                </div>
+              </div>
+            </div>
+
+            <p id="enrollment-status" class="hidden text-sm px-3 py-2 border"></p>
+
+            <button type="submit" id="enrollment-btn"
+                    class="w-full sm:w-auto bg-navy text-white px-8 py-3 font-medium hover:bg-navy-dark transition-colors">
+              Register student
+            </button>
+          </form>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- PANEL: STAFF ROSTER                                        -->
+        <!-- ========================================================= -->
+        <section id="panel-staff" class="panel">
+          <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Staff roster</h1>
+          <p class="text-navy/60 mb-6">Pre-register teachers and manage their access. Staff cannot self-register.</p>
+
+          <form id="staff-form" class="bg-white border border-navy/10 p-6 sm:p-8 space-y-5 mb-8">
+            <div class="grid sm:grid-cols-2 gap-5">
+              <div>
+                <label class="field-label" for="st-name">Full name</label>
+                <input id="st-name" class="field-input" type="text" required>
+              </div>
+              <div>
+                <label class="field-label" for="st-email">Email (used for login)</label>
+                <input id="st-email" class="field-input" type="email" required>
+              </div>
+              <div>
+                <label class="field-label" for="st-role">Role</label>
+                <select id="st-role" class="field-input" required>
+                  <option value="" disabled selected>Select role</option>
+                  <option>Primary Teacher</option>
+                  <option>Secondary Teacher</option>
+                  <option>Admin</option>
+                  <option>Principal</option>
+                  <option>Other</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label" for="st-phone">Phone</label>
+                <input id="st-phone" class="field-input" type="tel">
+              </div>
+            </div>
+
+            <div class="border-t border-navy/10 pt-5">
+              <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Class teacher assignment (optional, max 1 class)</p>
+              <select id="st-class-teacher" class="field-input">
+                <option value="">Not a class teacher</option>
+              </select>
+            </div>
+
+            <div class="border-t border-navy/10 pt-5">
+              <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Subject assignments</p>
+              <div class="grid sm:grid-cols-3 gap-3 mb-3">
+                <select id="st-assign-class" class="field-input">
+                  <option value="">Class…</option>
+                </select>
+                <select id="st-assign-subject" class="field-input">
+                  <option value="">Subject…</option>
+                </select>
+                <button type="button" id="st-add-assignment"
+                        class="border border-navy text-navy px-4 py-2.5 text-sm font-medium hover:bg-navy hover:text-white transition-colors">
+                  + Add assignment
+                </button>
+              </div>
+              <div id="st-assignment-list" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <p id="staff-status" class="hidden text-sm px-3 py-2 border"></p>
+            <button type="submit" id="staff-btn"
+                    class="w-full sm:w-auto bg-navy text-white px-8 py-3 font-medium hover:bg-navy-dark transition-colors">
+              Register staff member
+            </button>
+          </form>
+
+          <div class="bg-white border border-navy/10">
+            <div class="px-6 py-4 border-b border-navy/10 flex items-center justify-between">
+              <p class="font-medium text-navy">Current staff</p>
+              <button id="staff-refresh" class="text-sm text-sky hover:underline">Refresh</button>
+            </div>
+            <div id="staff-list" class="divide-y divide-navy/10">
+              <p class="px-6 py-8 text-center text-navy/40 text-sm">Loading staff…</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- PANEL: LEDGER & HISTORY                                    -->
+        <!-- ========================================================= -->
+        <section id="panel-ledger" class="panel">
+          <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Financial ledger &amp; history</h1>
+          <p class="text-navy/60 mb-6">Look up a student's full record, log a payment, and clear them for the active term.</p>
+
+          <div class="bg-white border border-navy/10 p-6 sm:p-8 mb-6">
+            <label class="field-label" for="ledger-search">Search by student name</label>
+            <div class="flex gap-3">
+              <input id="ledger-search" class="field-input" type="text" placeholder="Start typing a name…">
+              <button id="ledger-search-btn" class="bg-navy text-white px-6 py-2.5 font-medium hover:bg-navy-dark transition-colors shrink-0">
+                Search
+              </button>
+            </div>
+            <div id="ledger-results" class="mt-4 space-y-1"></div>
+          </div>
+
+          <div id="ledger-detail" class="hidden bg-white border border-navy/10">
+            <div class="px-6 py-5 border-b border-navy/10 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p id="ledger-student-name" class="font-display text-xl text-navy"></p>
+                <p id="ledger-student-meta" class="text-sm text-navy/50"></p>
+              </div>
+            </div>
+
+            <div class="p-6 border-b border-navy/10">
+              <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Record a payment</p>
+              <div class="grid sm:grid-cols-4 gap-3">
+                <select id="pay-session" class="field-input"></select>
+                <select id="pay-term" class="field-input">
+                  <option>1st Term</option><option>2nd Term</option><option>3rd Term</option>
+                </select>
+                <input id="pay-amount" class="field-input" type="number" min="0" step="0.01" placeholder="Amount paid">
+                <button id="pay-clear-btn" class="bg-brown text-white px-4 py-2.5 font-medium hover:bg-brown/90 transition-colors">
+                  Save &amp; mark Cleared
+                </button>
+              </div>
+              <p id="ledger-pay-status" class="hidden text-sm px-3 py-2 border mt-3"></p>
+            </div>
+
+            <div class="p-6">
+              <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Timeline — scores &amp; payments</p>
+              <div id="ledger-timeline" class="space-y-3 text-sm text-navy/40">Select a student above to view their history.</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- PANEL: POST NEWS                                           -->
+        <!-- ========================================================= -->
+        <section id="panel-news" class="panel">
+          <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Post news</h1>
+          <p class="text-navy/60 mb-6">Push an update straight to the public homepage gallery.</p>
+
+          <form id="news-form" class="bg-white border border-navy/10 p-6 sm:p-8 space-y-5 max-w-xl">
+            <div>
+              <label class="field-label" for="news-title">Title</label>
+              <input id="news-title" class="field-input" type="text" required>
+            </div>
+            <div>
+              <label class="field-label" for="news-description">Summary</label>
+              <textarea id="news-description" class="field-input" rows="4" required></textarea>
+            </div>
+            <div>
+              <label class="field-label" for="news-image">Image URL (from Postimages or similar)</label>
+              <input id="news-image" class="field-input" type="url" placeholder="https://i.postimg.cc/..." required>
+            </div>
+            <div id="news-preview-wrap" class="hidden">
+              <p class="text-xs text-navy/50 mb-2">Preview</p>
+              <img id="news-preview" class="w-full max-w-xs aspect-[4/3] object-cover border border-navy/10">
+            </div>
+            <p id="news-status" class="hidden text-sm px-3 py-2 border"></p>
+            <button type="submit" id="news-btn"
+                    class="w-full sm:w-auto bg-navy text-white px-8 py-3 font-medium hover:bg-navy-dark transition-colors">
+              Publish to homepage
+            </button>
+          </form>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- ============ CREDENTIALS MODAL ============ -->
+  <div id="credentials-modal" class="hidden fixed inset-0 z-50 bg-navy-dark/60 flex items-center justify-center p-4">
+    <div class="modal-enter bg-white max-w-md w-full p-8 border-t-4 border-sky">
+      <p class="text-xs uppercase tracking-wide text-sky font-medium mb-2">Account created</p>
+      <h2 class="font-display text-2xl text-navy mb-4">Portal login generated</h2>
+      <p class="text-sm text-navy/60 mb-5">Share these with the student's parent/guardian. The student should change their password after first login if that feature is enabled.</p>
+      <div class="space-y-3 mb-6">
+        <div class="flex items-center justify-between bg-[#F5F7FA] border border-navy/10 px-4 py-3">
+          <div>
+            <p class="text-xs text-navy/50">Username</p>
+            <p id="cred-username" class="font-display text-lg text-navy"></p>
+          </div>
+          <button data-copy="cred-username" class="copy-btn text-sky text-sm font-medium hover:underline">Copy</button>
+        </div>
+        <div class="flex items-center justify-between bg-[#F5F7FA] border border-navy/10 px-4 py-3">
+          <div>
+            <p class="text-xs text-navy/50">Initial password</p>
+            <p id="cred-password" class="font-display text-lg text-navy"></p>
+          </div>
+          <button data-copy="cred-password" class="copy-btn text-sky text-sm font-medium hover:underline">Copy</button>
+        </div>
+      </div>
+      <button id="credentials-close" class="w-full bg-navy text-white py-3 font-medium hover:bg-navy-dark transition-colors">
+        Done
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ TOAST ============ -->
+  <div id="toast" class="hidden fixed bottom-5 right-5 z-50 bg-navy text-white px-5 py-3 text-sm shadow-lg max-w-xs"></div>
+
+  <script>
+    // =================================================================
+    // 1. INITIALIZE — replace with your real Supabase project values
+    // =================================================================
+    const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+    const isSupabaseConfigured =
+      typeof SUPABASE_URL === 'string' &&
+      typeof SUPABASE_ANON_KEY === 'string' &&
+      SUPABASE_URL.startsWith('https://') &&
+      !SUPABASE_URL.includes('YOUR_SUPABASE') &&
+      !SUPABASE_ANON_KEY.includes('YOUR_SUPABASE');
+
+    let supabaseClient = null;
+    if (isSupabaseConfigured) {
+      try {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      } catch (err) {
+        console.error('Supabase failed to initialise:', err);
+      }
+    } else {
+      document.getElementById('config-banner').classList.remove('hidden');
+      console.warn('Supabase is not configured yet — replace SUPABASE_URL and SUPABASE_ANON_KEY.');
+    }
+
+    // =================================================================
+    // NAVIGATION
+    // =================================================================
+    const NAV_ITEMS = [
+      { id: 'overview',   label: 'Overview' },
+      { id: 'enrollment', label: 'Student enrollment' },
+      { id: 'staff',      label: 'Staff roster' },
+      { id: 'ledger',     label: 'Ledger & history' },
+      { id: 'news',       label: 'Post news' },
+    ];
+
+    function renderNav(containerId) {
+      const el = document.getElementById(containerId);
+      el.innerHTML = NAV_ITEMS.map(item => `
+        <button data-panel="${item.id}"
+                class="nav-link w-full text-left px-3 py-2.5 rounded flex items-center gap-3 text-sm font-medium hover:bg-white/8">
+          <span class="nav-dot w-1.5 h-1.5 rounded-full bg-white/25 shrink-0"></span>
+          ${item.label}
+        </button>
+      `).join('');
+    }
+    renderNav('sidebar-nav');
+    renderNav('sidebar-nav-mobile');
+
+    function showPanel(panelId) {
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      document.getElementById(`panel-${panelId}`).classList.add('active');
+      document.querySelectorAll('.nav-link').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.panel === panelId);
+      });
+      document.getElementById('mobile-menu').classList.add('hidden');
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+
+    document.body.addEventListener('click', (e) => {
+      const btn = e.target.closest('.nav-link');
+      if (btn) showPanel(btn.dataset.panel);
+    });
+    showPanel('overview');
+
+    document.getElementById('mobile-menu-btn').addEventListener('click', () => {
+      document.getElementById('mobile-menu').classList.remove('hidden');
+    });
+    document.getElementById('mobile-menu-close').addEventListener('click', () => {
+      document.getElementById('mobile-menu').classList.add('hidden');
+    });
+
+    // =================================================================
+    // SHARED HELPERS
+    // =================================================================
+    function showStatus(el, message, isError) {
+      el.textContent = message;
+      el.classList.remove('hidden', 'text-emerald-700', 'bg-emerald-50', 'border-emerald-200', 'text-red-700', 'bg-red-50', 'border-red-200');
+      el.classList.add(isError ? 'text-red-700' : 'text-emerald-700', isError ? 'bg-red-50' : 'bg-emerald-50', isError ? 'border-red-200' : 'border-emerald-200');
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.remove('hidden');
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => toast.classList.add('hidden'), 3500);
+    }
+
+    function requireSupabase(statusEl) {
+      if (!supabaseClient) {
+        if (statusEl) showStatus(statusEl, 'Not connected to Supabase yet — this action is unavailable in preview mode.', true);
+        return false;
+      }
+      return true;
+    }
+
+    // =================================================================
+    // LOAD REFERENCE DATA (classes, subjects, sessions) into selects
+    // =================================================================
+    const CLASS_ORDER = ['CRECHE','KG 1','KG 2','NURSERY 1','NURSERY 2','PRIMARY 1','PRIMARY 2','PRIMARY 3','PRIMARY 4','PRIMARY 5','JSS 1','JSS 2','JSS 3','SS 1','SS 2','SS 3'];
+    let classesCache = [];
+    let subjectsCache = [];
+    let sessionsCache = [];
+
+    async function loadReferenceData() {
+      if (!supabaseClient) return;
+
+      const { data: classes } = await supabaseClient.from('classes').select('id, class_name, requires_portal_credentials, requires_department').order('level_order');
+      classesCache = classes || [];
+
+      const { data: subjects } = await supabaseClient.from('subjects').select('id, subject_name').order('subject_name');
+      subjectsCache = subjects || [];
+
+      const { data: sessions } = await supabaseClient.from('academic_sessions').select('id, session_label, is_active').order('session_label', { ascending: false });
+      sessionsCache = sessions || [];
+
+      populateClassSelects();
+      populateSubjectSelects();
+      populateSessionSelects();
+    }
+
+    function populateClassSelects() {
+      const opts = classesCache.map(c => `<option value="${c.id}">${c.class_name}</option>`).join('');
+      const enClass = document.getElementById('en-class');
+      enClass.innerHTML = '<option value="" disabled selected>Select class</option>' + opts;
+      document.getElementById('st-class-teacher').innerHTML = '<option value="">Not a class teacher</option>' + opts;
+      document.getElementById('st-assign-class').innerHTML = '<option value="">Class…</option>' + opts;
+    }
+
+    function populateSubjectSelects() {
+      const opts = subjectsCache.map(s => `<option value="${s.id}">${s.subject_name}</option>`).join('');
+      document.getElementById('st-assign-subject').innerHTML = '<option value="">Subject…</option>' + opts;
+    }
+
+    function populateSessionSelects() {
+      const opts = sessionsCache.map(s => `<option value="${s.id}">${s.session_label}${s.is_active ? ' (active)' : ''}</option>`).join('');
+      document.getElementById('pay-session').innerHTML = opts || '<option value="">No sessions found</option>';
+    }
+
+    // Toggle SS department field based on selected class
+    document.getElementById('en-class').addEventListener('change', (e) => {
+      const cls = classesCache.find(c => c.id === e.target.value);
+      document.getElementById('en-department-wrap').classList.toggle('hidden', !(cls && cls.requires_department));
+    });
+
+    // =================================================================
+    // OVERVIEW STATS
+    // =================================================================
+    async function loadStats() {
+      if (!supabaseClient) return;
+      const [{ count: studentCount }, { count: staffCount }, { count: newsCount }] = await Promise.all([
+        supabaseClient.from('students').select('id', { count: 'exact', head: true }).eq('is_active', true),
+        supabaseClient.from('staff').select('id', { count: 'exact', head: true }).eq('status', 'Active'),
+        supabaseClient.from('news_events').select('id', { count: 'exact', head: true }).eq('is_published', true),
+      ]);
+      document.getElementById('stat-students').textContent = studentCount ?? '—';
+      document.getElementById('stat-staff').textContent = staffCount ?? '—';
+      document.getElementById('stat-news').textContent = newsCount ?? '—';
+    }
+
+    // =================================================================
+    // 2 & 3. STUDENT ENROLLMENT + CREDENTIALS GENERATION
+    // =================================================================
+    // Username pattern: FirstName + first 4 letters of Surname + a digit
+    // to keep it short and disambiguate collisions, e.g. 'JoyMadu5'.
+    // Password pattern: DOB formatted as 'MonthDD', e.g. 'June25'.
+    function formatUsernameBase(fullName) {
+      const parts = fullName.trim().split(/\s+/);
+      const first = parts[0] || 'Student';
+      const last = parts.length > 1 ? parts[parts.length - 1] : 'X';
+      return (first.charAt(0).toUpperCase() + first.slice(1).toLowerCase()) +
+             (last.charAt(0).toUpperCase() + last.slice(1, 4).toLowerCase());
+    }
+
+    function formatDobPassword(dobStr) {
+      const d = new Date(dobStr + 'T00:00:00');
+      const month = d.toLocaleString('en-US', { month: 'long' });
+      return `${month}${d.getDate()}`;
+    }
+
+    async function generateUniqueUsername(fullName) {
+      const base = formatUsernameBase(fullName);
+      if (!supabaseClient) return base + Math.floor(Math.random() * 9 + 1);
+
+      for (let suffix = 1; suffix <= 50; suffix++) {
+        const candidate = base + suffix;
+        const { data, error } = await supabaseClient
+          .from('students')
+          .select('id')
+          .eq('portal_username', candidate)
+          .limit(1);
+        if (!error && (!data || data.length === 0)) return candidate;
+      }
+      // Extremely unlikely fallback
+      return base + Date.now().toString().slice(-4);
+    }
+
+    const enrollmentForm = document.getElementById('enrollment-form');
+    const enrollmentStatus = document.getElementById('enrollment-status');
+    const enrollmentBtn = document.getElementById('enrollment-btn');
+
+    enrollmentForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!requireSupabase(enrollmentStatus)) return;
+
+      enrollmentBtn.disabled = true;
+      enrollmentBtn.textContent = 'Registering…';
+
+      const classId = document.getElementById('en-class').value;
+      const cls = classesCache.find(c => c.id === classId);
+      const fullName = document.getElementById('en-name').value.trim();
+      const dob = document.getElementById('en-dob').value;
+
+      // Look up department id (defaults to General; app supplies explicitly
+      // per the schema note that department_id has no DB-level default)
+      const deptSelect = document.getElementById('en-department').value;
+      const { data: depts } = await supabaseClient.from('departments').select('id, department_name');
+      const deptName = (cls && cls.requires_department && deptSelect) ? deptSelect : 'General';
+      const deptId = depts?.find(d => d.department_name === deptName)?.id;
+
+      // Active session
+      const activeSession = sessionsCache.find(s => s.is_active) || sessionsCache[0];
+
+      const payload = {
+        full_name: fullName,
+        gender: document.getElementById('en-gender').value,
+        date_of_birth: dob,
+        religion: document.getElementById('en-religion').value.trim() || null,
+        blood_group: document.getElementById('en-blood').value || null,
+        allergies: document.getElementById('en-allergies').value.trim() || null,
+        parent_contact_address: document.getElementById('en-parent-address').value.trim() || null,
+        parent_email: document.getElementById('en-parent-email').value.trim() || null,
+        parent_phone: document.getElementById('en-parent-phone').value.trim(),
+        parent_whatsapp: document.getElementById('en-parent-whatsapp').value.trim() || null,
+        current_class_id: classId,
+        department_id: deptId || null,
+        current_session_id: activeSession?.id,
+      };
+
+      let generatedUsername = null;
+      let generatedPassword = null;
+
+      if (cls && cls.requires_portal_credentials) {
+        generatedUsername = await generateUniqueUsername(fullName);
+        generatedPassword = formatDobPassword(dob);
+        payload.portal_username = generatedUsername;
+        payload.portal_temp_password = generatedPassword;
+        payload.credentials_generated_at = new Date().toISOString();
+      }
+
+      const { error } = await supabaseClient.from('students').insert(payload);
+
+      enrollmentBtn.disabled = false;
+      enrollmentBtn.textContent = 'Register student';
+
+      if (error) {
+        showStatus(enrollmentStatus, 'Something went wrong registering this student. Please check the details and try again.', true);
+        console.error(error);
+        return;
+      }
+
+      showStatus(enrollmentStatus, `${fullName} has been registered successfully.`, false);
+      enrollmentForm.reset();
+      document.getElementById('en-department-wrap').classList.add('hidden');
+      loadStats();
+
+      if (generatedUsername) {
+        document.getElementById('cred-username').textContent = generatedUsername;
+        document.getElementById('cred-password').textContent = generatedPassword;
+        document.getElementById('credentials-modal').classList.remove('hidden');
+      }
+    });
+
+    document.getElementById('credentials-close').addEventListener('click', () => {
+      document.getElementById('credentials-modal').classList.add('hidden');
+    });
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const text = document.getElementById(btn.dataset.copy).textContent;
+        navigator.clipboard?.writeText(text);
+        showToast('Copied to clipboard');
+      });
+    });
+
+    // =================================================================
+    // 4. STAFF ROSTER
+    // =================================================================
+    let pendingAssignments = []; // { classId, className, subjectId, subjectName }
+
+    document.getElementById('st-add-assignment').addEventListener('click', () => {
+      const classId = document.getElementById('st-assign-class').value;
+      const subjectId = document.getElementById('st-assign-subject').value;
+      if (!classId || !subjectId) return;
+
+      const className = classesCache.find(c => c.id === classId)?.class_name;
+      const subjectName = subjectsCache.find(s => s.id === subjectId)?.subject_name;
+      if (pendingAssignments.some(a => a.classId === classId && a.subjectId === subjectId)) return;
+
+      pendingAssignments.push({ classId, className, subjectId, subjectName });
+      renderAssignmentChips();
+    });
+
+    function renderAssignmentChips() {
+      const wrap = document.getElementById('st-assignment-list');
+      wrap.innerHTML = pendingAssignments.map((a, i) => `
+        <span class="inline-flex items-center gap-2 bg-sky/10 text-navy text-sm px-3 py-1.5 border border-sky/30">
+          ${a.className} — ${a.subjectName}
+          <button type="button" data-remove="${i}" class="text-navy/50 hover:text-red-600">&times;</button>
+        </span>
+      `).join('');
+      wrap.querySelectorAll('[data-remove]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          pendingAssignments.splice(Number(btn.dataset.remove), 1);
+          renderAssignmentChips();
+        });
+      });
+    }
+
+    const staffForm = document.getElementById('staff-form');
+    const staffStatus = document.getElementById('staff-status');
+    const staffBtn = document.getElementById('staff-btn');
+
+    staffForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!requireSupabase(staffStatus)) return;
+
+      staffBtn.disabled = true;
+      staffBtn.textContent = 'Registering…';
+
+      const payload = {
+        full_name: document.getElementById('st-name').value.trim(),
+        email: document.getElementById('st-email').value.trim(),
+        role: document.getElementById('st-role').value,
+        phone: document.getElementById('st-phone').value.trim() || null,
+        status: 'Active',
+      };
+
+      const { data: staffRow, error } = await supabaseClient.from('staff').insert(payload).select().single();
+
+      if (error) {
+        staffBtn.disabled = false;
+        staffBtn.textContent = 'Register staff member';
+        showStatus(staffStatus, 'Something went wrong registering this staff member. Their email may already be in use.', true);
+        console.error(error);
+        return;
+      }
+
+      const activeSession = sessionsCache.find(s => s.is_active) || sessionsCache[0];
+      const classTeacherId = document.getElementById('st-class-teacher').value;
+
+      if (classTeacherId && activeSession) {
+        await supabaseClient.from('staff_class_teacher').insert({
+          staff_id: staffRow.id, class_id: classTeacherId, session_id: activeSession.id,
+        });
+      }
+
+      if (pendingAssignments.length && activeSession) {
+        await supabaseClient.from('staff_subject_assignments').insert(
+          pendingAssignments.map(a => ({
+            staff_id: staffRow.id, class_id: a.classId, subject_id: a.subjectId, session_id: activeSession.id,
+          }))
+        );
+      }
+
+      staffBtn.disabled = false;
+      staffBtn.textContent = 'Register staff member';
+      showStatus(staffStatus, `${payload.full_name} has been added to the staff roster.`, false);
+      staffForm.reset();
+      pendingAssignments = [];
+      renderAssignmentChips();
+      loadStaffList();
+      loadStats();
+    });
+
+    async function loadStaffList() {
+      const listEl = document.getElementById('staff-list');
+      if (!requireSupabase(null)) {
+        listEl.innerHTML = '<p class="px-6 py-8 text-center text-navy/40 text-sm">Connect Supabase to view staff.</p>';
+        return;
+      }
+      const { data, error } = await supabaseClient.from('staff').select('id, full_name, role, email, status').order('full_name');
+      if (error || !data || data.length === 0) {
+        listEl.innerHTML = '<p class="px-6 py-8 text-center text-navy/40 text-sm">No staff registered yet.</p>';
+        return;
+      }
+      listEl.innerHTML = data.map(s => `
+        <div class="px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <p class="font-medium text-navy">${escapeHtml(s.full_name)}</p>
+            <p class="text-sm text-navy/50">${escapeHtml(s.role)} &middot; ${escapeHtml(s.email || '')}</p>
+          </div>
+          <button data-staff-id="${s.id}" data-current="${s.status}"
+                  class="staff-toggle inline-flex items-center gap-2 px-3 py-1.5 border text-sm font-medium transition-colors
+                         ${s.status === 'Active' ? 'border-emerald-300 text-emerald-700 bg-emerald-50' : 'border-red-300 text-red-700 bg-red-50'}">
+            <span class="w-2 h-2 rounded-full ${s.status === 'Active' ? 'bg-emerald-500' : 'bg-red-500'}"></span>
+            ${s.status}
+          </button>
+        </div>
+      `).join('');
+
+      listEl.querySelectorAll('.staff-toggle').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const newStatus = btn.dataset.current === 'Active' ? 'Inactive' : 'Active';
+          btn.disabled = true;
+          const { error } = await supabaseClient.from('staff').update({ status: newStatus }).eq('id', btn.dataset.staffId);
+          btn.disabled = false;
+          if (error) { showToast('Could not update staff status.'); console.error(error); return; }
+          showToast(newStatus === 'Inactive' ? 'Portal access revoked.' : 'Portal access restored.');
+          loadStaffList();
+          loadStats();
+        });
+      });
+    }
+    document.getElementById('staff-refresh').addEventListener('click', loadStaffList);
+
+    // =================================================================
+    // 5. LEDGER & HISTORY LOOKUP
+    // =================================================================
+    let selectedStudentId = null;
+
+    async function searchStudents() {
+      const query = document.getElementById('ledger-search').value.trim();
+      const resultsEl = document.getElementById('ledger-results');
+      if (!requireSupabase(null) || query.length < 2) { resultsEl.innerHTML = ''; return; }
+
+      const { data, error } = await supabaseClient
+        .from('students')
+        .select('id, full_name, current_class_id, classes(class_name)')
+        .ilike('full_name', `%${query}%`)
+        .limit(8);
+
+      if (error || !data || data.length === 0) {
+        resultsEl.innerHTML = '<p class="text-sm text-navy/40 px-1 py-2">No matching students found.</p>';
+        return;
+      }
+
+      resultsEl.innerHTML = data.map(s => `
+        <button data-student-id="${s.id}" data-name="${escapeAttr(s.full_name)}" data-class="${escapeAttr(s.classes?.class_name || '')}"
+                class="ledger-result w-full text-left px-3 py-2 text-sm hover:bg-navy/5 flex justify-between">
+          <span>${escapeHtml(s.full_name)}</span>
+          <span class="text-navy/40">${escapeHtml(s.classes?.class_name || '')}</span>
+        </button>
+      `).join('');
+
+      resultsEl.querySelectorAll('.ledger-result').forEach(btn => {
+        btn.addEventListener('click', () => openStudentLedger(btn.dataset.studentId, btn.dataset.name, btn.dataset.class));
+      });
+    }
+    document.getElementById('ledger-search-btn').addEventListener('click', searchStudents);
+    document.getElementById('ledger-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); searchStudents(); } });
+
+    async function openStudentLedger(studentId, name, className) {
+      selectedStudentId = studentId;
+      document.getElementById('ledger-detail').classList.remove('hidden');
+      document.getElementById('ledger-student-name').textContent = name;
+      document.getElementById('ledger-student-meta').textContent = className;
+      document.getElementById('ledger-results').innerHTML = '';
+      document.getElementById('ledger-search').value = name;
+      await loadStudentTimeline(studentId);
+    }
+
+    async function loadStudentTimeline(studentId) {
+      const timelineEl = document.getElementById('ledger-timeline');
+      timelineEl.innerHTML = '<p class="text-navy/40">Loading history…</p>';
+
+      const [{ data: scores }, { data: payments }] = await Promise.all([
+        supabaseClient.from('scores').select('subject_id, session_id, term, total_score, subjects(subject_name), academic_sessions(session_label)').eq('student_id', studentId),
+        supabaseClient.from('payment_ledger').select('session_id, term, status, amount_paid, marked_at, academic_sessions(session_label)').eq('student_id', studentId),
+      ]);
+
+      const entries = [
+        ...(scores || []).map(s => ({
+          type: 'score', session: s.academic_sessions?.session_label, term: s.term,
+          label: `${s.subjects?.subject_name}: ${s.total_score ?? '—'}/100`,
+        })),
+        ...(payments || []).map(p => ({
+          type: 'payment', session: p.academic_sessions?.session_label, term: p.term,
+          label: `${p.status} — ₦${Number(p.amount_paid || 0).toLocaleString()}`,
+        })),
+      ].sort((a, b) => (a.session + a.term).localeCompare(b.session + b.term));
+
+      if (entries.length === 0) {
+        timelineEl.innerHTML = '<p class="text-navy/40">No scores or payments recorded yet.</p>';
+        return;
+      }
+
+      timelineEl.innerHTML = entries.map(e => `
+        <div class="flex items-center justify-between border-b border-navy/5 pb-2">
+          <div>
+            <p class="text-navy text-sm">${escapeHtml(e.label)}</p>
+            <p class="text-xs text-navy/40">${escapeHtml(e.session || '')} &middot; ${escapeHtml(e.term || '')}</p>
+          </div>
+          <span class="text-xs px-2 py-1 ${e.type === 'payment' ? 'bg-brown/10 text-brown' : 'bg-sky/10 text-sky'}">${e.type === 'payment' ? 'Payment' : 'Score'}</span>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('pay-clear-btn').addEventListener('click', async () => {
+      const statusEl = document.getElementById('ledger-pay-status');
+      if (!requireSupabase(statusEl)) return;
+      if (!selectedStudentId) { showStatus(statusEl, 'Search for and select a student first.', true); return; }
+
+      const sessionId = document.getElementById('pay-session').value;
+      const term = document.getElementById('pay-term').value;
+      const amount = document.getElementById('pay-amount').value;
+
+      if (!sessionId) { showStatus(statusEl, 'Select an academic session.', true); return; }
+
+      const { error } = await supabaseClient.from('payment_ledger').upsert({
+        student_id: selectedStudentId,
+        session_id: sessionId,
+        term: term,
+        status: 'Cleared',
+        amount_paid: amount || null,
+        marked_at: new Date().toISOString(),
+      }, { onConflict: 'student_id,session_id,term' });
+
+      if (error) {
+        showStatus(statusEl, 'Could not save this payment. Please try again.', true);
+        console.error(error);
+        return;
+      }
+
+      showStatus(statusEl, 'Payment recorded — student is marked Cleared for this term.', false);
+      document.getElementById('pay-amount').value = '';
+      loadStudentTimeline(selectedStudentId);
+    });
+
+    // =================================================================
+    // 6. POST NEWS
+    // =================================================================
+    const newsForm = document.getElementById('news-form');
+    const newsStatus = document.getElementById('news-status');
+    const newsBtn = document.getElementById('news-btn');
+
+    document.getElementById('news-image').addEventListener('input', (e) => {
+      const url = e.target.value.trim();
+      const wrap = document.getElementById('news-preview-wrap');
+      const img = document.getElementById('news-preview');
+      if (!url) { wrap.classList.add('hidden'); return; }
+      img.src = url;
+      wrap.classList.remove('hidden');
+    });
+
+    newsForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!requireSupabase(newsStatus)) return;
+
+      newsBtn.disabled = true;
+      newsBtn.textContent = 'Publishing…';
+
+      const payload = {
+        title: document.getElementById('news-title').value.trim(),
+        description: document.getElementById('news-description').value.trim(),
+        image_url: document.getElementById('news-image').value.trim(),
+        is_published: true,
+      };
+
+      const { error } = await supabaseClient.from('news_events').insert(payload);
+
+      newsBtn.disabled = false;
+      newsBtn.textContent = 'Publish to homepage';
+
+      if (error) {
+        showStatus(newsStatus, 'Something went wrong publishing this post. Please try again.', true);
+        console.error(error);
+        return;
+      }
+
+      showStatus(newsStatus, 'Published — this will now appear on the public homepage gallery.', false);
+      newsForm.reset();
+      document.getElementById('news-preview-wrap').classList.add('hidden');
+      loadStats();
+    });
+
+    // =================================================================
+    // UTILITIES
+    // =================================================================
+    function escapeHtml(str) {
+      const d = document.createElement('div');
+      d.textContent = str ?? '';
+      return d.innerHTML;
+    }
+    function escapeAttr(str) { return escapeHtml(str).replace(/"/g, '&quot;'); }
+
+    // =================================================================
+    // INIT
+    // =================================================================
+    loadReferenceData().then(() => {
+      loadStats();
+      loadStaffList();
+    });
+  </script>
+</body>
+</html>
