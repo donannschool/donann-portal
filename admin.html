@@ -1325,6 +1325,7 @@
       const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/create-teacher-auth`;
 
       let authProvisionOk = false;
+      let newAuthUserId = null;
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
 
@@ -1346,6 +1347,11 @@
           const errBody = await authRes.json().catch(() => ({}));
           throw new Error(errBody.error || `Edge Function returned ${authRes.status}`);
         }
+        const authResBody = await authRes.json();
+        newAuthUserId = authResBody.userId;
+        if (!newAuthUserId) {
+          throw new Error('Auth user was created but no user ID was returned.');
+        }
         authProvisionOk = true;
       } catch (authErr) {
         staffBtn.disabled = false;
@@ -1366,6 +1372,7 @@
         portal_username: generatedUsername,
         portal_temp_password: generatedPassword,
         credentials_generated_at: new Date().toISOString(),
+        auth_user_id: newAuthUserId,
       };
 
       const { data: staffRow, error } = await supabaseClient.from('staff').insert(payload).select().single();
