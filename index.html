@@ -243,19 +243,35 @@
           upward, sign in below. Younger classes are tracked on paper report
           cards by the school office and don't need an account.
         </p>
-        <div class="flex gap-3 text-sm">
-          <span class="px-3 py-1.5 border border-sky text-sky font-medium">Secondary students</span>
-          <span class="px-3 py-1.5 border border-brown text-brown font-medium">Staff</span>
+        <div class="flex gap-3 text-sm" role="tablist">
+          <button type="button" id="tab-student" role="tab" aria-selected="true"
+                  class="px-3 py-1.5 border font-medium transition-colors border-sky bg-sky text-white">
+            Secondary students
+          </button>
+          <button type="button" id="tab-staff" role="tab" aria-selected="false"
+                  class="px-3 py-1.5 border font-medium transition-colors border-brown text-brown">
+            Staff
+          </button>
         </div>
       </div>
 
       <form id="login-form" class="notice-border bg-white p-8 space-y-5">
-        <div>
-          <label for="login-id" class="block text-sm font-medium text-navy mb-1.5">Username or email</label>
+        <!-- Secondary student fields -->
+        <div id="student-fields">
+          <label for="login-id" class="block text-sm font-medium text-navy mb-1.5">Username</label>
           <input id="login-id" type="text" required autocomplete="username"
                  class="w-full border border-navy/30 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-sky"
-                 placeholder="e.g. JoyMadu5 or staff email">
+                 placeholder="e.g. JoyMadu5">
         </div>
+
+        <!-- Staff fields -->
+        <div id="staff-fields" class="hidden">
+          <label for="login-email" class="block text-sm font-medium text-navy mb-1.5">Email</label>
+          <input id="login-email" type="email" autocomplete="username"
+                 class="w-full border border-navy/30 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-sky"
+                 placeholder="staff email">
+        </div>
+
         <div>
           <label for="login-pass" class="block text-sm font-medium text-navy mb-1.5">Password</label>
           <input id="login-pass" type="password" required autocomplete="current-password"
@@ -286,8 +302,8 @@
     // will NOT crash the page: forms and news will show a friendly
     // "not connected yet" message instead of throwing console errors.
     // ---------------------------------------------------------------
-    const SUPABASE_URL = 'https://fenalkzgdfqaqpeoffub.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_n9AvI5YHzv51tqHzxjSAog_h85DjytA';
+    const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
 
     const isSupabaseConfigured =
       typeof SUPABASE_URL === 'string' &&
@@ -316,7 +332,7 @@
     // ---------------------------------------------------------------
     const logoImg = document.getElementById('school-logo');
     const logoFallback = document.getElementById('logo-fallback');
-    logoImg.src = 'logo.png';
+    logoImg.src = 'assets/logo.png';
     logoImg.onload = () => { logoImg.classList.remove('hidden'); logoFallback.classList.add('hidden'); };
     logoImg.onerror = () => { logoImg.classList.add('hidden'); logoFallback.classList.remove('hidden'); };
 
@@ -490,6 +506,56 @@
     const loginError = document.getElementById('login-error');
     const loginBtn = document.getElementById('login-btn');
 
+    // ---------------------------------------------------------------
+    // LOGIN TAB SWITCHING (Secondary student vs Staff)
+    // ---------------------------------------------------------------
+    const tabStudent = document.getElementById('tab-student');
+    const tabStaff = document.getElementById('tab-staff');
+    const studentFields = document.getElementById('student-fields');
+    const staffFields = document.getElementById('staff-fields');
+    const loginIdInput = document.getElementById('login-id');
+    const loginEmailInput = document.getElementById('login-email');
+
+    let activeLoginTab = 'student'; // 'student' | 'staff'
+
+    function setActiveTab(tab) {
+      activeLoginTab = tab;
+      loginError.classList.add('hidden');
+
+      if (tab === 'student') {
+        studentFields.classList.remove('hidden');
+        staffFields.classList.add('hidden');
+
+        loginIdInput.required = true;
+        loginEmailInput.required = false;
+
+        tabStudent.classList.add('bg-sky', 'text-white');
+        tabStudent.classList.remove('text-sky');
+        tabStudent.setAttribute('aria-selected', 'true');
+
+        tabStaff.classList.remove('bg-brown', 'text-white');
+        tabStaff.classList.add('text-brown');
+        tabStaff.setAttribute('aria-selected', 'false');
+      } else {
+        staffFields.classList.remove('hidden');
+        studentFields.classList.add('hidden');
+
+        loginEmailInput.required = true;
+        loginIdInput.required = false;
+
+        tabStaff.classList.add('bg-brown', 'text-white');
+        tabStaff.classList.remove('text-brown');
+        tabStaff.setAttribute('aria-selected', 'true');
+
+        tabStudent.classList.remove('bg-sky', 'text-white');
+        tabStudent.classList.add('text-sky');
+        tabStudent.setAttribute('aria-selected', 'false');
+      }
+    }
+
+    tabStudent.addEventListener('click', () => setActiveTab('student'));
+    tabStaff.addEventListener('click', () => setActiveTab('staff'));
+
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       loginError.classList.add('hidden');
@@ -503,12 +569,18 @@
       loginBtn.disabled = true;
       loginBtn.textContent = 'Signing in…';
 
-      const rawId = document.getElementById('login-id').value.trim();
       const password = document.getElementById('login-pass').value;
 
-      // If it doesn't look like an email, treat it as a student username
-      // and map it to the synthetic Supabase Auth email.
-      const email = rawId.includes('@') ? rawId : `${rawId}@donann.local`;
+      let email;
+      if (activeLoginTab === 'staff') {
+        // Staff sign in with their real email directly.
+        email = loginEmailInput.value.trim();
+      } else {
+        // Students sign in with their generated username, mapped to the
+        // synthetic Supabase Auth email.
+        const rawId = loginIdInput.value.trim();
+        email = rawId.includes('@') ? rawId : `${rawId}@donann.local`;
+      }
 
       const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
