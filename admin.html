@@ -1314,10 +1314,52 @@
       // own session.
       const generatedUsername = await generateUniqueStaffUsername(fullName);
       const generatedPassword = generateStaffTempPassword();
+      const teacherEmail = document.getElementById('st-email').value.trim();
+
+      // Provision the real Supabase Auth user via our Edge Function.
+      // The service_role secret lives only inside that function's
+      // Supabase-managed environment — it never touches the browser.
+      // We authenticate this call with the admin's own session token
+      // (via the anon client) so the function can verify the caller
+      // is actually an admin before it does anything privileged.
+      const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/create-teacher-auth`;
+
+      let authProvisionOk = false;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+
+        const authRes = await fetch(EDGE_FUNCTION_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token || SUPABASE_ANON_KEY}`,
+            'apikey': SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({
+            email: teacherEmail,
+            password: generatedPassword,
+            fullName: fullName,
+          }),
+        });
+
+        if (!authRes.ok) {
+          const errBody = await authRes.json().catch(() => ({}));
+          throw new Error(errBody.error || `Edge Function returned ${authRes.status}`);
+        }
+        authProvisionOk = true;
+      } catch (authErr) {
+        staffBtn.disabled = false;
+        staffBtn.textContent = 'Register staff member';
+        showStatus(staffStatus, 'Could not create the login for this staff member. Their profile was not saved — please try again.', true);
+        console.error('create-teacher-auth failed:', authErr);
+        return;
+      }
+
+      if (!authProvisionOk) return;
 
       const payload = {
         full_name: fullName,
-        email: document.getElementById('st-email').value.trim(),
+        email: teacherEmail,
         role: document.getElementById('st-role').value,
         phone: document.getElementById('st-phone').value.trim() || null,
         status: 'Active',
