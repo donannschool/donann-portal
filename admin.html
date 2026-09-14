@@ -112,6 +112,72 @@
         </section>
 
         <!-- ========================================================= -->
+        <!-- PANEL: ACADEMIC CONFIGURATION                              -->
+        <!-- ========================================================= -->
+        <section id="panel-config" class="panel">
+          <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Academic configuration</h1>
+          <p class="text-navy/60 mb-6">Set the active session/term and initialize the class &amp; subject structure that powers every dropdown in this dashboard.</p>
+
+          <!-- Active session/term -->
+          <div class="bg-white border border-navy/10 p-6 sm:p-8 mb-6">
+            <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Active session &amp; term</p>
+            <p class="text-sm text-navy/50 mb-5">This is the session and term the whole system — enrollment, ledger, report cards — treats as "current."</p>
+            <div class="grid sm:grid-cols-3 gap-5 items-end">
+              <div>
+                <label class="field-label" for="cfg-session-label">Academic session</label>
+                <input id="cfg-session-label" class="field-input" type="text" placeholder="e.g. 2026/2027">
+              </div>
+              <div>
+                <label class="field-label" for="cfg-term">Active term</label>
+                <select id="cfg-term" class="field-input">
+                  <option>1st Term</option>
+                  <option>2nd Term</option>
+                  <option>3rd Term</option>
+                </select>
+              </div>
+              <button id="cfg-save-active-btn" class="bg-navy text-white px-6 py-2.5 font-medium hover:bg-navy-dark transition-colors">
+                Save as active
+              </button>
+            </div>
+            <p id="cfg-active-status" class="hidden text-sm px-3 py-2 border mt-4"></p>
+            <p class="text-sm text-navy/50 mt-4">
+              Currently active: <span id="cfg-current-active" class="font-medium text-navy">—</span>
+            </p>
+          </div>
+
+          <!-- Initialize default structure -->
+          <div class="bg-white border border-navy/10 p-6 sm:p-8">
+            <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Default school structure</p>
+            <p class="text-sm text-navy/50 mb-5">
+              Populates the <span class="font-mono text-xs bg-navy/5 px-1">classes</span> table (Crèche through SS 3) and attaches the
+              predefined subject list to each tier, so the Class, Subject, and Class Teacher dropdowns fill up instantly. Safe to run more than once —
+              existing classes and subjects are skipped, not duplicated.
+            </p>
+            <button id="cfg-init-btn" class="bg-brown text-white px-6 py-3 font-medium hover:bg-brown/90 transition-colors">
+              Initialize default school structure
+            </button>
+            <p id="cfg-init-status" class="hidden text-sm px-3 py-2 border mt-4"></p>
+
+            <div id="cfg-init-summary" class="hidden mt-6 pt-6 border-t border-navy/10">
+              <div class="grid sm:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <p class="text-navy/50">Classes</p>
+                  <p id="cfg-summary-classes" class="font-display text-2xl text-navy">—</p>
+                </div>
+                <div>
+                  <p class="text-navy/50">Subjects</p>
+                  <p id="cfg-summary-subjects" class="font-display text-2xl text-navy">—</p>
+                </div>
+                <div>
+                  <p class="text-navy/50">Class &rarr; subject links</p>
+                  <p id="cfg-summary-links" class="font-display text-2xl text-navy">—</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
         <!-- PANEL: STUDENT ENROLLMENT                                  -->
         <!-- ========================================================= -->
         <section id="panel-enrollment" class="panel">
@@ -407,8 +473,8 @@
     // =================================================================
     // 1. INITIALIZE — replace with your real Supabase project values
     // =================================================================
-    const SUPABASE_URL = 'https://fenalkzgdfqaqpeoffub.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_n9AvI5YHzv51tqHzxjSAog_h85DjytA';
+    const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
 
     const isSupabaseConfigured =
       typeof SUPABASE_URL === 'string' &&
@@ -434,6 +500,7 @@
     // =================================================================
     const NAV_ITEMS = [
       { id: 'overview',   label: 'Overview' },
+      { id: 'config',     label: 'Academic configuration' },
       { id: 'enrollment', label: 'Student enrollment' },
       { id: 'staff',      label: 'Staff roster' },
       { id: 'ledger',     label: 'Ledger & history' },
@@ -548,6 +615,200 @@
     document.getElementById('en-class').addEventListener('change', (e) => {
       const cls = classesCache.find(c => c.id === e.target.value);
       document.getElementById('en-department-wrap').classList.toggle('hidden', !(cls && cls.requires_department));
+    });
+
+    // =================================================================
+    // ACADEMIC CONFIGURATION
+    // =================================================================
+    // Predefined subject list per tier — this is the "subject list we
+    // designed earlier". Adjust freely; it only affects what gets
+    // attached to each class the FIRST time you initialize.
+    const SUBJECT_TIERS = {
+      CRECHE: ['Numbers', 'Letters', 'Colours & Shapes', 'Rhymes & Stories', 'Physical Play'],
+      PRE_PRIMARY: ['Numeracy', 'Literacy', 'Phonics', 'Creative Arts', 'Physical & Health Education'],
+      PRIMARY: ['Mathematics', 'English Studies', 'Basic Science', 'Social Studies', 'Verbal Reasoning',
+                'Quantitative Reasoning', 'Handwriting', 'Creative Arts', 'Physical & Health Education', 'Computer Studies'],
+      JUNIOR_SECONDARY: ['Mathematics', 'English Language', 'Basic Science', 'Basic Technology', 'Social Studies',
+                          'Civic Education', 'Business Studies', 'Agricultural Science', 'French', 'Computer Studies',
+                          'Christian Religious Studies', 'Physical & Health Education'],
+      SENIOR_SECONDARY: ['Mathematics', 'English Language', 'Civic Education', 'Biology', 'Physics', 'Chemistry',
+                          'Economics', 'Government', 'Literature in English', 'Geography', 'Financial Accounting',
+                          'Commerce', 'Christian Religious Studies'],
+    };
+
+    // Class definitions in display order: [class_name, level_order, tier, requires_portal_credentials, requires_department]
+    const DEFAULT_CLASSES = [
+      ['Crèche',     1,  'CRECHE',            false, false],
+      ['KG 1',       2,  'PRE_PRIMARY',       false, false],
+      ['KG 2',       3,  'PRE_PRIMARY',       false, false],
+      ['Nursery 1',  4,  'PRE_PRIMARY',       false, false],
+      ['Nursery 2',  5,  'PRE_PRIMARY',       false, false],
+      ['Primary 1',  6,  'PRIMARY',           false, false],
+      ['Primary 2',  7,  'PRIMARY',           false, false],
+      ['Primary 3',  8,  'PRIMARY',           false, false],
+      ['Primary 4',  9,  'PRIMARY',           false, false],
+      ['Primary 5',  10, 'PRIMARY',           false, false],
+      ['JSS 1',      11, 'JUNIOR_SECONDARY',  true,  false],
+      ['JSS 2',      12, 'JUNIOR_SECONDARY',  true,  false],
+      ['JSS 3',      13, 'JUNIOR_SECONDARY',  true,  false],
+      ['SS 1',       14, 'SENIOR_SECONDARY',  true,  true],
+      ['SS 2',       15, 'SENIOR_SECONDARY',  true,  true],
+      ['SS 3',       16, 'SENIOR_SECONDARY',  true,  true],
+    ];
+
+    let schoolSettings = null; // { id, active_session_label, active_term }
+
+    async function loadSchoolSettings() {
+      if (!supabaseClient) return;
+      const { data, error } = await supabaseClient.from('school_settings').select('*').limit(1).maybeSingle();
+      if (!error && data) {
+        schoolSettings = data;
+        document.getElementById('cfg-current-active').textContent = `${data.active_session_label} — ${data.active_term}`;
+        document.getElementById('cfg-session-label').value = data.active_session_label || '';
+        document.getElementById('cfg-term').value = data.active_term || '1st Term';
+      } else {
+        document.getElementById('cfg-current-active').textContent = 'Not set yet';
+      }
+    }
+
+    document.getElementById('cfg-save-active-btn').addEventListener('click', async () => {
+      const statusEl = document.getElementById('cfg-active-status');
+      if (!requireSupabase(statusEl)) return;
+
+      const sessionLabel = document.getElementById('cfg-session-label').value.trim();
+      const term = document.getElementById('cfg-term').value;
+
+      if (!sessionLabel) { showStatus(statusEl, 'Enter an academic session, e.g. 2026/2027.', true); return; }
+
+      const btn = document.getElementById('cfg-save-active-btn');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+
+      // Make sure a matching row exists in academic_sessions and is
+      // flagged active, un-flagging any previously active session.
+      const { data: existingSession } = await supabaseClient
+        .from('academic_sessions').select('id').eq('session_label', sessionLabel).maybeSingle();
+
+      let sessionId = existingSession?.id;
+      if (!sessionId) {
+        const { data: inserted, error: insertErr } = await supabaseClient
+          .from('academic_sessions').insert({ session_label: sessionLabel, is_active: true }).select().single();
+        if (insertErr) {
+          btn.disabled = false; btn.textContent = 'Save as active';
+          showStatus(statusEl, 'Could not save this session. Please try again.', true);
+          console.error(insertErr);
+          return;
+        }
+        sessionId = inserted.id;
+      }
+
+      await supabaseClient.from('academic_sessions').update({ is_active: false }).neq('id', sessionId);
+      await supabaseClient.from('academic_sessions').update({ is_active: true }).eq('id', sessionId);
+
+      // Upsert the single global settings row.
+      const settingsPayload = {
+        id: schoolSettings?.id || 1,
+        active_session_label: sessionLabel,
+        active_term: term,
+        active_session_id: sessionId,
+      };
+      const { error: settingsErr } = await supabaseClient.from('school_settings').upsert(settingsPayload);
+
+      btn.disabled = false;
+      btn.textContent = 'Save as active';
+
+      if (settingsErr) {
+        showStatus(statusEl, 'Could not save the active session/term. Please try again.', true);
+        console.error(settingsErr);
+        return;
+      }
+
+      showStatus(statusEl, `Active session set to ${sessionLabel} — ${term}.`, false);
+      await loadSchoolSettings();
+      await loadReferenceData();
+    });
+
+    document.getElementById('cfg-init-btn').addEventListener('click', async () => {
+      const statusEl = document.getElementById('cfg-init-status');
+      if (!requireSupabase(statusEl)) return;
+
+      const btn = document.getElementById('cfg-init-btn');
+      btn.disabled = true;
+      btn.textContent = 'Initializing…';
+
+      try {
+        // 1. Classes — insert any that don't already exist (by class_name).
+        const { data: existingClasses } = await supabaseClient.from('classes').select('id, class_name');
+        const existingNames = new Set((existingClasses || []).map(c => c.class_name));
+        const classesToInsert = DEFAULT_CLASSES
+          .filter(([name]) => !existingNames.has(name))
+          .map(([class_name, level_order, , requires_portal_credentials, requires_department]) => ({
+            class_name, level_order, requires_portal_credentials, requires_department,
+          }));
+
+        if (classesToInsert.length) {
+          const { error } = await supabaseClient.from('classes').insert(classesToInsert);
+          if (error) throw error;
+        }
+
+        // 2. Subjects — collect the unique set across all tiers, insert any missing.
+        const allSubjectNames = [...new Set(Object.values(SUBJECT_TIERS).flat())];
+        const { data: existingSubjects } = await supabaseClient.from('subjects').select('id, subject_name');
+        const existingSubjectNames = new Set((existingSubjects || []).map(s => s.subject_name));
+        const subjectsToInsert = allSubjectNames
+          .filter(name => !existingSubjectNames.has(name))
+          .map(subject_name => ({ subject_name }));
+
+        if (subjectsToInsert.length) {
+          const { error } = await supabaseClient.from('subjects').insert(subjectsToInsert);
+          if (error) throw error;
+        }
+
+        // 3. Re-fetch full class + subject lists now that inserts landed.
+        const { data: allClasses } = await supabaseClient.from('classes').select('id, class_name');
+        const { data: allSubjects } = await supabaseClient.from('subjects').select('id, subject_name');
+        const classByName = Object.fromEntries((allClasses || []).map(c => [c.class_name, c.id]));
+        const subjectByName = Object.fromEntries((allSubjects || []).map(s => [s.subject_name, s.id]));
+
+        // 4. Class ↔ subject links — attach each tier's subject list to
+        // its classes in class_subjects, skipping links that already exist.
+        const { data: existingLinks } = await supabaseClient.from('class_subjects').select('class_id, subject_id');
+        const existingLinkKeys = new Set((existingLinks || []).map(l => `${l.class_id}:${l.subject_id}`));
+
+        const linksToInsert = [];
+        for (const [className, , tier] of DEFAULT_CLASSES) {
+          const classId = classByName[className];
+          if (!classId) continue;
+          for (const subjectName of (SUBJECT_TIERS[tier] || [])) {
+            const subjectId = subjectByName[subjectName];
+            if (!subjectId) continue;
+            const key = `${classId}:${subjectId}`;
+            if (existingLinkKeys.has(key)) continue;
+            existingLinkKeys.add(key);
+            linksToInsert.push({ class_id: classId, subject_id: subjectId });
+          }
+        }
+
+        if (linksToInsert.length) {
+          const { error } = await supabaseClient.from('class_subjects').insert(linksToInsert);
+          if (error) throw error;
+        }
+
+        showStatus(statusEl, 'Default school structure initialized. Dropdowns are now populated.', false);
+        document.getElementById('cfg-init-summary').classList.remove('hidden');
+        document.getElementById('cfg-summary-classes').textContent = (allClasses || []).length;
+        document.getElementById('cfg-summary-subjects').textContent = (allSubjects || []).length;
+        document.getElementById('cfg-summary-links').textContent = existingLinkKeys.size;
+
+        await loadReferenceData();
+
+      } catch (err) {
+        showStatus(statusEl, 'Something went wrong initializing the structure. Please try again.', true);
+        console.error(err);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Initialize default school structure';
+      }
     });
 
     // =================================================================
@@ -993,6 +1254,7 @@
     // =================================================================
     // INIT
     // =================================================================
+    loadSchoolSettings();
     loadReferenceData().then(() => {
       loadStats();
       loadStaffList();
