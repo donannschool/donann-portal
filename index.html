@@ -540,6 +540,13 @@
         tabStaff.classList.remove('bg-brown', 'text-white');
         tabStaff.classList.add('text-brown');
         tabStaff.setAttribute('aria-selected', 'false');
+
+        [loginIdInput, document.getElementById('login-pass')].forEach(el => {
+          el.classList.remove('focus:ring-brown');
+          el.classList.add('focus:ring-sky');
+        });
+        loginBtn.classList.remove('bg-brown', 'hover:bg-brown/90');
+        loginBtn.classList.add('bg-navy', 'hover:bg-navy-dark');
       } else {
         staffFields.classList.remove('hidden');
         studentFields.classList.add('hidden');
@@ -554,6 +561,13 @@
         tabStudent.classList.remove('bg-sky', 'text-white');
         tabStudent.classList.add('text-sky');
         tabStudent.setAttribute('aria-selected', 'false');
+
+        [loginEmailInput, document.getElementById('login-pass')].forEach(el => {
+          el.classList.remove('focus:ring-sky');
+          el.classList.add('focus:ring-brown');
+        });
+        loginBtn.classList.remove('bg-navy', 'hover:bg-navy-dark');
+        loginBtn.classList.add('bg-brown', 'hover:bg-brown/90');
       }
     }
 
