@@ -294,12 +294,33 @@
             </div>
 
             <p id="enrollment-status" class="hidden text-sm px-3 py-2 border"></p>
-
-            <button type="submit" id="enrollment-btn"
-                    class="w-full sm:w-auto bg-navy text-white px-8 py-3 font-medium hover:bg-navy-dark transition-colors">
-              Register student
-            </button>
+            <div class="flex items-center gap-3">
+              <button type="submit" id="enrollment-btn"
+                      class="w-full sm:w-auto bg-navy text-white px-8 py-3 font-medium hover:bg-navy-dark transition-colors">
+                Register student
+              </button>
+              <button type="button" id="enrollment-cancel-edit-btn"
+                      class="hidden text-sm text-navy/60 hover:text-navy underline">
+                Cancel edit
+              </button>
+            </div>
           </form>
+
+          <div class="bg-white border border-navy/10 mt-8">
+            <div class="px-6 py-4 border-b border-navy/10 flex items-center justify-between gap-3 flex-wrap">
+              <p class="font-medium text-navy">All students</p>
+              <div class="flex items-center gap-2">
+                <select id="student-list-class-filter" class="field-input text-sm max-w-[180px]">
+                  <option value="">All classes</option>
+                </select>
+                <input id="student-list-search" class="field-input text-sm max-w-[200px]" type="text" placeholder="Search by name…">
+                <button id="student-list-refresh" class="text-sm text-sky hover:underline whitespace-nowrap">Refresh</button>
+              </div>
+            </div>
+            <div id="student-full-list" class="divide-y divide-navy/10">
+              <p class="px-6 py-8 text-center text-navy/40 text-sm">Loading students…</p>
+            </div>
+          </div>
         </section>
 
         <!-- ========================================================= -->
@@ -680,6 +701,7 @@
       const enClass = document.getElementById('en-class');
       enClass.innerHTML = '<option value="" disabled selected>Select class</option>' + opts;
       populateClassTeacherGrid();
+      populateStudentListClassFilter();
       // Re-render any existing assignment rows so their class checkbox
       // grids stay in sync if reference data reloads.
       assignmentRows.forEach(row => renderAssignmentRow(row));
@@ -972,10 +994,86 @@
     const enrollmentForm = document.getElementById('enrollment-form');
     const enrollmentStatus = document.getElementById('enrollment-status');
     const enrollmentBtn = document.getElementById('enrollment-btn');
+    const enrollmentCancelEditBtn = document.getElementById('enrollment-cancel-edit-btn');
+
+    // Non-null while editing an existing student instead of enrolling a
+    // new one — same pattern as staff edit mode above.
+    let editingStudentId = null;
+
+    function exitStudentEditMode() {
+      editingStudentId = null;
+      enrollmentForm.reset();
+      document.getElementById('en-department-wrap').classList.add('hidden');
+      enrollmentBtn.textContent = 'Register student';
+      enrollmentCancelEditBtn.classList.add('hidden');
+      enrollmentForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    enrollmentCancelEditBtn.addEventListener('click', exitStudentEditMode);
+
+    async function enterStudentEditMode(studentId) {
+      if (!requireSupabase(enrollmentStatus)) return;
+
+      const { data: student, error } = await supabaseClient
+        .from('students')
+        .select('id, surname, first_name, other_names, current_class_id, gender, date_of_birth, religion, department_id, blood_group, allergies, parent_name, parent_contact_address, parent_email, parent_phone, parent_whatsapp')
+        .eq('id', studentId)
+        .single();
+
+      if (error || !student) {
+        showToast('Could not load this student for editing.');
+        console.error(error);
+        return;
+      }
+
+      editingStudentId = studentId;
+
+      document.getElementById('en-surname').value = student.surname || '';
+      document.getElementById('en-firstname').value = student.first_name || '';
+      document.getElementById('en-othernames').value = student.other_names || '';
+      document.getElementById('en-class').value = student.current_class_id || '';
+      document.getElementById('en-gender').value = student.gender || '';
+      document.getElementById('en-dob').value = student.date_of_birth || '';
+      document.getElementById('en-religion').value = student.religion || '';
+      document.getElementById('en-blood').value = student.blood_group || '';
+      document.getElementById('en-allergies').value = student.allergies || '';
+      document.getElementById('en-parent-name').value = student.parent_name || '';
+      document.getElementById('en-parent-address').value = student.parent_contact_address || '';
+      document.getElementById('en-parent-email').value = student.parent_email || '';
+      document.getElementById('en-parent-phone').value = student.parent_phone || '';
+      document.getElementById('en-parent-whatsapp').value = student.parent_whatsapp || '';
+
+      // Show/hide + populate the department field the same way the
+      // class-change handler already does, so switching her class in
+      // edit mode behaves identically to registration.
+      const cls = classesCache.find(c => c.id === student.current_class_id);
+      const deptWrap = document.getElementById('en-department-wrap');
+      if (cls && cls.requires_department) {
+        deptWrap.classList.remove('hidden');
+        document.getElementById('en-department').value = await deptNameById(student.department_id) || '';
+      } else {
+        deptWrap.classList.add('hidden');
+      }
+
+      enrollmentBtn.textContent = 'Update student';
+      enrollmentCancelEditBtn.classList.remove('hidden');
+      enrollmentForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      showToast(`Editing ${[student.surname, student.first_name].filter(Boolean).join(' ')}. Change what's needed, then click Update.`);
+    }
+
+    async function deptNameById(id) {
+      if (!id) return '';
+      const { data: dept } = await supabaseClient.from('departments').select('department_name').eq('id', id).maybeSingle();
+      return dept ? dept.department_name : '';
+    }
 
     enrollmentForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (!requireSupabase(enrollmentStatus)) return;
+
+      if (editingStudentId) {
+        await submitStudentEdit();
+        return;
+      }
 
       enrollmentBtn.disabled = true;
       enrollmentBtn.textContent = 'Registering…';
@@ -1091,6 +1189,7 @@
       enrollmentForm.reset();
       document.getElementById('en-department-wrap').classList.add('hidden');
       loadStats();
+      loadStudentFullList();
 
       if (generatedUsername) {
         document.getElementById('cred-modal-title').textContent = 'Portal login generated';
@@ -1102,6 +1201,72 @@
         document.getElementById('credentials-modal').classList.remove('hidden');
       }
     });
+
+    async function submitStudentEdit() {
+      enrollmentBtn.disabled = true;
+      enrollmentBtn.textContent = 'Updating…';
+
+      const studentId = editingStudentId;
+      const classId = document.getElementById('en-class').value;
+      const cls = classesCache.find(c => c.id === classId);
+      const surname = document.getElementById('en-surname').value.trim();
+      const firstName = document.getElementById('en-firstname').value.trim();
+      const otherNames = document.getElementById('en-othernames').value.trim();
+      const fullName = [surname, firstName, otherNames].filter(Boolean).join(' ');
+      const dob = document.getElementById('en-dob').value;
+
+      // Resolve department id the same way registration does.
+      let deptId = null;
+      if (cls && cls.requires_department) {
+        const deptSelect = document.getElementById('en-department').value;
+        if (deptSelect) {
+          const { data: dept } = await supabaseClient.from('departments').select('id').eq('department_name', deptSelect).maybeSingle();
+          deptId = dept?.id || null;
+        }
+      }
+
+      const payload = {
+        full_name: fullName,
+        surname: surname,
+        first_name: firstName,
+        other_names: otherNames || null,
+        gender: document.getElementById('en-gender').value,
+        date_of_birth: dob,
+        religion: document.getElementById('en-religion').value.trim() || null,
+        blood_group: document.getElementById('en-blood').value || null,
+        allergies: document.getElementById('en-allergies').value.trim() || null,
+        parent_name: document.getElementById('en-parent-name').value.trim() || null,
+        parent_contact_address: document.getElementById('en-parent-address').value.trim() || null,
+        parent_email: document.getElementById('en-parent-email').value.trim() || null,
+        parent_phone: document.getElementById('en-parent-phone').value.trim(),
+        parent_whatsapp: document.getElementById('en-parent-whatsapp').value.trim() || null,
+        current_class_id: classId,
+        department_id: deptId,
+      };
+
+      // Note: this intentionally never touches portal_username,
+      // portal_temp_password, or auth_user_id — editing a student's
+      // profile details shouldn't regenerate her login or disturb an
+      // Auth account that's already provisioned. If her class changes
+      // into a tier that now requires portal credentials and she
+      // doesn't have any yet, that's a gap worth a manual follow-up
+      // registration rather than silently creating one here.
+      const { error } = await supabaseClient.from('students').update(payload).eq('id', studentId);
+
+      enrollmentBtn.disabled = false;
+
+      if (error) {
+        enrollmentBtn.textContent = 'Update student';
+        showStatus(enrollmentStatus, 'Could not update this student. Please check the details and try again.', true);
+        console.error(error);
+        return;
+      }
+
+      showStatus(enrollmentStatus, `${fullName} has been updated.`, false);
+      exitStudentEditMode();
+      loadStats();
+      loadStudentFullList();
+    }
 
     document.getElementById('credentials-close').addEventListener('click', () => {
       document.getElementById('credentials-modal').classList.add('hidden');
@@ -1798,6 +1963,69 @@
       return lines;
     }
 
+    async function loadStudentFullList() {
+      const listEl = document.getElementById('student-full-list');
+      if (!requireSupabase(null)) {
+        listEl.innerHTML = '<p class="px-6 py-8 text-center text-navy/40 text-sm">Connect Supabase to view students.</p>';
+        return;
+      }
+
+      const classFilter = document.getElementById('student-list-class-filter').value;
+      const searchTerm = document.getElementById('student-list-search').value.trim();
+
+      let query = supabaseClient
+        .from('students')
+        .select('id, full_name, current_class_id, is_active, classes(class_name)')
+        .order('full_name');
+
+      if (classFilter) query = query.eq('current_class_id', classFilter);
+      if (searchTerm) query = query.ilike('full_name', `%${searchTerm}%`);
+
+      const { data, error } = await query;
+
+      if (error) {
+        listEl.innerHTML = '<p class="px-6 py-8 text-center text-navy/40 text-sm">Could not load students.</p>';
+        console.error(error);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        listEl.innerHTML = '<p class="px-6 py-8 text-center text-navy/40 text-sm">No students match.</p>';
+        return;
+      }
+
+      listEl.innerHTML = data.map(s => `
+        <div class="px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <p class="font-medium text-navy">${escapeHtml(s.full_name)}</p>
+            <p class="text-sm text-navy/50">${escapeHtml(s.classes?.class_name || 'No class')} ${s.is_active === false ? '&middot; <span class="text-red-600">Inactive</span>' : ''}</p>
+          </div>
+          <button data-edit-student-id="${s.id}"
+                  class="student-edit-btn inline-flex items-center px-3 py-1.5 border border-navy/20 text-navy text-sm font-medium hover:bg-navy/5 transition-colors">
+            Edit
+          </button>
+        </div>
+      `).join('');
+
+      listEl.querySelectorAll('.student-edit-btn').forEach(btn => {
+        btn.addEventListener('click', () => enterStudentEditMode(btn.dataset.editStudentId));
+      });
+    }
+
+    function populateStudentListClassFilter() {
+      const select = document.getElementById('student-list-class-filter');
+      const opts = classesCache.map(c => `<option value="${c.id}">${escapeHtml(c.class_name)}</option>`).join('');
+      select.innerHTML = '<option value="">All classes</option>' + opts;
+    }
+
+    document.getElementById('student-list-refresh').addEventListener('click', loadStudentFullList);
+    document.getElementById('student-list-class-filter').addEventListener('change', loadStudentFullList);
+    let studentSearchDebounce = null;
+    document.getElementById('student-list-search').addEventListener('input', () => {
+      clearTimeout(studentSearchDebounce);
+      studentSearchDebounce = setTimeout(loadStudentFullList, 350);
+    });
+
     async function loadStaffList() {
       const listEl = document.getElementById('staff-list');
       if (!requireSupabase(null)) {
@@ -2090,6 +2318,7 @@
     loadReferenceData().then(() => {
       loadStats();
       loadStaffList();
+      loadStudentFullList();
     });
   </script>
 </body>
