@@ -2461,6 +2461,45 @@
         return;
       }
 
+      // Switching a student to Free plan wipes any deposits already
+      // logged for her this term — she's not meant to owe or have paid
+      // anything once she's on Free plan, so leftover deposit records
+      // would just be confusing, stale numbers. This only runs when
+      // Free plan is checked AND there's something to actually delete,
+      // and it asks for confirmation first since it's a real delete.
+      if (isFreePlan) {
+        const { data: existingDeposits } = await supabaseClient
+          .from('fee_payments')
+          .select('id')
+          .eq('student_id', feesSelectedStudentId)
+          .eq('session_id', sessionId)
+          .eq('term', term);
+
+        if (existingDeposits && existingDeposits.length > 0) {
+          const confirmed = confirm(
+            `This student has ${existingDeposits.length} deposit(s) already recorded for this term. ` +
+            `Marking her Free plan will permanently delete that deposit history. Continue?`
+          );
+          if (!confirmed) {
+            showStatus(statusEl, 'Not saved — Free plan was cancelled to keep her existing deposit history.', true);
+            return;
+          }
+
+          const { error: deleteError } = await supabaseClient
+            .from('fee_payments')
+            .delete()
+            .eq('student_id', feesSelectedStudentId)
+            .eq('session_id', sessionId)
+            .eq('term', term);
+
+          if (deleteError) {
+            showStatus(statusEl, 'Could not clear old deposits. Please try again.', true);
+            console.error(deleteError);
+            return;
+          }
+        }
+      }
+
       const { error } = await supabaseClient.from('fee_expectations').upsert({
         student_id: feesSelectedStudentId,
         session_id: sessionId,
