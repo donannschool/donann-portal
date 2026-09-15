@@ -411,6 +411,27 @@
           <p class="text-navy/60 mb-6">Look up a student's full record, log a payment, and clear them for the active term.</p>
 
           <div class="bg-white border border-navy/10 p-6 sm:p-8 mb-6">
+            <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Payment overview</p>
+            <div class="grid sm:grid-cols-4 gap-3 mb-4">
+              <select id="overview-session" class="field-input text-sm"></select>
+              <select id="overview-term" class="field-input text-sm">
+                <option>1st Term</option><option>2nd Term</option><option>3rd Term</option>
+              </select>
+              <select id="overview-class" class="field-input text-sm">
+                <option value="">All classes</option>
+              </select>
+              <select id="overview-status" class="field-input text-sm">
+                <option value="">All statuses</option>
+                <option value="paid">Paid only</option>
+                <option value="unpaid">Unpaid only</option>
+              </select>
+            </div>
+            <div id="overview-list" class="border border-navy/10 divide-y divide-navy/10 max-h-96 overflow-y-auto">
+              <p class="px-4 py-6 text-center text-navy/40 text-sm">Loading…</p>
+            </div>
+          </div>
+
+          <div class="bg-white border border-navy/10 p-6 sm:p-8 mb-6">
             <label class="field-label" for="ledger-search">Search by student name</label>
             <div class="flex gap-3">
               <input id="ledger-search" class="field-input" type="text" placeholder="Start typing a name…">
@@ -2146,6 +2167,106 @@
     // =================================================================
     let selectedStudentId = null;
 
+    // =================================================================
+    // PAYMENT OVERVIEW — filterable Paid/Unpaid view across the whole
+    // school, distinct from the per-student search below it.
+    // =================================================================
+    function populateOverviewFilters() {
+      const sessionSelect = document.getElementById('overview-session');
+      sessionSelect.innerHTML = sessionsCache
+        .map(s => `<option value="${s.id}" ${s.is_active ? 'selected' : ''}>${escapeHtml(s.session_label)}</option>`)
+        .join('');
+
+      const classSelect = document.getElementById('overview-class');
+      classSelect.innerHTML = '<option value="">All classes</option>' +
+        classesCache.map(c => `<option value="${c.id}">${escapeHtml(c.class_name)}</option>`).join('');
+    }
+
+    async function loadPaymentOverview() {
+      const listEl = document.getElementById('overview-list');
+      if (!requireSupabase(null)) return;
+
+      const sessionId = document.getElementById('overview-session').value;
+      const term = document.getElementById('overview-term').value;
+      const classId = document.getElementById('overview-class').value;
+      const statusFilter = document.getElementById('overview-status').value;
+
+      if (!sessionId) {
+        listEl.innerHTML = '<p class="px-4 py-6 text-center text-navy/40 text-sm">No academic session available.</p>';
+        return;
+      }
+
+      listEl.innerHTML = '<p class="px-4 py-6 text-center text-navy/40 text-sm">Loading…</p>';
+
+      let studentQuery = supabaseClient
+        .from('students')
+        .select('id, full_name, current_class_id, classes(class_name)')
+        .eq('is_active', true)
+        .order('full_name');
+      if (classId) studentQuery = studentQuery.eq('current_class_id', classId);
+
+      const [{ data: students, error: studentsErr }, { data: payments, error: paymentsErr }] = await Promise.all([
+        studentQuery,
+        supabaseClient.from('payment_ledger').select('student_id, status').eq('session_id', sessionId).eq('term', term),
+      ]);
+
+      if (studentsErr || paymentsErr) {
+        listEl.innerHTML = '<p class="px-4 py-6 text-center text-navy/40 text-sm">Could not load payment data.</p>';
+        console.error(studentsErr || paymentsErr);
+        return;
+      }
+
+      const paidIds = new Set((payments || []).filter(p => p.status === 'Cleared').map(p => p.student_id));
+
+      let rows = (students || []).map(s => ({
+        ...s,
+        isPaid: paidIds.has(s.id),
+      }));
+
+      if (statusFilter === 'paid') rows = rows.filter(r => r.isPaid);
+      if (statusFilter === 'unpaid') rows = rows.filter(r => !r.isPaid);
+
+      if (!rows.length) {
+        listEl.innerHTML = '<p class="px-4 py-6 text-center text-navy/40 text-sm">No students match these filters.</p>';
+        return;
+      }
+
+      const paidCount = rows.filter(r => r.isPaid).length;
+      listEl.innerHTML = `
+        <div class="px-4 py-2 bg-[#F5F7FA] text-xs text-navy/60 sticky top-0">
+          ${rows.length} student${rows.length === 1 ? '' : 's'} shown &middot; ${paidCount} paid &middot; ${rows.length - paidCount} unpaid
+        </div>
+      ` + rows.map(s => `
+        <button data-overview-student-id="${s.id}" data-name="${escapeAttr(s.full_name)}" data-class="${escapeAttr(s.classes?.class_name || '')}"
+                class="overview-row w-full text-left px-4 py-2.5 text-sm hover:bg-navy/5 flex items-center justify-between gap-3">
+          <span>
+            <span class="text-navy">${escapeHtml(s.full_name)}</span>
+            <span class="text-navy/40"> &middot; ${escapeHtml(s.classes?.class_name || '')}</span>
+          </span>
+          <span class="shrink-0 text-xs font-medium px-2 py-1 border ${s.isPaid ? 'border-emerald-300 text-emerald-700 bg-emerald-50' : 'border-red-300 text-red-700 bg-red-50'}">
+            ${s.isPaid ? 'Paid' : 'Unpaid'}
+          </span>
+        </button>
+      `).join('');
+
+      listEl.querySelectorAll('.overview-row').forEach(btn => {
+        btn.addEventListener('click', () => {
+          openStudentLedger(btn.dataset.overviewStudentId, btn.dataset.name, btn.dataset.class);
+          // Pre-select the same session/term she was viewing in the
+          // overview, so recording a payment doesn't default back to
+          // whatever the ledger form's own default is.
+          document.getElementById('pay-session').value = document.getElementById('overview-session').value;
+          document.getElementById('pay-term').value = document.getElementById('overview-term').value;
+          document.getElementById('ledger-detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+    }
+
+    document.getElementById('overview-session').addEventListener('change', loadPaymentOverview);
+    document.getElementById('overview-term').addEventListener('change', loadPaymentOverview);
+    document.getElementById('overview-class').addEventListener('change', loadPaymentOverview);
+    document.getElementById('overview-status').addEventListener('change', loadPaymentOverview);
+
     async function searchStudents() {
       const query = document.getElementById('ledger-search').value.trim();
       const resultsEl = document.getElementById('ledger-results');
@@ -2252,6 +2373,7 @@
       showStatus(statusEl, 'Payment recorded — student is marked Cleared for this term.', false);
       document.getElementById('pay-amount').value = '';
       loadStudentTimeline(selectedStudentId);
+      loadPaymentOverview();
     });
 
     // =================================================================
@@ -2319,6 +2441,8 @@
       loadStats();
       loadStaffList();
       loadStudentFullList();
+      populateOverviewFilters();
+      loadPaymentOverview();
     });
   </script>
 </body>
