@@ -318,6 +318,7 @@
               <div>
                 <label class="field-label" for="st-email">Email (used for login)</label>
                 <input id="st-email" class="field-input" type="email" required>
+                <p id="st-email-lock-note" class="hidden text-xs text-navy/40 mt-1">Email can't be changed here — it's tied to her existing login. Contact support to change a login email.</p>
               </div>
               <div>
                 <label class="field-label" for="st-role">Role</label>
@@ -358,10 +359,16 @@
             </div>
 
             <p id="staff-status" class="hidden text-sm px-3 py-2 border"></p>
-            <button type="submit" id="staff-btn"
-                    class="w-full sm:w-auto bg-navy text-white px-8 py-3 font-medium hover:bg-navy-dark transition-colors">
-              Register staff member
-            </button>
+            <div class="flex items-center gap-3">
+              <button type="submit" id="staff-btn"
+                      class="w-full sm:w-auto bg-navy text-white px-8 py-3 font-medium hover:bg-navy-dark transition-colors">
+                Register staff member
+              </button>
+              <button type="button" id="staff-cancel-edit-btn"
+                      class="hidden text-sm text-navy/60 hover:text-navy underline">
+                Cancel edit
+              </button>
+            </div>
           </form>
 
           <div class="bg-white border border-navy/10">
@@ -1377,10 +1384,114 @@
     const staffForm = document.getElementById('staff-form');
     const staffStatus = document.getElementById('staff-status');
     const staffBtn = document.getElementById('staff-btn');
+    const staffCancelEditBtn = document.getElementById('staff-cancel-edit-btn');
+
+    // Non-null while editing an existing staff member instead of
+    // registering a new one. Kept as module-level state so the submit
+    // handler can branch cleanly between "insert new" and "update
+    // existing" without duplicating the whole form.
+    let editingStaffId = null;
+
+    function exitStaffEditMode() {
+      editingStaffId = null;
+      staffForm.reset();
+      assignmentRows = [];
+      renderAllAssignmentRows();
+      document.querySelectorAll('input[name="st-class-teacher-option"]').forEach(cb => { cb.checked = false; });
+      document.getElementById('st-email').disabled = false;
+      document.getElementById('st-email-lock-note').classList.add('hidden');
+      staffBtn.textContent = 'Register staff member';
+      staffCancelEditBtn.classList.add('hidden');
+      staffForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    staffCancelEditBtn.addEventListener('click', exitStaffEditMode);
+
+    async function enterStaffEditMode(staffId) {
+      if (!requireSupabase(staffStatus)) return;
+
+      const { data: staffRow, error: staffErr } = await supabaseClient
+        .from('staff')
+        .select('id, full_name, email, role, phone')
+        .eq('id', staffId)
+        .single();
+
+      if (staffErr || !staffRow) {
+        showToast('Could not load this staff member for editing.');
+        console.error(staffErr);
+        return;
+      }
+
+      const activeSession = sessionsCache.find(s => s.is_active) || sessionsCache[0];
+
+      const [{ data: classTeacherRows }, { data: subjectAssignRows }] = await Promise.all([
+        supabaseClient.from('staff_class_teacher').select('class_id').eq('staff_id', staffId),
+        activeSession
+          ? supabaseClient.from('staff_subject_assignments').select('class_id, subject_id').eq('staff_id', staffId).eq('session_id', activeSession.id)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      editingStaffId = staffId;
+
+      // Basic fields
+      document.getElementById('st-name').value = staffRow.full_name || '';
+      document.getElementById('st-email').value = staffRow.email || '';
+      document.getElementById('st-email').disabled = true;
+      document.getElementById('st-email-lock-note').classList.remove('hidden');
+      document.getElementById('st-role').value = staffRow.role || '';
+      document.getElementById('st-phone').value = staffRow.phone || '';
+
+      // Class teacher checkboxes
+      const assignedClassIds = new Set((classTeacherRows || []).map(r => r.class_id));
+      document.querySelectorAll('input[name="st-class-teacher-option"]').forEach(cb => {
+        cb.checked = assignedClassIds.has(cb.value);
+      });
+
+      // Rebuild subject assignment rows from her saved assignments.
+      // Group by subject_id: every class sharing the same subject_id
+      // becomes one row with multiple classes checked, matching how
+      // rows are built when registering. "ALL SUBJECTS" rows can't be
+      // perfectly reverse-engineered (the smart mapping doesn't save a
+      // marker distinguishing it from someone manually picking every
+      // subject one by one), so each saved class/subject pair is
+      // restored as its literal subject — the admin can re-tick ALL
+      // SUBJECTS on a row herself if she wants the smart shortcut back.
+      const rowsBySubject = new Map();
+      (subjectAssignRows || []).forEach(r => {
+        if (!rowsBySubject.has(r.subject_id)) rowsBySubject.set(r.subject_id, new Set());
+        rowsBySubject.get(r.subject_id).add(r.class_id);
+      });
+
+      assignmentRows = [];
+      rowSeq = 0;
+      for (const [subjectId, classIds] of rowsBySubject.entries()) {
+        assignmentRows.push({
+          id: ++rowSeq,
+          selectedClassIds: classIds,
+          allSubjects: false,
+          subjectId: subjectId,
+        });
+      }
+      if (!assignmentRows.length) {
+        // Nothing saved yet — give her one empty row to start from,
+        // same as a fresh registration would show.
+        assignmentRows.push({ id: ++rowSeq, selectedClassIds: new Set(), allSubjects: false, subjectId: '' });
+      }
+      renderAllAssignmentRows();
+
+      staffBtn.textContent = 'Update staff member';
+      staffCancelEditBtn.classList.remove('hidden');
+      staffForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      showToast(`Editing ${staffRow.full_name}. Change what's needed, then click Update.`);
+    }
 
     staffForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (!requireSupabase(staffStatus)) return;
+
+      if (editingStaffId) {
+        await submitStaffEdit();
+        return;
+      }
 
       staffBtn.disabled = true;
       staffBtn.textContent = 'Registering…';
@@ -1523,6 +1634,87 @@
       loadStats();
     });
 
+    async function submitStaffEdit() {
+      staffBtn.disabled = true;
+      staffBtn.textContent = 'Updating…';
+
+      const fullName = document.getElementById('st-name').value.trim();
+      const staffId = editingStaffId;
+
+      const { error: updateErr } = await supabaseClient.from('staff').update({
+        full_name: fullName,
+        role: document.getElementById('st-role').value,
+        phone: document.getElementById('st-phone').value.trim() || null,
+        // email intentionally excluded — locked read-only in edit mode
+        // since changing it here wouldn't change the real Auth login.
+      }).eq('id', staffId);
+
+      if (updateErr) {
+        staffBtn.disabled = false;
+        staffBtn.textContent = 'Update staff member';
+        showStatus(staffStatus, 'Could not update this staff member. Please try again.', true);
+        console.error(updateErr);
+        return;
+      }
+
+      const activeSession = sessionsCache.find(s => s.is_active) || sessionsCache[0];
+
+      if (activeSession) {
+        // Replace her class-teacher assignments outright rather than
+        // trying to diff old vs new — simpler and correct as long as we
+        // only touch rows for this staff member and this session.
+        const { error: delCtErr } = await supabaseClient
+          .from('staff_class_teacher')
+          .delete()
+          .eq('staff_id', staffId)
+          .eq('session_id', activeSession.id);
+        if (delCtErr) console.error(delCtErr);
+
+        const classTeacherIds = getSelectedClassTeacherIds();
+        if (classTeacherIds.length) {
+          const { error: ctError } = await supabaseClient.from('staff_class_teacher').upsert(
+            classTeacherIds.map(classId => ({
+              staff_id: staffId, class_id: classId, session_id: activeSession.id,
+            })),
+            { onConflict: 'class_id,session_id' }
+          );
+          if (ctError) {
+            console.error(ctError);
+            showToast('Staff updated, but class teacher assignment failed — please retry.');
+          }
+        }
+
+        // Same replace-outright approach for subject assignments.
+        const { error: delSaErr } = await supabaseClient
+          .from('staff_subject_assignments')
+          .delete()
+          .eq('staff_id', staffId)
+          .eq('session_id', activeSession.id);
+        if (delSaErr) console.error(delSaErr);
+
+        const expandedAssignments = expandAssignmentRows();
+        if (expandedAssignments.length) {
+          const { error: saError } = await supabaseClient.from('staff_subject_assignments').insert(
+            expandedAssignments.map(a => ({
+              staff_id: staffId, class_id: a.classId, subject_id: a.subjectId, session_id: activeSession.id,
+            }))
+          );
+          if (saError) {
+            console.error(saError);
+            showToast('Staff updated, but subject assignments failed — please retry.');
+          }
+        }
+      } else {
+        showToast('No active academic session — class/subject assignments were not changed.');
+      }
+
+      staffBtn.disabled = false;
+      showStatus(staffStatus, `${fullName} has been updated.`, false);
+      exitStaffEditMode();
+      loadStaffList();
+      loadStats();
+    }
+
     // Builds a compact "JSS 1-3: Agric" style summary from a flat list of
     // { className, subjectName } assignment rows, grouping classes that
     // share the exact same subject and collapsing consecutive numbered
@@ -1660,12 +1852,18 @@
               <p class="font-medium text-navy">${escapeHtml(s.full_name)}</p>
               <p class="text-sm text-navy/50">${escapeHtml(s.role)} &middot; ${escapeHtml(s.email || '')}</p>
             </div>
-            <button data-staff-id="${s.id}" data-current="${s.status}"
-                    class="staff-toggle inline-flex items-center gap-2 px-3 py-1.5 border text-sm font-medium transition-colors
-                           ${s.status === 'Active' ? 'border-emerald-300 text-emerald-700 bg-emerald-50' : 'border-red-300 text-red-700 bg-red-50'}">
-              <span class="w-2 h-2 rounded-full ${s.status === 'Active' ? 'bg-emerald-500' : 'bg-red-500'}"></span>
-              ${s.status}
-            </button>
+            <div class="flex items-center gap-2">
+              <button data-staff-id="${s.id}" data-current="${s.status}"
+                      class="staff-toggle inline-flex items-center gap-2 px-3 py-1.5 border text-sm font-medium transition-colors
+                             ${s.status === 'Active' ? 'border-emerald-300 text-emerald-700 bg-emerald-50' : 'border-red-300 text-red-700 bg-red-50'}">
+                <span class="w-2 h-2 rounded-full ${s.status === 'Active' ? 'bg-emerald-500' : 'bg-red-500'}"></span>
+                ${s.status}
+              </button>
+              <button data-edit-staff-id="${s.id}"
+                      class="staff-edit-btn inline-flex items-center px-3 py-1.5 border border-navy/20 text-navy text-sm font-medium hover:bg-navy/5 transition-colors">
+                Edit
+              </button>
+            </div>
           </div>
 
           <div class="flex items-start justify-between gap-3 border-t border-navy/5 pt-3">
@@ -1707,6 +1905,10 @@
           const detail = document.getElementById(`schedule-detail-${btn.dataset.toggleSchedule}`);
           if (detail) detail.classList.toggle('hidden');
         });
+      });
+
+      listEl.querySelectorAll('.staff-edit-btn').forEach(btn => {
+        btn.addEventListener('click', () => enterStaffEditMode(btn.dataset.editStaffId));
       });
     }
     document.getElementById('staff-refresh').addEventListener('click', loadStaffList);
