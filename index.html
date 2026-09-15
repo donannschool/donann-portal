@@ -60,6 +60,7 @@
         </div>
       </div>
       <nav class="flex items-center gap-3 text-sm font-medium">
+        <a href="#about" class="text-navy hover:text-sky transition-colors hidden sm:inline">About us</a>
         <a href="#admission" class="text-navy hover:text-sky transition-colors hidden sm:inline">Admissions</a>
         <a href="#inquiry" class="text-navy hover:text-sky transition-colors hidden sm:inline">Ask a question</a>
         <a href="#portal-login" class="bg-navy text-white px-5 py-2.5 hover:bg-navy-dark transition-colors">
@@ -100,6 +101,77 @@
           <li class="flex justify-between"><span class="text-white/60"></span><span>0803 346 0040</span></li>
         </ul>
       </div>
+    </div>
+  </section>
+
+  <!-- ============ ABOUT US ============ -->
+  <section id="about" class="max-w-6xl mx-auto px-6 py-16">
+    <div class="max-w-3xl">
+      <p class="text-sky font-medium mb-2">About Don-Ann School</p>
+      <h2 class="font-display text-3xl text-navy mb-5">Determined to be the best.</h2>
+
+      <p class="text-navy/80 leading-relaxed mb-2">
+        Don-Ann School began in September 2015 as a small, family-founded initiative in
+        Peace Estate, Lagos, built on a simple conviction: every child deserves an
+        education that shapes both the mind and the character. Since then, we've grown,
+        term by term, into a full learning community spanning Daycare through Senior
+        Secondary (SSS 3) — still rooted in the same values we started with.
+      </p>
+
+      <div id="about-more" class="hidden mt-2">
+        <p class="text-navy/80 leading-relaxed mb-5">
+          We are rooted in Christ and in good morals. At Don-Ann, discipline and diction
+          are not afterthoughts; they are foundational, taught alongside every subject on
+          the timetable. We believe a child who grows up grounded in strong values carries
+          that foundation into every stage of life, long after they've left our classrooms
+          — and it shows in our exam results.
+        </p>
+
+        <div class="grid sm:grid-cols-2 gap-4 mb-6">
+          <div class="border border-navy/15 bg-navy/5 px-5 py-4">
+            <p class="font-display text-3xl text-navy leading-none mb-1">97%</p>
+            <p class="text-sm text-navy/70">WAEC 2026 success rate</p>
+          </div>
+          <div class="border border-navy/15 bg-navy/5 px-5 py-4">
+            <p class="font-display text-3xl text-navy leading-none mb-1">90%</p>
+            <p class="text-sm text-navy/70">JAMB 2026 success rate</p>
+          </div>
+        </div>
+
+        <h3 class="font-display text-xl text-navy mb-3">What we offer</h3>
+        <ul class="space-y-2 text-navy/80 leading-relaxed mb-6">
+          <li><strong class="text-navy">Daycare, Nursery, Primary and Secondary education</strong> — a curriculum that grows with your child from their earliest years through SSS 3.</li>
+          <li><strong class="text-navy">Experienced, qualified teachers</strong> committed to bringing out the best in every learner.</li>
+          <li><strong class="text-navy">A well-secured campus</strong> where parents can trust their children are safe throughout the school day.</li>
+          <li><strong class="text-navy">24/7 daycare service</strong> for families who need extended care.</li>
+          <li><strong class="text-navy">A registered school nurse and sick bay</strong> on ground for immediate attention to any health need.</li>
+          <li><strong class="text-navy">A functional library, science laboratory, ICT facility, and hands-on practical room</strong> — real, applied learning beyond the textbook.</li>
+          <li><strong class="text-navy">A playground</strong> that supports healthy, active development alongside academics.</li>
+        </ul>
+
+        <h3 class="font-display text-xl text-navy mb-3">Why families choose us</h3>
+        <p class="text-navy/80 leading-relaxed mb-5">
+          Parents choose Don-Ann for three things above all: results, care, and character.
+          We take academic performance seriously — our 2026 graduating class posted a 97%
+          success rate in WAEC and a 90% success rate in JAMB. We take care seriously, from
+          our sick bay to our secured campus. And we take moral formation seriously —
+          because we believe a good education produces not just well-taught students, but
+          well-raised young people.
+        </p>
+
+        <p class="text-navy/80 leading-relaxed">
+          Admission is currently open. We invite you to become part of the Don-Ann family
+          — determined, like us, to be the best.
+        </p>
+      </div>
+
+      <button id="about-toggle" type="button"
+        class="mt-1 text-sm font-medium text-sky hover:text-navy inline-flex items-center gap-1 transition-colors">
+        <span id="about-toggle-label">Read more about our school</span>
+        <svg id="about-toggle-icon" class="w-4 h-4 transition-transform" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
     </div>
   </section>
 
@@ -494,6 +566,21 @@
 
       showStatus(inquiryStatus, 'Thanks — we\'ve received your question and will respond soon.', false);
       inquiryForm.reset();
+    });
+
+    // ---------------------------------------------------------------
+    // ABOUT US — read more / read less toggle
+    // ---------------------------------------------------------------
+    const aboutMore = document.getElementById('about-more');
+    const aboutToggle = document.getElementById('about-toggle');
+    const aboutToggleLabel = document.getElementById('about-toggle-label');
+    const aboutToggleIcon = document.getElementById('about-toggle-icon');
+
+    aboutToggle.addEventListener('click', () => {
+      const isHidden = aboutMore.classList.contains('hidden');
+      aboutMore.classList.toggle('hidden');
+      aboutToggleLabel.textContent = isHidden ? 'Show less' : 'Read more about our school';
+      aboutToggleIcon.classList.toggle('rotate-180', isHidden);
     });
 
     // ---------------------------------------------------------------
