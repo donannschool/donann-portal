@@ -332,7 +332,7 @@
     // ---------------------------------------------------------------
     const logoImg = document.getElementById('school-logo');
     const logoFallback = document.getElementById('logo-fallback');
-    logoImg.src = 'assets/logo.png';
+    logoImg.src = 'logo.png';
     logoImg.onload = () => { logoImg.classList.remove('hidden'); logoFallback.classList.add('hidden'); };
     logoImg.onerror = () => { logoImg.classList.add('hidden'); logoFallback.classList.remove('hidden'); };
 
