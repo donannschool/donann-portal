@@ -65,8 +65,11 @@
       <nav class="flex-1 px-3 py-4 space-y-1" id="sidebar-nav">
         <!-- populated by JS to stay in sync with mobile nav -->
       </nav>
-      <div class="px-6 py-4 border-t border-white/10 text-xs text-white/40">
-        Signed in as school administrator
+      <div class="px-6 py-4 border-t border-white/10">
+        <p class="text-xs text-white/40 mb-3">Signed in as school administrator</p>
+        <button id="signout-btn" class="w-full text-sm text-white/70 hover:text-white border border-white/20 hover:border-white/40 px-3 py-2 rounded transition-colors">
+          Log out
+        </button>
       </div>
     </aside>
 
@@ -95,6 +98,11 @@
         </button>
       </div>
       <nav class="p-3 space-y-1" id="sidebar-nav-mobile"></nav>
+      <div class="p-3 border-t border-white/10">
+        <button id="signout-btn-mobile" class="w-full text-sm text-white/70 hover:text-white border border-white/20 hover:border-white/40 px-3 py-2 rounded transition-colors">
+          Log out
+        </button>
+      </div>
     </div>
 
     <!-- ============ MAIN CONTENT ============ -->
@@ -723,6 +731,16 @@
       document.getElementById('config-banner').classList.remove('hidden');
       console.warn('Supabase is not configured yet — replace SUPABASE_URL and SUPABASE_ANON_KEY.');
     }
+
+    // =================================================================
+    // SIGN OUT — always returns to the main portal login
+    // =================================================================
+    async function doSignOut() {
+      if (supabaseClient) await supabaseClient.auth.signOut();
+      window.location.href = 'index.html';
+    }
+    document.getElementById('signout-btn').addEventListener('click', doSignOut);
+    document.getElementById('signout-btn-mobile').addEventListener('click', doSignOut);
 
     // =================================================================
     // NAVIGATION

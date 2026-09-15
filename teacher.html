@@ -339,10 +339,7 @@
     async function doSignOut() {
       if (supabaseClient) await supabaseClient.auth.signOut();
       currentStaff = null;
-      document.getElementById('app-screen').classList.add('hidden');
-      document.getElementById('denied-screen').classList.add('hidden');
-      document.getElementById('login-screen').classList.remove('hidden');
-      loginForm.reset();
+      window.location.href = 'index.html';
     }
 
     // =================================================================
