@@ -559,6 +559,41 @@
         </section>
 
         <!-- ========================================================= -->
+        <!-- PANEL: VIEW MASTER SHEET                                   -->
+        <!-- ========================================================= -->
+        <section id="panel-mastersheet" class="panel">
+          <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">View Master Sheet</h1>
+          <p class="text-navy/60 mb-6">Read-only view of any class's scores and class teacher comments for a given session and term.</p>
+
+          <div class="bg-white border border-navy/10 p-6 sm:p-8 mb-6">
+            <div class="grid sm:grid-cols-3 gap-3">
+              <select id="ams-class" class="field-input text-sm">
+                <option value="" disabled selected>Select class</option>
+              </select>
+              <select id="ams-session" class="field-input text-sm"></select>
+              <select id="ams-term" class="field-input text-sm">
+                <option>1st Term</option><option>2nd Term</option><option>3rd Term</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="bg-white border border-navy/10 overflow-x-auto">
+            <table class="w-full text-sm min-w-[640px]">
+              <thead class="bg-navy/5 text-navy text-left">
+                <tr>
+                  <th class="px-4 py-3 font-medium">Student</th>
+                  <th class="px-4 py-3 font-medium">Subjects &amp; scores</th>
+                  <th class="px-4 py-3 font-medium w-72">Class teacher comment</th>
+                </tr>
+              </thead>
+              <tbody id="ams-rows" class="divide-y divide-navy/10">
+                <tr><td class="px-4 py-6 text-navy/40" colspan="3">Select a class, session, and term above.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
         <!-- PANEL: POST NEWS                                           -->
         <!-- ========================================================= -->
         <section id="panel-news" class="panel">
@@ -661,6 +696,7 @@
       { id: 'staff',      label: 'Staff roster' },
       { id: 'ledger',     label: 'Ledger & history' },
       { id: 'fees',       label: 'Fees' },
+      { id: 'mastersheet', label: 'View Master Sheet' },
       { id: 'news',       label: 'Post news' },
     ];
 
@@ -2292,6 +2328,80 @@
       unset: 'border-navy/20 text-navy/50 bg-navy/5',
     };
 
+    // =================================================================
+    // VIEW MASTER SHEET (admin) — read-only equivalent of the class
+    // teacher's Master Sheet tab in teacher.html, but any class/session/
+    // term can be picked rather than being limited to her own class.
+    // =================================================================
+    function populateAdminMasterSheetFilters() {
+      const classSelect = document.getElementById('ams-class');
+      classSelect.innerHTML = '<option value="" disabled selected>Select class</option>' +
+        classesCache.map(c => `<option value="${c.id}">${escapeHtml(c.class_name)}</option>`).join('');
+
+      const sessionSelect = document.getElementById('ams-session');
+      sessionSelect.innerHTML = sessionsCache
+        .map(s => `<option value="${s.id}" ${s.is_active ? 'selected' : ''}>${escapeHtml(s.session_label)}</option>`)
+        .join('');
+    }
+
+    async function loadAdminMasterSheet() {
+      const classId = document.getElementById('ams-class').value;
+      const sessionId = document.getElementById('ams-session').value;
+      const term = document.getElementById('ams-term').value;
+      const rowsEl = document.getElementById('ams-rows');
+
+      if (!classId || !sessionId) {
+        rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="3">Select a class, session, and term above.</td></tr>';
+        return;
+      }
+
+      rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="3">Loading…</td></tr>';
+
+      const { data: students } = await supabaseClient
+        .from('students')
+        .select('id, full_name')
+        .eq('current_class_id', classId)
+        .eq('is_active', true)
+        .order('full_name');
+
+      if (!students || students.length === 0) {
+        rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="3">No active students in this class.</td></tr>';
+        return;
+      }
+
+      const studentIds = students.map(s => s.id);
+
+      const [{ data: scores }, { data: comments }] = await Promise.all([
+        supabaseClient.from('scores').select('student_id, total_score, subjects(subject_name)').in('student_id', studentIds).eq('session_id', sessionId).eq('term', term),
+        supabaseClient.from('class_teacher_comments').select('student_id, comment').in('student_id', studentIds).eq('session_id', sessionId).eq('term', term),
+      ]);
+
+      const scoresByStudent = {};
+      (scores || []).forEach(s => {
+        (scoresByStudent[s.student_id] = scoresByStudent[s.student_id] || []).push(`${s.subjects?.subject_name}: ${s.total_score ?? '—'}`);
+      });
+      const commentByStudent = {};
+      (comments || []).forEach(c => { commentByStudent[c.student_id] = c.comment; });
+
+      rowsEl.innerHTML = students.map(s => `
+        <tr>
+          <td class="px-4 py-3 align-top font-medium text-navy whitespace-nowrap">${escapeHtml(s.full_name)}</td>
+          <td class="px-4 py-3 align-top text-navy/70">
+            ${(scoresByStudent[s.id] || []).length
+              ? `<div class="flex flex-wrap gap-x-3 gap-y-1">${scoresByStudent[s.id].map(t => `<span>${escapeHtml(t)}</span>`).join('')}</div>`
+              : '<span class="text-navy/30">No scores yet</span>'}
+          </td>
+          <td class="px-4 py-3 align-top text-navy/70">
+            ${commentByStudent[s.id] ? escapeHtml(commentByStudent[s.id]) : '<span class="text-navy/30">No comment yet</span>'}
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    document.getElementById('ams-class').addEventListener('change', loadAdminMasterSheet);
+    document.getElementById('ams-session').addEventListener('change', loadAdminMasterSheet);
+    document.getElementById('ams-term').addEventListener('change', loadAdminMasterSheet);
+
     async function loadFeesList() {
       const listEl = document.getElementById('fees-list');
       if (!requireSupabase(null)) return;
@@ -2808,6 +2918,7 @@
       loadPaymentOverview();
       populateFeesFilters();
       loadFeesList();
+      populateAdminMasterSheetFilters();
     });
   </script>
 </body>
