@@ -349,7 +349,8 @@
     //
     // Expected tables (adjust names/columns to match your schema):
     //   students (id, auth_user_id, full_name, username, class_name)
-    //   clearance_ledger (student_id, term, status)            -- status: 'cleared' | 'unpaid'
+    //   fee_expectations (student_id, session_id, term, expected_amount, description, is_free_plan)
+    //   fee_payments (student_id, session_id, term, amount, paid_at, note)
     //   report_scores (student_id, term, subject, ca_score,
     //                  exam_score, total_score, class_average)
     //   teacher_comments (student_id, term, comment)
@@ -400,14 +401,18 @@
 
         // 3. PAYWALL GUARD — check clearance for the active term
         //    BEFORE any score data is requested or rendered.
-        const { data: clearance, error: clearanceError } = await supabaseClient
-          .from('clearance_ledger')
-          .select('status')
-          .eq('student_id', student.id)
-          .eq('term', activeTerm)
-          .single();
+        // Mirrors the same computation admin.html uses: Free plan is
+        // always cleared; otherwise cleared means total deposits meet
+        // or exceed the expected amount. If no expectation has been
+        // set up yet for this term, she's treated as not cleared.
+        const [{ data: expectation }, { data: deposits }] = await Promise.all([
+          supabaseClient.from('fee_expectations').select('expected_amount, is_free_plan').eq('student_id', student.id).eq('session_id', activeSessionId).eq('term', activeTerm).maybeSingle(),
+          supabaseClient.from('fee_payments').select('amount').eq('student_id', student.id).eq('session_id', activeSessionId).eq('term', activeTerm),
+        ]);
 
-        const isCleared = !clearanceError && clearance && clearance.status === 'cleared';
+        const totalPaid = (deposits || []).reduce((sum, d) => sum + Number(d.amount || 0), 0);
+        const isFreePlan = !!expectation?.is_free_plan;
+        const isCleared = isFreePlan || (!!expectation && totalPaid >= Number(expectation.expected_amount || 0) && Number(expectation.expected_amount || 0) > 0);
 
         if (!isCleared) {
           document.getElementById('paywall-term').textContent = activeTerm;

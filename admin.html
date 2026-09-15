@@ -473,6 +473,101 @@
         </section>
 
         <!-- ========================================================= -->
+        <!-- PANEL: FEES                                                -->
+        <!-- ========================================================= -->
+        <section id="panel-fees" class="panel">
+          <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Fees</h1>
+          <p class="text-navy/60 mb-6">Set what's expected per student per term, log deposits as they come in, and track balances. A student clears automatically once her balance reaches zero — or mark her Free plan if she pays no fees at all.</p>
+
+          <div class="bg-white border border-navy/10 p-6 sm:p-8 mb-6">
+            <div class="grid sm:grid-cols-3 gap-3 mb-4">
+              <select id="fees-session" class="field-input text-sm"></select>
+              <select id="fees-term" class="field-input text-sm">
+                <option>1st Term</option><option>2nd Term</option><option>3rd Term</option>
+              </select>
+              <select id="fees-class" class="field-input text-sm">
+                <option value="">All classes</option>
+              </select>
+            </div>
+            <div class="flex gap-3 mb-4">
+              <input id="fees-search" class="field-input text-sm" type="text" placeholder="Search by student name…">
+              <select id="fees-status-filter" class="field-input text-sm max-w-[160px]">
+                <option value="">All statuses</option>
+                <option value="cleared">Cleared</option>
+                <option value="owing">Owing</option>
+                <option value="free">Free plan</option>
+                <option value="unset">Not set up</option>
+              </select>
+            </div>
+            <div id="fees-list" class="border border-navy/10 divide-y divide-navy/10 max-h-[32rem] overflow-y-auto">
+              <p class="px-4 py-6 text-center text-navy/40 text-sm">Loading…</p>
+            </div>
+          </div>
+
+          <!-- Detail panel for whichever student is selected -->
+          <div id="fees-detail" class="hidden bg-white border border-navy/10">
+            <div class="px-6 py-5 border-b border-navy/10 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p id="fees-student-name" class="font-display text-xl text-navy"></p>
+                <p id="fees-student-meta" class="text-sm text-navy/50"></p>
+              </div>
+              <span id="fees-student-badge" class="text-xs font-medium px-2.5 py-1 border"></span>
+            </div>
+
+            <div class="p-6 border-b border-navy/10">
+              <label class="flex items-center gap-2 mb-4 text-sm text-navy">
+                <input id="fees-free-toggle" type="checkbox" class="accent-navy w-4 h-4">
+                This student is on a Free plan (pays no fees this term)
+              </label>
+
+              <div id="fees-expected-fields">
+                <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">What's expected this term</p>
+                <div class="grid sm:grid-cols-3 gap-3 mb-3">
+                  <input id="fees-expected-amount" class="field-input" type="number" min="0" step="0.01" placeholder="Total expected amount">
+                </div>
+                <textarea id="fees-description" class="field-input mb-3" rows="2" placeholder="e.g. School fees, P.E wear and textbooks only"></textarea>
+                <button id="fees-save-expected-btn" class="bg-navy text-white px-6 py-2.5 font-medium hover:bg-navy-dark transition-colors">
+                  Save expected amount
+                </button>
+              </div>
+              <p id="fees-expected-status" class="hidden text-sm px-3 py-2 border mt-3"></p>
+            </div>
+
+            <div id="fees-balance-summary" class="p-6 border-b border-navy/10 grid sm:grid-cols-3 gap-4 text-center">
+              <div>
+                <p class="text-xs uppercase tracking-wide text-navy/50">Expected</p>
+                <p id="fees-sum-expected" class="font-display text-xl text-navy mt-1">—</p>
+              </div>
+              <div>
+                <p class="text-xs uppercase tracking-wide text-navy/50">Paid so far</p>
+                <p id="fees-sum-paid" class="font-display text-xl text-navy mt-1">—</p>
+              </div>
+              <div>
+                <p class="text-xs uppercase tracking-wide text-navy/50">Balance</p>
+                <p id="fees-sum-balance" class="font-display text-xl text-navy mt-1">—</p>
+              </div>
+            </div>
+
+            <div class="p-6 border-b border-navy/10">
+              <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Log a new deposit</p>
+              <div class="grid sm:grid-cols-3 gap-3">
+                <input id="fees-deposit-amount" class="field-input" type="number" min="0" step="0.01" placeholder="Amount received">
+                <input id="fees-deposit-note" class="field-input sm:col-span-2" type="text" placeholder="Optional note, e.g. Paid via bank transfer">
+              </div>
+              <button id="fees-deposit-btn" class="bg-brown text-white px-6 py-2.5 font-medium hover:bg-brown/90 transition-colors mt-3">
+                Record deposit
+              </button>
+              <p id="fees-deposit-status" class="hidden text-sm px-3 py-2 border mt-3"></p>
+            </div>
+
+            <div class="p-6">
+              <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Deposit history</p>
+              <div id="fees-deposit-history" class="space-y-2 text-sm text-navy/40">No deposits yet.</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
         <!-- PANEL: POST NEWS                                           -->
         <!-- ========================================================= -->
         <section id="panel-news" class="panel">
@@ -574,6 +669,7 @@
       { id: 'enrollment', label: 'Student enrollment' },
       { id: 'staff',      label: 'Staff roster' },
       { id: 'ledger',     label: 'Ledger & history' },
+      { id: 'fees',       label: 'Fees' },
       { id: 'news',       label: 'Post news' },
     ];
 
@@ -2171,6 +2267,269 @@
     // PAYMENT OVERVIEW — filterable Paid/Unpaid view across the whole
     // school, distinct from the per-student search below it.
     // =================================================================
+    // =================================================================
+    // FEES TAB — expected amount + description per term, running
+    // deposit history, computed balance/status. Distinct from the old
+    // single-toggle payment_ledger used elsewhere in the Ledger panel.
+    // =================================================================
+    function formatNaira(n) { return `₦${Number(n || 0).toLocaleString()}`; }
+
+    let feesSelectedStudentId = null;
+
+    function populateFeesFilters() {
+      const sessionSelect = document.getElementById('fees-session');
+      sessionSelect.innerHTML = sessionsCache
+        .map(s => `<option value="${s.id}" ${s.is_active ? 'selected' : ''}>${escapeHtml(s.session_label)}</option>`)
+        .join('');
+
+      const classSelect = document.getElementById('fees-class');
+      classSelect.innerHTML = '<option value="">All classes</option>' +
+        classesCache.map(c => `<option value="${c.id}">${escapeHtml(c.class_name)}</option>`).join('');
+    }
+
+    // Computes status + balance from an expectation row and the sum of
+    // her deposits. Kept as one function so the list view and the
+    // detail view can never disagree about what "Cleared" means.
+    function computeFeeStatus(expectation, totalPaid) {
+      if (!expectation) return { status: 'unset', balance: 0 };
+      if (expectation.is_free_plan) return { status: 'free', balance: 0 };
+      const expected = Number(expectation.expected_amount || 0);
+      const balance = Math.max(expected - totalPaid, 0);
+      return { status: balance <= 0 ? 'cleared' : 'owing', balance };
+    }
+
+    const FEE_STATUS_LABEL = { cleared: 'Cleared', owing: 'Owing', free: 'Free plan', unset: 'Not set up' };
+    const FEE_STATUS_CLASS = {
+      cleared: 'border-emerald-300 text-emerald-700 bg-emerald-50',
+      owing: 'border-red-300 text-red-700 bg-red-50',
+      free: 'border-sky-300 text-sky-700 bg-sky-50',
+      unset: 'border-navy/20 text-navy/50 bg-navy/5',
+    };
+
+    async function loadFeesList() {
+      const listEl = document.getElementById('fees-list');
+      if (!requireSupabase(null)) return;
+
+      const sessionId = document.getElementById('fees-session').value;
+      const term = document.getElementById('fees-term').value;
+      const classId = document.getElementById('fees-class').value;
+      const searchTerm = document.getElementById('fees-search').value.trim();
+      const statusFilter = document.getElementById('fees-status-filter').value;
+
+      if (!sessionId) {
+        listEl.innerHTML = '<p class="px-4 py-6 text-center text-navy/40 text-sm">No academic session available.</p>';
+        return;
+      }
+
+      listEl.innerHTML = '<p class="px-4 py-6 text-center text-navy/40 text-sm">Loading…</p>';
+
+      let studentQuery = supabaseClient
+        .from('students')
+        .select('id, full_name, current_class_id, classes(class_name)')
+        .eq('is_active', true)
+        .order('full_name');
+      if (classId) studentQuery = studentQuery.eq('current_class_id', classId);
+      if (searchTerm) studentQuery = studentQuery.ilike('full_name', `%${searchTerm}%`);
+
+      const [{ data: students, error: studentsErr }, { data: expectations, error: expErr }, { data: deposits, error: depErr }] = await Promise.all([
+        studentQuery,
+        supabaseClient.from('fee_expectations').select('student_id, expected_amount, is_free_plan').eq('session_id', sessionId).eq('term', term),
+        supabaseClient.from('fee_payments').select('student_id, amount').eq('session_id', sessionId).eq('term', term),
+      ]);
+
+      if (studentsErr || expErr || depErr) {
+        listEl.innerHTML = '<p class="px-4 py-6 text-center text-navy/40 text-sm">Could not load fee data.</p>';
+        console.error(studentsErr || expErr || depErr);
+        return;
+      }
+
+      const expByStudent = new Map((expectations || []).map(e => [e.student_id, e]));
+      const paidByStudent = new Map();
+      (deposits || []).forEach(d => {
+        paidByStudent.set(d.student_id, (paidByStudent.get(d.student_id) || 0) + Number(d.amount || 0));
+      });
+
+      let rows = (students || []).map(s => {
+        const expectation = expByStudent.get(s.id) || null;
+        const totalPaid = paidByStudent.get(s.id) || 0;
+        const { status, balance } = computeFeeStatus(expectation, totalPaid);
+        return { ...s, expectation, totalPaid, status, balance };
+      });
+
+      if (statusFilter) rows = rows.filter(r => r.status === statusFilter);
+
+      if (!rows.length) {
+        listEl.innerHTML = '<p class="px-4 py-6 text-center text-navy/40 text-sm">No students match these filters.</p>';
+        return;
+      }
+
+      listEl.innerHTML = rows.map(s => `
+        <button data-fees-student-id="${s.id}" data-name="${escapeAttr(s.full_name)}" data-class="${escapeAttr(s.classes?.class_name || '')}"
+                class="fees-row w-full text-left px-4 py-2.5 text-sm hover:bg-navy/5 flex items-center justify-between gap-3">
+          <span>
+            <span class="text-navy">${escapeHtml(s.full_name)}</span>
+            <span class="text-navy/40"> · ${escapeHtml(s.classes?.class_name || '')}</span>
+            ${s.status === 'owing' ? `<span class="text-navy/40"> · Bal: ${formatNaira(s.balance)}</span>` : ''}
+          </span>
+          <span class="shrink-0 text-xs font-medium px-2 py-1 border ${FEE_STATUS_CLASS[s.status]}">
+            ${FEE_STATUS_LABEL[s.status]}
+          </span>
+        </button>
+      `).join('');
+
+      listEl.querySelectorAll('.fees-row').forEach(btn => {
+        btn.addEventListener('click', () => openFeesDetail(btn.dataset.feesStudentId, btn.dataset.name, btn.dataset.class));
+      });
+    }
+
+    document.getElementById('fees-session').addEventListener('change', loadFeesList);
+    document.getElementById('fees-term').addEventListener('change', () => { closeFeesDetail(); loadFeesList(); });
+    document.getElementById('fees-class').addEventListener('change', loadFeesList);
+    document.getElementById('fees-status-filter').addEventListener('change', loadFeesList);
+    let feesSearchDebounce = null;
+    document.getElementById('fees-search').addEventListener('input', () => {
+      clearTimeout(feesSearchDebounce);
+      feesSearchDebounce = setTimeout(loadFeesList, 350);
+    });
+
+    function closeFeesDetail() {
+      feesSelectedStudentId = null;
+      document.getElementById('fees-detail').classList.add('hidden');
+    }
+
+    async function openFeesDetail(studentId, name, className) {
+      feesSelectedStudentId = studentId;
+      document.getElementById('fees-detail').classList.remove('hidden');
+      document.getElementById('fees-student-name').textContent = name;
+      document.getElementById('fees-student-meta').textContent = className;
+      await refreshFeesDetail();
+      document.getElementById('fees-detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    async function refreshFeesDetail() {
+      const sessionId = document.getElementById('fees-session').value;
+      const term = document.getElementById('fees-term').value;
+      const studentId = feesSelectedStudentId;
+      if (!studentId) return;
+
+      const [{ data: expectation }, { data: deposits }] = await Promise.all([
+        supabaseClient.from('fee_expectations').select('*').eq('student_id', studentId).eq('session_id', sessionId).eq('term', term).maybeSingle(),
+        supabaseClient.from('fee_payments').select('*').eq('student_id', studentId).eq('session_id', sessionId).eq('term', term).order('paid_at', { ascending: false }),
+      ]);
+
+      const totalPaid = (deposits || []).reduce((sum, d) => sum + Number(d.amount || 0), 0);
+      const { status, balance } = computeFeeStatus(expectation, totalPaid);
+
+      // Populate the form fields with whatever's currently saved.
+      const freeToggle = document.getElementById('fees-free-toggle');
+      freeToggle.checked = !!expectation?.is_free_plan;
+      document.getElementById('fees-expected-amount').value = expectation?.expected_amount || '';
+      document.getElementById('fees-description').value = expectation?.description || '';
+      document.getElementById('fees-expected-fields').classList.toggle('hidden', freeToggle.checked);
+
+      // Badge + summary
+      const badge = document.getElementById('fees-student-badge');
+      badge.textContent = FEE_STATUS_LABEL[status];
+      badge.className = `text-xs font-medium px-2.5 py-1 border ${FEE_STATUS_CLASS[status]}`;
+
+      document.getElementById('fees-sum-expected').textContent = expectation?.is_free_plan ? 'Free plan' : formatNaira(expectation?.expected_amount);
+      document.getElementById('fees-sum-paid').textContent = formatNaira(totalPaid);
+      document.getElementById('fees-sum-balance').textContent = expectation?.is_free_plan ? '—' : formatNaira(balance);
+
+      // Deposit history
+      const historyEl = document.getElementById('fees-deposit-history');
+      if (!deposits || deposits.length === 0) {
+        historyEl.innerHTML = '<p class="text-navy/40">No deposits yet.</p>';
+      } else {
+        historyEl.innerHTML = deposits.map(d => `
+          <div class="flex items-center justify-between border-b border-navy/5 pb-2">
+            <div>
+              <p class="text-navy">${formatNaira(d.amount)}</p>
+              <p class="text-xs text-navy/40">${new Date(d.paid_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}${d.note ? ' · ' + escapeHtml(d.note) : ''}</p>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
+    document.getElementById('fees-free-toggle').addEventListener('change', (e) => {
+      document.getElementById('fees-expected-fields').classList.toggle('hidden', e.target.checked);
+    });
+
+    document.getElementById('fees-save-expected-btn').addEventListener('click', async () => {
+      const statusEl = document.getElementById('fees-expected-status');
+      if (!feesSelectedStudentId) return;
+
+      const sessionId = document.getElementById('fees-session').value;
+      const term = document.getElementById('fees-term').value;
+      const isFreePlan = document.getElementById('fees-free-toggle').checked;
+      const expectedAmount = isFreePlan ? 0 : Number(document.getElementById('fees-expected-amount').value || 0);
+      const description = document.getElementById('fees-description').value.trim() || null;
+
+      if (!isFreePlan && expectedAmount <= 0) {
+        showStatus(statusEl, 'Enter an expected amount greater than zero, or toggle Free plan instead.', true);
+        return;
+      }
+
+      const { error } = await supabaseClient.from('fee_expectations').upsert({
+        student_id: feesSelectedStudentId,
+        session_id: sessionId,
+        term: term,
+        expected_amount: expectedAmount,
+        description: description,
+        is_free_plan: isFreePlan,
+        set_by: null, // admin.html doesn't currently track the logged-in admin's own staff row
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'student_id,session_id,term' });
+
+      if (error) {
+        showStatus(statusEl, 'Could not save. Please try again.', true);
+        console.error(error);
+        return;
+      }
+
+      showStatus(statusEl, 'Saved.', false);
+      await refreshFeesDetail();
+      loadFeesList();
+    });
+
+    document.getElementById('fees-deposit-btn').addEventListener('click', async () => {
+      const statusEl = document.getElementById('fees-deposit-status');
+      if (!feesSelectedStudentId) return;
+
+      const amount = Number(document.getElementById('fees-deposit-amount').value || 0);
+      const note = document.getElementById('fees-deposit-note').value.trim() || null;
+
+      if (amount <= 0) {
+        showStatus(statusEl, 'Enter an amount greater than zero.', true);
+        return;
+      }
+
+      const sessionId = document.getElementById('fees-session').value;
+      const term = document.getElementById('fees-term').value;
+
+      const { error } = await supabaseClient.from('fee_payments').insert({
+        student_id: feesSelectedStudentId,
+        session_id: sessionId,
+        term: term,
+        amount: amount,
+        recorded_by: null, // same — not tracked yet
+        note: note,
+      });
+
+      if (error) {
+        showStatus(statusEl, 'Could not record this deposit. Please try again.', true);
+        console.error(error);
+        return;
+      }
+
+      showStatus(statusEl, 'Deposit recorded.', false);
+      document.getElementById('fees-deposit-amount').value = '';
+      document.getElementById('fees-deposit-note').value = '';
+      await refreshFeesDetail();
+      loadFeesList();
+    });
+
     function populateOverviewFilters() {
       const sessionSelect = document.getElementById('overview-session');
       sessionSelect.innerHTML = sessionsCache
@@ -2443,6 +2802,8 @@
       loadStudentFullList();
       populateOverviewFilters();
       loadPaymentOverview();
+      populateFeesFilters();
+      loadFeesList();
     });
   </script>
 </body>
