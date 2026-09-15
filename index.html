@@ -632,10 +632,32 @@
         return;
       }
 
-      // Route by role after successful auth — adjust paths once those
-      // dashboard pages exist.
+      // Enforce that the account's real role matches the tab that was
+      // used to sign in — prevents a staff account from logging in via
+      // the secondary-student tab (or a student account via the staff
+      // tab), even though the password itself was valid.
       const user = data.user;
       const role = user?.app_metadata?.role; // e.g. 'student', 'teacher', 'admin'
+
+      const usedStudentTab = activeLoginTab === 'student';
+      const isStaffRole = role === 'admin' || role === 'teacher';
+      const isStudentRole = role === 'student';
+
+      if (usedStudentTab && isStaffRole) {
+        await supabaseClient.auth.signOut();
+        loginError.textContent = 'This is a staff account. Please use the Staff tab to sign in.';
+        loginError.classList.remove('hidden');
+        return;
+      }
+      if (!usedStudentTab && isStudentRole) {
+        await supabaseClient.auth.signOut();
+        loginError.textContent = 'This is a student account. Please use the Secondary students tab to sign in.';
+        loginError.classList.remove('hidden');
+        return;
+      }
+
+      // Route by role after successful auth — adjust paths once those
+      // dashboard pages exist.
       if (role === 'student') {
         window.location.href = 'student.html';
       } else if (role === 'admin') {

@@ -743,6 +743,24 @@
     document.getElementById('signout-btn-mobile').addEventListener('click', doSignOut);
 
     // =================================================================
+    // SESSION GUARD — only a signed-in admin may view this page.
+    // Anyone with no session, or a session whose role isn't 'admin'
+    // (e.g. a student or teacher account, or someone opening this
+    // page's URL directly), is signed out and sent back to the portal.
+    // =================================================================
+    async function enforceAdminSession() {
+      if (!supabaseClient) return; // preview mode, no backend configured yet
+      const { data } = await supabaseClient.auth.getSession();
+      const user = data?.session?.user;
+      const role = user?.app_metadata?.role;
+      if (!user || role !== 'admin') {
+        await supabaseClient.auth.signOut();
+        window.location.href = 'index.html';
+      }
+    }
+    enforceAdminSession();
+
+    // =================================================================
     // NAVIGATION
     // =================================================================
     const NAV_ITEMS = [
