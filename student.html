@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Student Portal — Don-Ann Schools</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&family=Dancing+Script:wght@600;700&display=swap" rel="stylesheet">
 
 <!-- Tailwind CSS v4 official browser build -->
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3"></script>
@@ -37,6 +37,8 @@
   .seal {
     background: radial-gradient(circle at 30% 30%, #2E6BB8, #1B3A6B 70%);
   }
+
+  .signature-cursive { font-family: 'Dancing Script', cursive; }
 
   @media (prefers-reduced-motion: no-preference) {
     .fade-in { animation: fadeIn 0.5s ease-out both; }
@@ -216,11 +218,16 @@
       <!-- Signature strip -->
       <div class="grid grid-cols-2 gap-8 mt-10 pt-6 border-t border-navy/15 text-sm">
         <div>
-          <div class="border-b border-navy/40 h-10"></div>
+          <div class="border-b border-navy/40 h-14 flex items-end pb-1">
+            <p id="teacher-signature" class="signature-cursive text-2xl text-navy"></p>
+          </div>
           <p class="text-xs text-navy/50 mt-1">Class teacher's signature</p>
         </div>
         <div>
-          <div class="border-b border-navy/40 h-10"></div>
+          <div class="border-b border-navy/40 h-14 flex items-end pb-1">
+            <img id="principal-signature-img" src="" alt="Principal's signature" class="hidden h-12 object-contain">
+            <p id="principal-signature-text" class="signature-cursive text-2xl text-navy"></p>
+          </div>
           <p class="text-xs text-navy/50 mt-1">Principal's signature</p>
         </div>
       </div>
@@ -363,16 +370,30 @@
         }
         const activeTerm = settings.active_term;
 
+        // 1b. Resolve the active academic session — needed because
+        // class_teacher_comments is keyed by (student_id, session_id, term).
+        const { data: activeSessionRow, error: sessionRowError } = await supabaseClient
+          .from('academic_sessions')
+          .select('id')
+          .eq('is_active', true)
+          .single();
+
+        if (sessionRowError || !activeSessionRow) {
+          throw new Error('Could not determine the active academic session.');
+        }
+        const activeSessionId = activeSessionRow.id;
+
         // 2. Resolve the student record tied to this auth user.
         const { data: student, error: studentError } = await supabaseClient
           .from('students')
-          .select('id, full_name, username, class_name')
+          .select('id, full_name, username, current_class_id, classes(class_name)')
           .eq('auth_user_id', user.id)
           .single();
 
         if (studentError || !student) {
           throw new Error('Could not find your student record.');
         }
+        student.class_name = student.classes?.class_name || '—';
 
         studentNamePill.textContent = student.full_name;
         studentNamePill.classList.remove('hidden');
@@ -408,18 +429,52 @@
           throw new Error('No results have been published for this term yet.');
         }
 
+        // Comments are saved by the class teacher in teacher.html against
+        // class_teacher_comments, keyed by (student_id, session_id, term) —
+        // matching that here, rather than a differently-named table, is
+        // what actually connects her written comment to this card.
         const { data: commentRow } = await supabaseClient
-          .from('teacher_comments')
-          .select('comment')
+          .from('class_teacher_comments')
+          .select('comment, written_by')
           .eq('student_id', student.id)
+          .eq('session_id', activeSessionId)
           .eq('term', activeTerm)
-          .single();
+          .maybeSingle();
+
+        // Class teacher's name for the signature line — resolved via
+        // staff_class_teacher for this student's current class, not from
+        // the comment row alone, so the signature still shows correctly
+        // even in a term where she hasn't left a comment yet.
+        let classTeacherName = '';
+        if (student.current_class_id) {
+          const { data: ctRow } = await supabaseClient
+            .from('staff_class_teacher')
+            .select('staff:staff_id(full_name)')
+            .eq('class_id', student.current_class_id)
+            .eq('session_id', activeSessionId)
+            .maybeSingle();
+          classTeacherName = ctRow?.staff?.full_name || '';
+        }
+
+        // Principal's signature — first active Principal on record. If
+        // more than one exists, this takes the first match; each school
+        // is expected to have exactly one at a time.
+        const { data: principalRow } = await supabaseClient
+          .from('staff')
+          .select('full_name, signature_url')
+          .eq('role', 'Principal')
+          .eq('status', 'Active')
+          .limit(1)
+          .maybeSingle();
 
         renderReportCard({
           student,
           activeTerm,
           scores,
           teacherComment: commentRow?.comment || 'No comment provided yet.',
+          classTeacherName,
+          principalName: principalRow?.full_name || '',
+          principalSignatureUrl: principalRow?.signature_url || null,
         });
 
         showOnly(stateDashboard);
@@ -435,7 +490,7 @@
     // ---------------------------------------------------------------
     // RENDER REPORT CARD
     // ---------------------------------------------------------------
-    function renderReportCard({ student, activeTerm, scores, teacherComment }) {
+    function renderReportCard({ student, activeTerm, scores, teacherComment, classTeacherName, principalName, principalSignatureUrl }) {
       document.getElementById('dash-title').textContent = `${student.full_name.split(' ')[0]}'s report card`;
       document.getElementById('sheet-term').textContent = activeTerm;
       document.getElementById('stat-name').textContent = student.full_name;
@@ -463,6 +518,26 @@
       document.getElementById('sum-count').textContent = scores.length;
       document.getElementById('principal-comment').textContent = principalComment(overallPct);
       document.getElementById('teacher-comment').textContent = teacherComment;
+
+      // Class teacher's signature: her real name, typed in a cursive
+      // font — there's no uploaded image for class teachers, just an
+      // automated styled name.
+      document.getElementById('teacher-signature').textContent = classTeacherName || '';
+
+      // Principal's signature: her actual uploaded image if she's set
+      // one, otherwise fall back to the same cursive-typed-name style.
+      const principalImg = document.getElementById('principal-signature-img');
+      const principalText = document.getElementById('principal-signature-text');
+      if (principalSignatureUrl) {
+        principalImg.src = principalSignatureUrl;
+        principalImg.classList.remove('hidden');
+        principalText.classList.add('hidden');
+      } else {
+        principalImg.classList.add('hidden');
+        principalText.classList.remove('hidden');
+        principalText.textContent = principalName || '';
+      }
+
       document.getElementById('print-date').textContent = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
     }
 

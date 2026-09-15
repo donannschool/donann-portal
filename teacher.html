@@ -48,6 +48,10 @@
   <div id="login-screen" class="min-h-screen flex items-center justify-center px-4">
     <div class="w-full max-w-sm">
       <div class="text-center mb-8">
+        <div class="w-14 h-14 mx-auto mb-3 rounded-full border-2 border-navy bg-navy text-white flex items-center justify-center font-display text-lg overflow-hidden">
+          <img src="logo.png" alt="Don-Ann Schools logo" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+          <span style="display:none;" class="w-full h-full items-center justify-center">DA</span>
+        </div>
         <p class="font-display text-2xl text-navy">Don-Ann Schools</p>
         <p class="text-sm text-sky">Teacher portal</p>
       </div>
@@ -83,9 +87,15 @@
   <div id="app-screen" class="hidden">
     <header class="border-b-4 border-navy bg-white">
       <div class="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <p class="font-display text-xl text-navy leading-none">Don-Ann Schools</p>
-          <p id="teacher-name" class="text-sm text-sky mt-1"></p>
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full border-2 border-navy bg-navy text-white flex items-center justify-center font-display text-sm shrink-0 overflow-hidden">
+            <img src="logo.png" alt="Don-Ann Schools logo" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            <span style="display:none;" class="w-full h-full items-center justify-center">DA</span>
+          </div>
+          <div>
+            <p class="font-display text-xl text-navy leading-none">Don-Ann Schools</p>
+            <p id="teacher-name" class="text-sm text-sky mt-1"></p>
+          </div>
         </div>
         <button id="signout-btn" class="text-sm text-navy/60 hover:text-navy border border-navy/20 px-4 py-2">
           Sign out
@@ -94,6 +104,7 @@
       <nav class="max-w-5xl mx-auto px-4 sm:px-6 flex gap-1 -mb-px overflow-x-auto" id="tab-nav">
         <button data-tab="subjects" class="tab-btn active border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">My subjects</button>
         <button data-tab="masterclass" class="tab-btn hidden border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">My Class Master Sheet</button>
+        <button data-tab="signature" class="tab-btn hidden border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">My Signature</button>
       </nav>
     </header>
 
@@ -166,6 +177,31 @@
           </table>
         </div>
         <p id="master-status" class="hidden text-sm px-3 py-2 border mt-4"></p>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB: MY SIGNATURE (Principal only)                         -->
+      <!-- ========================================================= -->
+      <section id="tab-signature" class="panel">
+        <h1 class="font-display text-2xl text-navy mb-1">My signature</h1>
+        <p class="text-navy/60 mb-6">Upload a scanned or photographed image of your signature. It will appear automatically on every student report card, printed as the Principal's signature.</p>
+
+        <div class="bg-white border border-navy/10 p-6 max-w-md space-y-4">
+          <div>
+            <p class="text-xs uppercase tracking-wide text-navy/50 mb-2">Current signature</p>
+            <div class="border border-navy/15 h-24 flex items-center justify-center bg-[#F5F7FA]">
+              <img id="signature-preview" src="" alt="Your signature" class="hidden max-h-20 max-w-full object-contain">
+              <span id="signature-preview-empty" class="text-sm text-navy/30">No signature uploaded yet</span>
+            </div>
+          </div>
+          <div>
+            <label class="field-label" for="signature-file">Upload new signature image</label>
+            <input id="signature-file" class="field-input" type="file" accept="image/*">
+            <p class="text-xs text-navy/40 mt-1">PNG or JPG, ideally on a white or transparent background.</p>
+          </div>
+          <button id="signature-upload-btn" class="bg-navy text-white px-6 py-2.5 font-medium hover:bg-navy-dark transition-colors">Save signature</button>
+          <p id="signature-status" class="hidden text-sm px-3 py-2 border"></p>
+        </div>
       </section>
 
     </main>
@@ -266,7 +302,7 @@
     async function afterLogin(authUser) {
       const { data: staffRow, error } = await supabaseClient
         .from('staff')
-        .select('id, full_name, role, email, status, auth_user_id')
+        .select('id, full_name, role, email, status, auth_user_id, signature_url')
         .eq('auth_user_id', authUser.id)
         .maybeSingle();
 
@@ -369,7 +405,92 @@
         currentClassTeacherOf = [];
         masterTab.classList.add('hidden');
       }
+
+      // 5. Signature tab — Principal only.
+      const signatureTab = document.querySelector('[data-tab="signature"]');
+      if (currentStaff.role === 'Principal') {
+        signatureTab.classList.remove('hidden');
+        loadSignaturePreview();
+      } else {
+        signatureTab.classList.add('hidden');
+      }
     }
+
+    // =================================================================
+    // MY SIGNATURE (Principal only) — upload once, used on every
+    // student report card via staff.signature_url.
+    // =================================================================
+    function loadSignaturePreview() {
+      const img = document.getElementById('signature-preview');
+      const empty = document.getElementById('signature-preview-empty');
+      if (currentStaff.signature_url) {
+        img.src = currentStaff.signature_url;
+        img.classList.remove('hidden');
+        empty.classList.add('hidden');
+      } else {
+        img.classList.add('hidden');
+        empty.classList.remove('hidden');
+      }
+    }
+
+    document.getElementById('signature-upload-btn').addEventListener('click', async () => {
+      const statusEl = document.getElementById('signature-status');
+      const fileInput = document.getElementById('signature-file');
+      const file = fileInput.files[0];
+
+      if (!file) {
+        showStatus(statusEl, 'Choose an image file first.', true);
+        return;
+      }
+
+      const btn = document.getElementById('signature-upload-btn');
+      btn.disabled = true;
+      btn.textContent = 'Uploading…';
+
+      // Store under this staff member's own id so re-uploads simply
+      // overwrite the same path instead of accumulating old files.
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${currentStaff.id}.${fileExt}`;
+
+      const { error: uploadError } = await supabaseClient.storage
+        .from('signatures')
+        .upload(filePath, file, { upsert: true, cacheControl: '3600' });
+
+      if (uploadError) {
+        btn.disabled = false;
+        btn.textContent = 'Save signature';
+        showStatus(statusEl, 'Could not upload the signature. Please try again.', true);
+        console.error(uploadError);
+        return;
+      }
+
+      const { data: publicUrlData } = supabaseClient.storage
+        .from('signatures')
+        .getPublicUrl(filePath);
+
+      // Cache-bust so the browser doesn't keep showing a stale cached
+      // image after a re-upload to the same path.
+      const publicUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`;
+
+      const { error: dbError } = await supabaseClient
+        .from('staff')
+        .update({ signature_url: publicUrl })
+        .eq('id', currentStaff.id);
+
+      btn.disabled = false;
+      btn.textContent = 'Save signature';
+
+      if (dbError) {
+        showStatus(statusEl, 'Signature uploaded, but saving the link failed. Please try again.', true);
+        console.error(dbError);
+        return;
+      }
+
+      currentStaff.signature_url = publicUrl;
+      loadSignaturePreview();
+      showStatus(statusEl, 'Signature saved. It will now appear on every report card.', false);
+      fileInput.value = '';
+    });
 
     function populateMasterClassSelect() {
       const wrap = document.getElementById('master-class-wrap');
