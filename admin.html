@@ -408,10 +408,10 @@
         <!-- ========================================================= -->
         <section id="panel-ledger" class="panel">
           <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Financial ledger &amp; history</h1>
-          <p class="text-navy/60 mb-6">Look up a student's full record, log a payment, and clear them for the active term.</p>
+          <p class="text-navy/60 mb-6">A read-only view of every student's fee status. To set an expected amount, log a deposit, or mark a student Free plan, use the Fees tab.</p>
 
           <div class="bg-white border border-navy/10 p-6 sm:p-8 mb-6">
-            <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Payment overview</p>
+            <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Fee status overview</p>
             <div class="grid sm:grid-cols-4 gap-3 mb-4">
               <select id="overview-session" class="field-input text-sm"></select>
               <select id="overview-term" class="field-input text-sm">
@@ -422,8 +422,10 @@
               </select>
               <select id="overview-status" class="field-input text-sm">
                 <option value="">All statuses</option>
-                <option value="paid">Paid only</option>
-                <option value="unpaid">Unpaid only</option>
+                <option value="cleared">Cleared</option>
+                <option value="owing">Owing</option>
+                <option value="free">Free plan</option>
+                <option value="unset">Not set up</option>
               </select>
             </div>
             <div id="overview-list" class="border border-navy/10 divide-y divide-navy/10 max-h-96 overflow-y-auto">
@@ -448,21 +450,6 @@
                 <p id="ledger-student-name" class="font-display text-xl text-navy"></p>
                 <p id="ledger-student-meta" class="text-sm text-navy/50"></p>
               </div>
-            </div>
-
-            <div class="p-6 border-b border-navy/10">
-              <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Record a payment</p>
-              <div class="grid sm:grid-cols-4 gap-3">
-                <select id="pay-session" class="field-input"></select>
-                <select id="pay-term" class="field-input">
-                  <option>1st Term</option><option>2nd Term</option><option>3rd Term</option>
-                </select>
-                <input id="pay-amount" class="field-input" type="number" min="0" step="0.01" placeholder="Amount paid">
-                <button id="pay-clear-btn" class="bg-brown text-white px-4 py-2.5 font-medium hover:bg-brown/90 transition-colors">
-                  Save &amp; mark Cleared
-                </button>
-              </div>
-              <p id="ledger-pay-status" class="hidden text-sm px-3 py-2 border mt-3"></p>
             </div>
 
             <div class="p-6">
@@ -548,7 +535,7 @@
               </div>
             </div>
 
-            <div class="p-6 border-b border-navy/10">
+            <div id="fees-deposit-section" class="p-6 border-b border-navy/10">
               <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Log a new deposit</p>
               <div class="grid sm:grid-cols-3 gap-3">
                 <input id="fees-deposit-amount" class="field-input" type="number" min="0" step="0.01" placeholder="Amount received">
@@ -558,6 +545,9 @@
                 Record deposit
               </button>
               <p id="fees-deposit-status" class="hidden text-sm px-3 py-2 border mt-3"></p>
+            </div>
+            <div id="fees-free-plan-note" class="hidden p-6 border-b border-navy/10 text-sm text-navy/50">
+              This student is on a Free plan — no deposits are needed and none can be logged while this is checked.
             </div>
 
             <div class="p-6">
@@ -810,7 +800,6 @@
 
       populateClassSelects();
       populateSubjectSelects();
-      populateSessionSelects();
     }
 
     function populateClassSelects() {
@@ -849,11 +838,6 @@
       // Single-subject dropdowns are now rendered per-row (see
       // renderAssignmentRow), so there's no static select to fill here.
       // Kept as a function for symmetry with the reference-data loader.
-    }
-
-    function populateSessionSelects() {
-      const opts = sessionsCache.map(s => `<option value="${s.id}">${s.session_label}${s.is_active ? ' (active)' : ''}</option>`).join('');
-      document.getElementById('pay-session').innerHTML = opts || '<option value="">No sessions found</option>';
     }
 
     // Toggle SS department field based on selected class
@@ -2269,8 +2253,9 @@
     // =================================================================
     // =================================================================
     // FEES TAB — expected amount + description per term, running
-    // deposit history, computed balance/status. Distinct from the old
-    // single-toggle payment_ledger used elsewhere in the Ledger panel.
+    // deposit history, computed balance/status. This is now the only
+    // system for tracking fees; the old single-toggle payment_ledger
+    // approach has been fully retired from the UI.
     // =================================================================
     function formatNaira(n) { return `₦${Number(n || 0).toLocaleString()}`; }
 
@@ -2426,6 +2411,8 @@
       document.getElementById('fees-expected-amount').value = expectation?.expected_amount || '';
       document.getElementById('fees-description').value = expectation?.description || '';
       document.getElementById('fees-expected-fields').classList.toggle('hidden', freeToggle.checked);
+      document.getElementById('fees-deposit-section').classList.toggle('hidden', freeToggle.checked);
+      document.getElementById('fees-free-plan-note').classList.toggle('hidden', !freeToggle.checked);
 
       // Badge + summary
       const badge = document.getElementById('fees-student-badge');
@@ -2454,6 +2441,8 @@
 
     document.getElementById('fees-free-toggle').addEventListener('change', (e) => {
       document.getElementById('fees-expected-fields').classList.toggle('hidden', e.target.checked);
+      document.getElementById('fees-deposit-section').classList.toggle('hidden', e.target.checked);
+      document.getElementById('fees-free-plan-note').classList.toggle('hidden', !e.target.checked);
     });
 
     document.getElementById('fees-save-expected-btn').addEventListener('click', async () => {
@@ -2496,6 +2485,11 @@
     document.getElementById('fees-deposit-btn').addEventListener('click', async () => {
       const statusEl = document.getElementById('fees-deposit-status');
       if (!feesSelectedStudentId) return;
+
+      if (document.getElementById('fees-free-toggle').checked) {
+        showStatus(statusEl, 'This student is on a Free plan — deposits are not applicable.', true);
+        return;
+      }
 
       const amount = Number(document.getElementById('fees-deposit-amount').value || 0);
       const note = document.getElementById('fees-deposit-note').value.trim() || null;
@@ -2564,36 +2558,42 @@
         .order('full_name');
       if (classId) studentQuery = studentQuery.eq('current_class_id', classId);
 
-      const [{ data: students, error: studentsErr }, { data: payments, error: paymentsErr }] = await Promise.all([
+      const [{ data: students, error: studentsErr }, { data: expectations, error: expErr }, { data: deposits, error: depErr }] = await Promise.all([
         studentQuery,
-        supabaseClient.from('payment_ledger').select('student_id, status').eq('session_id', sessionId).eq('term', term),
+        supabaseClient.from('fee_expectations').select('student_id, expected_amount, is_free_plan').eq('session_id', sessionId).eq('term', term),
+        supabaseClient.from('fee_payments').select('student_id, amount').eq('session_id', sessionId).eq('term', term),
       ]);
 
-      if (studentsErr || paymentsErr) {
-        listEl.innerHTML = '<p class="px-4 py-6 text-center text-navy/40 text-sm">Could not load payment data.</p>';
-        console.error(studentsErr || paymentsErr);
+      if (studentsErr || expErr || depErr) {
+        listEl.innerHTML = '<p class="px-4 py-6 text-center text-navy/40 text-sm">Could not load fee data.</p>';
+        console.error(studentsErr || expErr || depErr);
         return;
       }
 
-      const paidIds = new Set((payments || []).filter(p => p.status === 'Cleared').map(p => p.student_id));
+      const expByStudent = new Map((expectations || []).map(e => [e.student_id, e]));
+      const paidByStudent = new Map();
+      (deposits || []).forEach(d => {
+        paidByStudent.set(d.student_id, (paidByStudent.get(d.student_id) || 0) + Number(d.amount || 0));
+      });
 
-      let rows = (students || []).map(s => ({
-        ...s,
-        isPaid: paidIds.has(s.id),
-      }));
+      let rows = (students || []).map(s => {
+        const expectation = expByStudent.get(s.id) || null;
+        const totalPaid = paidByStudent.get(s.id) || 0;
+        const { status, balance } = computeFeeStatus(expectation, totalPaid);
+        return { ...s, status, balance };
+      });
 
-      if (statusFilter === 'paid') rows = rows.filter(r => r.isPaid);
-      if (statusFilter === 'unpaid') rows = rows.filter(r => !r.isPaid);
+      if (statusFilter) rows = rows.filter(r => r.status === statusFilter);
 
       if (!rows.length) {
         listEl.innerHTML = '<p class="px-4 py-6 text-center text-navy/40 text-sm">No students match these filters.</p>';
         return;
       }
 
-      const paidCount = rows.filter(r => r.isPaid).length;
+      const clearedCount = rows.filter(r => r.status === 'cleared' || r.status === 'free').length;
       listEl.innerHTML = `
         <div class="px-4 py-2 bg-[#F5F7FA] text-xs text-navy/60 sticky top-0">
-          ${rows.length} student${rows.length === 1 ? '' : 's'} shown &middot; ${paidCount} paid &middot; ${rows.length - paidCount} unpaid
+          ${rows.length} student${rows.length === 1 ? '' : 's'} shown &middot; ${clearedCount} cleared &middot; ${rows.length - clearedCount} not cleared
         </div>
       ` + rows.map(s => `
         <button data-overview-student-id="${s.id}" data-name="${escapeAttr(s.full_name)}" data-class="${escapeAttr(s.classes?.class_name || '')}"
@@ -2601,9 +2601,10 @@
           <span>
             <span class="text-navy">${escapeHtml(s.full_name)}</span>
             <span class="text-navy/40"> &middot; ${escapeHtml(s.classes?.class_name || '')}</span>
+            ${s.status === 'owing' ? `<span class="text-navy/40"> &middot; Bal: ${formatNaira(s.balance)}</span>` : ''}
           </span>
-          <span class="shrink-0 text-xs font-medium px-2 py-1 border ${s.isPaid ? 'border-emerald-300 text-emerald-700 bg-emerald-50' : 'border-red-300 text-red-700 bg-red-50'}">
-            ${s.isPaid ? 'Paid' : 'Unpaid'}
+          <span class="shrink-0 text-xs font-medium px-2 py-1 border ${FEE_STATUS_CLASS[s.status]}">
+            ${FEE_STATUS_LABEL[s.status]}
           </span>
         </button>
       `).join('');
@@ -2611,11 +2612,6 @@
       listEl.querySelectorAll('.overview-row').forEach(btn => {
         btn.addEventListener('click', () => {
           openStudentLedger(btn.dataset.overviewStudentId, btn.dataset.name, btn.dataset.class);
-          // Pre-select the same session/term she was viewing in the
-          // overview, so recording a payment doesn't default back to
-          // whatever the ledger form's own default is.
-          document.getElementById('pay-session').value = document.getElementById('overview-session').value;
-          document.getElementById('pay-term').value = document.getElementById('overview-term').value;
           document.getElementById('ledger-detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
       });
@@ -2673,7 +2669,7 @@
 
       const [{ data: scores }, { data: payments }] = await Promise.all([
         supabaseClient.from('scores').select('subject_id, session_id, term, total_score, subjects(subject_name), academic_sessions(session_label)').eq('student_id', studentId),
-        supabaseClient.from('payment_ledger').select('session_id, term, status, amount_paid, marked_at, academic_sessions(session_label)').eq('student_id', studentId),
+        supabaseClient.from('fee_payments').select('session_id, term, amount, paid_at, note, academic_sessions(session_label)').eq('student_id', studentId),
       ]);
 
       const entries = [
@@ -2683,7 +2679,7 @@
         })),
         ...(payments || []).map(p => ({
           type: 'payment', session: p.academic_sessions?.session_label, term: p.term,
-          label: `${p.status} — ₦${Number(p.amount_paid || 0).toLocaleString()}`,
+          label: `Deposit — ${formatNaira(p.amount)}${p.note ? ' · ' + p.note : ''}`,
         })),
       ].sort((a, b) => (a.session + a.term).localeCompare(b.session + b.term));
 
@@ -2702,38 +2698,6 @@
         </div>
       `).join('');
     }
-
-    document.getElementById('pay-clear-btn').addEventListener('click', async () => {
-      const statusEl = document.getElementById('ledger-pay-status');
-      if (!requireSupabase(statusEl)) return;
-      if (!selectedStudentId) { showStatus(statusEl, 'Search for and select a student first.', true); return; }
-
-      const sessionId = document.getElementById('pay-session').value;
-      const term = document.getElementById('pay-term').value;
-      const amount = document.getElementById('pay-amount').value;
-
-      if (!sessionId) { showStatus(statusEl, 'Select an academic session.', true); return; }
-
-      const { error } = await supabaseClient.from('payment_ledger').upsert({
-        student_id: selectedStudentId,
-        session_id: sessionId,
-        term: term,
-        status: 'Cleared',
-        amount_paid: amount || null,
-        marked_at: new Date().toISOString(),
-      }, { onConflict: 'student_id,session_id,term' });
-
-      if (error) {
-        showStatus(statusEl, 'Could not save this payment. Please try again.', true);
-        console.error(error);
-        return;
-      }
-
-      showStatus(statusEl, 'Payment recorded — student is marked Cleared for this term.', false);
-      document.getElementById('pay-amount').value = '';
-      loadStudentTimeline(selectedStudentId);
-      loadPaymentOverview();
-    });
 
     // =================================================================
     // 6. POST NEWS
