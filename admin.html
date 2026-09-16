@@ -1335,6 +1335,7 @@
 
     async function enterStudentEditMode(studentId) {
       if (!requireSupabase(enrollmentStatus)) return;
+      showPanel('enrollment');
 
       const { data: student, error } = await supabaseClient
         .from('students')
@@ -1897,6 +1898,7 @@
 
     async function enterStaffEditMode(staffId) {
       if (!requireSupabase(staffStatus)) return;
+      showPanel('staff');
 
       const { data: staffRow, error: staffErr } = await supabaseClient
         .from('staff')
