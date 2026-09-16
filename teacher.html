@@ -117,9 +117,18 @@
         <h1 class="font-display text-2xl text-navy mb-1">My subjects</h1>
         <p class="text-navy/60 mb-6">Only the classes and subjects assigned to you appear here.</p>
 
-        <div id="assignment-list" class="grid sm:grid-cols-2 gap-3 mb-8">
-          <p class="text-navy/40 text-sm">Loading your assignments…</p>
+        <div id="assignment-list-wrap">
+          <div id="assignment-list" class="grid sm:grid-cols-2 gap-3 mb-8">
+            <p class="text-navy/40 text-sm">Loading your assignments…</p>
+          </div>
         </div>
+
+        <!-- Shown instead of the full grid once a subject is picked, so
+             the score entry panel below appears right away with nothing
+             to scroll past. "Change subject" restores the grid. -->
+        <button id="assignment-back-btn" class="hidden items-center gap-2 text-sm text-sky font-medium mb-4 hover:underline">
+          &larr; <span id="assignment-back-label">Change subject</span>
+        </button>
 
         <div id="scoring-panel" class="hidden bg-white border border-navy/10">
           <div class="px-6 py-4 border-b border-navy/10 flex flex-wrap items-center justify-between gap-3">
@@ -529,10 +538,30 @@
 
     async function openScoring(assignment) {
       activeAssignment = assignment;
+
+      // Collapse the full subject grid and show a compact "back" bar
+      // instead, so the scoring panel appears immediately with nothing
+      // to scroll past — the grid comes back only if the teacher asks
+      // to change subject.
+      document.getElementById('assignment-list-wrap').classList.add('hidden');
+      const backBtn = document.getElementById('assignment-back-btn');
+      backBtn.classList.remove('hidden');
+      backBtn.classList.add('flex');
+      document.getElementById('assignment-back-label').textContent =
+        `Change subject (currently ${assignment.subjectName} — ${assignment.className})`;
+
       document.getElementById('scoring-panel').classList.remove('hidden');
       document.getElementById('scoring-title').textContent = `${assignment.subjectName} — ${assignment.className}`;
       await loadScoringRoster();
     }
+
+    document.getElementById('assignment-back-btn').addEventListener('click', () => {
+      activeAssignment = null;
+      document.getElementById('scoring-panel').classList.add('hidden');
+      document.getElementById('assignment-back-btn').classList.add('hidden');
+      document.getElementById('assignment-back-btn').classList.remove('flex');
+      document.getElementById('assignment-list-wrap').classList.remove('hidden');
+    });
 
     document.getElementById('scoring-session').addEventListener('change', loadScoringRoster);
     document.getElementById('scoring-term').addEventListener('change', loadScoringRoster);
