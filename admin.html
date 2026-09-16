@@ -2463,34 +2463,41 @@
             </div>
           </div>
 
-          <div class="grid sm:grid-cols-2 gap-x-6 gap-y-1 border-t border-navy/5 pt-3 text-sm">
-            <p class="text-navy/70"><span class="text-navy/40">Phone:</span> ${escapeHtml(s.phone || '—')}</p>
-            <p class="text-navy/70"><span class="text-navy/40">Employment type:</span> ${escapeHtml(s.employment_type || '—')}</p>
-            <p class="text-navy/70"><span class="text-navy/40">Expected clock-in:</span> ${escapeHtml(formatTimeOfDay(s.expected_time_in))}</p>
-            <p class="text-navy/70"><span class="text-navy/40">Qualification:</span> ${escapeHtml(s.qualification || '—')}</p>
-            <p class="text-navy/70 sm:col-span-2"><span class="text-navy/40">Address:</span> ${escapeHtml(s.address || '—')}</p>
+          <div class="flex items-center justify-between gap-3 border-t border-navy/5 pt-3">
+            <p class="text-sm text-navy/40">Contact info, employment details &amp; assigned tracks</p>
+            <button data-toggle-details="${s.id}" class="staff-details-toggle shrink-0 text-sky text-sm font-medium hover:underline whitespace-nowrap">
+              View Details
+            </button>
           </div>
 
-          <div class="flex items-start justify-between gap-3 border-t border-navy/5 pt-3">
-            <div class="min-w-0">
-              <p class="text-xs uppercase tracking-wide text-navy/40 font-medium mb-1">Assigned tracks</p>
-              <p class="text-sm text-navy/70 truncate">${escapeHtml(trackSummaryText)}</p>
+          <div id="staff-detail-${s.id}" class="hidden bg-[#F5F7FA] border border-navy/10 px-4 py-3 space-y-4">
+            <div>
+              <p class="text-xs uppercase tracking-wide text-navy/40 font-medium mb-2">Profile</p>
+              <div class="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                <p class="text-navy/70"><span class="text-navy/40">Phone:</span> ${escapeHtml(s.phone || '—')}</p>
+                <p class="text-navy/70"><span class="text-navy/40">Employment type:</span> ${escapeHtml(s.employment_type || '—')}</p>
+                <p class="text-navy/70"><span class="text-navy/40">Expected clock-in:</span> ${escapeHtml(formatTimeOfDay(s.expected_time_in))}</p>
+                <p class="text-navy/70"><span class="text-navy/40">Qualification:</span> ${escapeHtml(s.qualification || '—')}</p>
+                <p class="text-navy/70 sm:col-span-2"><span class="text-navy/40">Address:</span> ${escapeHtml(s.address || '—')}</p>
+              </div>
             </div>
-            ${summary.length ? `
-              <button data-toggle-schedule="${s.id}" class="schedule-toggle shrink-0 text-sky text-sm font-medium hover:underline whitespace-nowrap">
-                View Details
-              </button>
-            ` : ''}
+            <div class="border-t border-navy/10 pt-3">
+              <p class="text-xs uppercase tracking-wide text-navy/40 font-medium mb-2">Assigned tracks</p>
+              ${summary.length
+                ? summary.map(line => `<p class="text-sm text-navy/70">${escapeHtml(line)}</p>`).join('')
+                : '<p class="text-sm text-navy/40">No subjects assigned yet</p>'}
+            </div>
           </div>
-
-          ${summary.length ? `
-            <div id="schedule-detail-${s.id}" class="hidden bg-[#F5F7FA] border border-navy/10 px-4 py-3 space-y-1">
-              ${summary.map(line => `<p class="text-sm text-navy/70">${escapeHtml(line)}</p>`).join('')}
-            </div>
-          ` : ''}
         </div>
       `;
       }).join('');
+
+      listEl.querySelectorAll('.staff-details-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const detail = document.getElementById(`staff-detail-${btn.dataset.toggleDetails}`);
+          if (detail) detail.classList.toggle('hidden');
+        });
+      });
 
       listEl.querySelectorAll('.staff-toggle').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -2502,13 +2509,6 @@
           showToast(newStatus === 'Inactive' ? 'Portal access revoked.' : 'Portal access restored.');
           loadStaffList();
           loadStats();
-        });
-      });
-
-      listEl.querySelectorAll('.schedule-toggle').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const detail = document.getElementById(`schedule-detail-${btn.dataset.toggleSchedule}`);
-          if (detail) detail.classList.toggle('hidden');
         });
       });
 
