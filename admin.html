@@ -243,6 +243,10 @@
                   <label class="field-label" for="en-religion">Religion</label>
                   <input id="en-religion" class="field-input" type="text">
                 </div>
+                <div>
+                  <label class="field-label" for="en-state-of-origin">State of origin</label>
+                  <input id="en-state-of-origin" class="field-input" type="text" placeholder="e.g. Anambra">
+                </div>
                 <div id="en-department-wrap" class="hidden">
                   <label class="field-label" for="en-department">Senior secondary department</label>
                   <select id="en-department" class="field-input">
@@ -395,6 +399,10 @@
                 <input id="st-qualification" class="field-input" type="text" placeholder="e.g. B.Sc. Education, NCE">
               </div>
               <div>
+                <label class="field-label" for="st-state-of-origin">State of origin</label>
+                <input id="st-state-of-origin" class="field-input" type="text" placeholder="e.g. Anambra">
+              </div>
+              <div>
                 <label class="field-label" for="st-attendance-pin">Attendance PIN (6 digits)</label>
                 <input id="st-attendance-pin" class="field-input" type="text" inputmode="numeric" pattern="\d{6}" maxlength="6" placeholder="Leave blank to skip">
                 <p id="st-pin-note" class="hidden text-xs text-navy/40 mt-1">A PIN is already set. Enter a new 6-digit PIN here only if you want to change it.</p>
@@ -461,39 +469,48 @@
           <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Financial ledger &amp; history</h1>
           <p class="text-navy/60 mb-6">A read-only view of every student's fee status. To set an expected amount, log a deposit, or mark a student Free plan, use the Fees tab.</p>
 
-          <div class="bg-white border border-navy/10 p-6 sm:p-8 mb-6">
-            <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Fee status overview</p>
-            <div class="grid sm:grid-cols-4 gap-3 mb-4">
-              <select id="overview-session" class="field-input text-sm"></select>
-              <select id="overview-term" class="field-input text-sm">
-                <option>1st Term</option><option>2nd Term</option><option>3rd Term</option>
-              </select>
-              <select id="overview-class" class="field-input text-sm">
-                <option value="">All classes</option>
-              </select>
-              <select id="overview-status" class="field-input text-sm">
-                <option value="">All statuses</option>
-                <option value="cleared">Cleared</option>
-                <option value="owing">Owing</option>
-                <option value="free">Free plan</option>
-                <option value="unset">Not set up</option>
-              </select>
+          <div id="ledger-list-wrap">
+            <div class="bg-white border border-navy/10 p-6 sm:p-8 mb-6">
+              <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Fee status overview</p>
+              <div class="grid sm:grid-cols-4 gap-3 mb-4">
+                <select id="overview-session" class="field-input text-sm"></select>
+                <select id="overview-term" class="field-input text-sm">
+                  <option>1st Term</option><option>2nd Term</option><option>3rd Term</option>
+                </select>
+                <select id="overview-class" class="field-input text-sm">
+                  <option value="">All classes</option>
+                </select>
+                <select id="overview-status" class="field-input text-sm">
+                  <option value="">All statuses</option>
+                  <option value="cleared">Cleared</option>
+                  <option value="owing">Owing</option>
+                  <option value="free">Free plan</option>
+                  <option value="unset">Not set up</option>
+                </select>
+              </div>
+              <div id="overview-list" class="border border-navy/10 divide-y divide-navy/10 max-h-96 overflow-y-auto">
+                <p class="px-4 py-6 text-center text-navy/40 text-sm">Loading…</p>
+              </div>
             </div>
-            <div id="overview-list" class="border border-navy/10 divide-y divide-navy/10 max-h-96 overflow-y-auto">
-              <p class="px-4 py-6 text-center text-navy/40 text-sm">Loading…</p>
+
+            <div class="bg-white border border-navy/10 p-6 sm:p-8 mb-6">
+              <label class="field-label" for="ledger-search">Search by student name</label>
+              <div class="flex gap-3">
+                <input id="ledger-search" class="field-input" type="text" placeholder="Start typing a name…">
+                <button id="ledger-search-btn" class="bg-navy text-white px-6 py-2.5 font-medium hover:bg-navy-dark transition-colors shrink-0">
+                  Search
+                </button>
+              </div>
+              <div id="ledger-results" class="mt-4 space-y-1"></div>
             </div>
           </div>
 
-          <div class="bg-white border border-navy/10 p-6 sm:p-8 mb-6">
-            <label class="field-label" for="ledger-search">Search by student name</label>
-            <div class="flex gap-3">
-              <input id="ledger-search" class="field-input" type="text" placeholder="Start typing a name…">
-              <button id="ledger-search-btn" class="bg-navy text-white px-6 py-2.5 font-medium hover:bg-navy-dark transition-colors shrink-0">
-                Search
-              </button>
-            </div>
-            <div id="ledger-results" class="mt-4 space-y-1"></div>
-          </div>
+          <!-- Shown instead of the overview/search block once a student
+               is picked, so the timeline appears right away with nothing
+               above it to scroll past. "Change student" restores it. -->
+          <button id="ledger-back-btn" class="hidden items-center gap-2 text-sm text-sky font-medium mb-4 hover:underline">
+            &larr; <span id="ledger-back-label">Change student</span>
+          </button>
 
           <div id="ledger-detail" class="hidden bg-white border border-navy/10">
             <div class="px-6 py-5 border-b border-navy/10 flex flex-wrap items-center justify-between gap-3">
@@ -517,7 +534,7 @@
           <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Fees</h1>
           <p class="text-navy/60 mb-6">Set what's expected per student per term, log deposits as they come in, and track balances. A student clears automatically once her balance reaches zero — or mark her Free plan if she pays no fees at all.</p>
 
-          <div class="bg-white border border-navy/10 p-6 sm:p-8 mb-6">
+          <div id="fees-list-wrap" class="bg-white border border-navy/10 p-6 sm:p-8 mb-6">
             <div class="grid sm:grid-cols-3 gap-3 mb-4">
               <select id="fees-session" class="field-input text-sm"></select>
               <select id="fees-term" class="field-input text-sm">
@@ -541,6 +558,13 @@
               <p class="px-4 py-6 text-center text-navy/40 text-sm">Loading…</p>
             </div>
           </div>
+
+          <!-- Shown instead of the filters/list once a student is picked,
+               so the detail panel appears right away with nothing above
+               it to scroll past. "Change student" restores the list. -->
+          <button id="fees-back-btn" class="hidden items-center gap-2 text-sm text-sky font-medium mb-4 hover:underline">
+            &larr; <span id="fees-back-label">Change student</span>
+          </button>
 
           <!-- Detail panel for whichever student is selected -->
           <div id="fees-detail" class="hidden bg-white border border-navy/10">
@@ -1346,7 +1370,7 @@
 
       const { data: student, error } = await supabaseClient
         .from('students')
-        .select('id, surname, first_name, other_names, current_class_id, gender, date_of_birth, religion, department_id, blood_group, allergies, parent_name, parent_contact_address, parent_email, parent_phone, parent_whatsapp')
+        .select('id, surname, first_name, other_names, current_class_id, gender, date_of_birth, religion, state_of_origin, department_id, blood_group, allergies, parent_name, parent_contact_address, parent_email, parent_phone, parent_whatsapp')
         .eq('id', studentId)
         .single();
 
@@ -1365,6 +1389,7 @@
       document.getElementById('en-gender').value = student.gender || '';
       document.getElementById('en-dob').value = student.date_of_birth || '';
       document.getElementById('en-religion').value = student.religion || '';
+      document.getElementById('en-state-of-origin').value = student.state_of_origin || '';
       document.getElementById('en-blood').value = student.blood_group || '';
       document.getElementById('en-allergies').value = student.allergies || '';
       document.getElementById('en-parent-name').value = student.parent_name || '';
@@ -1438,6 +1463,7 @@
         gender: document.getElementById('en-gender').value,
         date_of_birth: dob,
         religion: document.getElementById('en-religion').value.trim() || null,
+        state_of_origin: document.getElementById('en-state-of-origin').value.trim() || null,
         blood_group: document.getElementById('en-blood').value || null,
         allergies: document.getElementById('en-allergies').value.trim() || null,
         parent_name: document.getElementById('en-parent-name').value.trim() || null,
@@ -1564,6 +1590,7 @@
         gender: document.getElementById('en-gender').value,
         date_of_birth: dob,
         religion: document.getElementById('en-religion').value.trim() || null,
+        state_of_origin: document.getElementById('en-state-of-origin').value.trim() || null,
         blood_group: document.getElementById('en-blood').value || null,
         allergies: document.getElementById('en-allergies').value.trim() || null,
         parent_name: document.getElementById('en-parent-name').value.trim() || null,
@@ -1941,6 +1968,7 @@
       document.getElementById('st-expected-time').value = staffRow.expected_time_in || '';
       document.getElementById('st-address').value = staffRow.address || '';
       document.getElementById('st-qualification').value = staffRow.qualification || '';
+      document.getElementById('st-state-of-origin').value = staffRow.state_of_origin || '';
       document.getElementById('st-attendance-pin').value = '';
       document.getElementById('st-pin-note').classList.toggle('hidden', !staffRow.hashed_attendance_pin);
 
@@ -2075,6 +2103,7 @@
         expected_time_in: document.getElementById('st-expected-time').value || null,
         address: document.getElementById('st-address').value.trim() || null,
         qualification: document.getElementById('st-qualification').value.trim() || null,
+        state_of_origin: document.getElementById('st-state-of-origin').value.trim() || null,
         status: 'Active',
         portal_username: generatedUsername,
         portal_temp_password: generatedPassword,
@@ -2176,6 +2205,7 @@
         expected_time_in: document.getElementById('st-expected-time').value || null,
         address: document.getElementById('st-address').value.trim() || null,
         qualification: document.getElementById('st-qualification').value.trim() || null,
+        state_of_origin: document.getElementById('st-state-of-origin').value.trim() || null,
         // email intentionally excluded — locked read-only in edit mode
         // since changing it here wouldn't change the real Auth login.
       };
@@ -2351,7 +2381,7 @@
 
       let query = supabaseClient
         .from('students')
-        .select('id, full_name, current_class_id, is_active, classes(class_name)')
+        .select('id, full_name, current_class_id, is_active, gender, date_of_birth, religion, state_of_origin, blood_group, allergies, parent_name, parent_contact_address, parent_email, parent_phone, parent_whatsapp, classes(class_name)')
         .order('full_name');
 
       if (classFilter) query = query.eq('current_class_id', classFilter);
@@ -2371,17 +2401,56 @@
       }
 
       listEl.innerHTML = data.map(s => `
-        <div class="px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <p class="font-medium text-navy">${escapeHtml(s.full_name)}</p>
-            <p class="text-sm text-navy/50">${escapeHtml(s.classes?.class_name || 'No class')} ${s.is_active === false ? '&middot; <span class="text-red-600">Inactive</span>' : ''}</p>
+        <div class="px-6 py-4 flex flex-col gap-3">
+          <div class="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <p class="font-medium text-navy">${escapeHtml(s.full_name)}</p>
+              <p class="text-sm text-navy/50">${escapeHtml(s.classes?.class_name || 'No class')} ${s.is_active === false ? '&middot; <span class="text-red-600">Inactive</span>' : ''}</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button data-toggle-student-details="${s.id}"
+                      class="student-details-toggle inline-flex items-center px-3 py-1.5 border border-navy/20 text-navy text-sm font-medium hover:bg-navy/5 transition-colors">
+                View
+              </button>
+              <button data-edit-student-id="${s.id}"
+                      class="student-edit-btn inline-flex items-center px-3 py-1.5 border border-navy/20 text-navy text-sm font-medium hover:bg-navy/5 transition-colors">
+                Edit
+              </button>
+            </div>
           </div>
-          <button data-edit-student-id="${s.id}"
-                  class="student-edit-btn inline-flex items-center px-3 py-1.5 border border-navy/20 text-navy text-sm font-medium hover:bg-navy/5 transition-colors">
-            Edit
-          </button>
+
+          <div id="student-detail-${s.id}" class="hidden bg-[#F5F7FA] border border-navy/10 px-4 py-3 space-y-4">
+            <div>
+              <p class="text-xs uppercase tracking-wide text-navy/40 font-medium mb-2">Student</p>
+              <div class="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                <p class="text-navy/70"><span class="text-navy/40">Gender:</span> ${escapeHtml(s.gender || '—')}</p>
+                <p class="text-navy/70"><span class="text-navy/40">Date of birth:</span> ${s.date_of_birth ? new Date(s.date_of_birth).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</p>
+                <p class="text-navy/70"><span class="text-navy/40">Religion:</span> ${escapeHtml(s.religion || '—')}</p>
+                <p class="text-navy/70"><span class="text-navy/40">State of origin:</span> ${escapeHtml(s.state_of_origin || '—')}</p>
+                <p class="text-navy/70"><span class="text-navy/40">Blood group:</span> ${escapeHtml(s.blood_group || '—')}</p>
+                <p class="text-navy/70"><span class="text-navy/40">Allergies:</span> ${escapeHtml(s.allergies || '—')}</p>
+              </div>
+            </div>
+            <div class="border-t border-navy/10 pt-3">
+              <p class="text-xs uppercase tracking-wide text-navy/40 font-medium mb-2">Parent / guardian</p>
+              <div class="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                <p class="text-navy/70"><span class="text-navy/40">Name:</span> ${escapeHtml(s.parent_name || '—')}</p>
+                <p class="text-navy/70"><span class="text-navy/40">Phone:</span> ${escapeHtml(s.parent_phone || '—')}</p>
+                <p class="text-navy/70"><span class="text-navy/40">WhatsApp:</span> ${escapeHtml(s.parent_whatsapp || '—')}</p>
+                <p class="text-navy/70"><span class="text-navy/40">Email:</span> ${escapeHtml(s.parent_email || '—')}</p>
+                <p class="text-navy/70 sm:col-span-2"><span class="text-navy/40">Contact address:</span> ${escapeHtml(s.parent_contact_address || '—')}</p>
+              </div>
+            </div>
+          </div>
         </div>
       `).join('');
+
+      listEl.querySelectorAll('.student-details-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const detail = document.getElementById(`student-detail-${btn.dataset.toggleStudentDetails}`);
+          if (detail) detail.classList.toggle('hidden');
+        });
+      });
 
       listEl.querySelectorAll('.student-edit-btn').forEach(btn => {
         btn.addEventListener('click', () => enterStudentEditMode(btn.dataset.editStudentId));
@@ -2408,7 +2477,7 @@
         listEl.innerHTML = '<p class="px-6 py-8 text-center text-navy/40 text-sm">Connect Supabase to view staff.</p>';
         return;
       }
-      const { data, error } = await supabaseClient.from('staff').select('id, full_name, role, email, status, phone, employment_type, address, qualification, expected_time_in').order('full_name');
+      const { data, error } = await supabaseClient.from('staff').select('id, full_name, role, email, status, phone, employment_type, address, qualification, expected_time_in, state_of_origin').order('full_name');
       if (error || !data || data.length === 0) {
         listEl.innerHTML = '<p class="px-6 py-8 text-center text-navy/40 text-sm">No staff registered yet.</p>';
         return;
@@ -2508,6 +2577,7 @@
                 <p class="text-navy/70"><span class="text-navy/40">Employment type:</span> ${escapeHtml(s.employment_type || '—')}</p>
                 <p class="text-navy/70"><span class="text-navy/40">Expected clock-in:</span> ${escapeHtml(formatTimeOfDay(s.expected_time_in))}</p>
                 <p class="text-navy/70"><span class="text-navy/40">Qualification:</span> ${escapeHtml(s.qualification || '—')}</p>
+                <p class="text-navy/70"><span class="text-navy/40">State of origin:</span> ${escapeHtml(s.state_of_origin || '—')}</p>
                 <p class="text-navy/70 sm:col-span-2"><span class="text-navy/40">Address:</span> ${escapeHtml(s.address || '—')}</p>
               </div>
             </div>
@@ -3077,10 +3147,19 @@
     function closeFeesDetail() {
       feesSelectedStudentId = null;
       document.getElementById('fees-detail').classList.add('hidden');
+      document.getElementById('fees-back-btn').classList.add('hidden');
+      document.getElementById('fees-back-btn').classList.remove('flex');
+      document.getElementById('fees-list-wrap').classList.remove('hidden');
     }
+    document.getElementById('fees-back-btn').addEventListener('click', closeFeesDetail);
 
     async function openFeesDetail(studentId, name, className) {
       feesSelectedStudentId = studentId;
+      document.getElementById('fees-list-wrap').classList.add('hidden');
+      const backBtn = document.getElementById('fees-back-btn');
+      backBtn.classList.remove('hidden');
+      backBtn.classList.add('flex');
+      document.getElementById('fees-back-label').textContent = `Change student (currently ${name})`;
       document.getElementById('fees-detail').classList.remove('hidden');
       document.getElementById('fees-student-name').textContent = name;
       document.getElementById('fees-student-meta').textContent = className;
@@ -3348,7 +3427,6 @@
       listEl.querySelectorAll('.overview-row').forEach(btn => {
         btn.addEventListener('click', () => {
           openStudentLedger(btn.dataset.overviewStudentId, btn.dataset.name, btn.dataset.class);
-          document.getElementById('ledger-detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
       });
     }
@@ -3389,8 +3467,22 @@
     document.getElementById('ledger-search-btn').addEventListener('click', searchStudents);
     document.getElementById('ledger-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); searchStudents(); } });
 
+    function closeLedgerDetail() {
+      selectedStudentId = null;
+      document.getElementById('ledger-detail').classList.add('hidden');
+      document.getElementById('ledger-back-btn').classList.add('hidden');
+      document.getElementById('ledger-back-btn').classList.remove('flex');
+      document.getElementById('ledger-list-wrap').classList.remove('hidden');
+    }
+    document.getElementById('ledger-back-btn').addEventListener('click', closeLedgerDetail);
+
     async function openStudentLedger(studentId, name, className) {
       selectedStudentId = studentId;
+      document.getElementById('ledger-list-wrap').classList.add('hidden');
+      const backBtn = document.getElementById('ledger-back-btn');
+      backBtn.classList.remove('hidden');
+      backBtn.classList.add('flex');
+      document.getElementById('ledger-back-label').textContent = `Change student (currently ${name})`;
       document.getElementById('ledger-detail').classList.remove('hidden');
       document.getElementById('ledger-student-name').textContent = name;
       document.getElementById('ledger-student-meta').textContent = className;
