@@ -2437,10 +2437,33 @@
         }
       }
 
+      // Same idea for class-teacher assignments — one query for every
+      // staff member, joined to class names client-side via
+      // classesCache, then grouped by staff_id.
+      let classTeacherByStaff = new Map();
+      if (activeSession) {
+        const { data: ctRows, error: ctErr } = await supabaseClient
+          .from('staff_class_teacher')
+          .select('staff_id, class_id')
+          .eq('session_id', activeSession.id);
+        if (!ctErr && ctRows) {
+          const classNameById = new Map(classesCache.map(c => [c.id, c.class_name]));
+          for (const row of ctRows) {
+            const className = classNameById.get(row.class_id);
+            if (!className) continue;
+            if (!classTeacherByStaff.has(row.staff_id)) classTeacherByStaff.set(row.staff_id, []);
+            classTeacherByStaff.get(row.staff_id).push(className);
+          }
+        } else if (ctErr) {
+          console.warn('Could not load class teacher assignments for roster summary.', ctErr);
+        }
+      }
+
       listEl.innerHTML = data.map(s => {
         const rows = assignmentsByStaff.get(s.id) || [];
         const summary = buildScheduleLines(rows);
         const trackSummaryText = summary.length ? summary.join(' &middot; ') : 'No subjects assigned yet';
+        const classTeacherOf = classTeacherByStaff.get(s.id) || [];
 
         return `
         <div class="px-6 py-4 flex flex-col gap-3">
@@ -2480,6 +2503,12 @@
                 <p class="text-navy/70"><span class="text-navy/40">Qualification:</span> ${escapeHtml(s.qualification || '—')}</p>
                 <p class="text-navy/70 sm:col-span-2"><span class="text-navy/40">Address:</span> ${escapeHtml(s.address || '—')}</p>
               </div>
+            </div>
+            <div class="border-t border-navy/10 pt-3">
+              <p class="text-xs uppercase tracking-wide text-navy/40 font-medium mb-2">Class teacher of</p>
+              ${classTeacherOf.length
+                ? `<p class="text-sm text-navy/70">${escapeHtml(classTeacherOf.join(', '))}</p>`
+                : '<p class="text-sm text-navy/40">Not a class teacher</p>'}
             </div>
             <div class="border-t border-navy/10 pt-3">
               <p class="text-xs uppercase tracking-wide text-navy/40 font-medium mb-2">Assigned tracks</p>
