@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Staff Attendance — Don-Ann School</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { font-family: 'Inter', sans-serif; }
+  .font-display { font-family: 'Fraunces', serif; }
+  .navy { color: #1B3A6B; }
+  .bg-navy { background-color: #1B3A6B; }
+  .bg-navy-dark { background-color: #142B50; }
+  .sky { color: #2E6BB8; }
+  .bg-sky { background-color: #2E6BB8; }
+  body { background: #F7F9FC; }
+  .pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #1B3A6B; }
+  .pin-dot.filled { background: #1B3A6B; }
+  .keypad-btn { transition: transform 0.08s ease, background 0.08s ease; }
+  .keypad-btn:active { transform: scale(0.94); background: #1B3A6B; color: white; }
+</style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+  <div class="w-full max-w-sm">
+
+    <div class="text-center mb-6">
+      <div class="w-14 h-14 mx-auto mb-3 rounded-full border-2 border-navy bg-navy text-white flex items-center justify-center font-display text-lg overflow-hidden">
+        <img src="logo.png" alt="Don-Ann School logo" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+        <span style="display:none;" class="w-full h-full items-center justify-center">DA</span>
+      </div>
+      <p class="font-display text-2xl navy">Staff Attendance</p>
+      <p class="text-sm text-navy/50">Don-Ann School</p>
+    </div>
+
+    <!-- ===== STEP 1: SELECT YOUR NAME ===== -->
+    <div id="step-select" class="bg-white border border-navy/10 p-5">
+      <p class="text-sm font-medium navy mb-3">Tap your name</p>
+      <input id="staff-search" type="text" placeholder="Search…" class="w-full border border-navy/15 px-3 py-2.5 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-sky">
+      <div id="staff-grid" class="grid grid-cols-2 gap-2 max-h-80 overflow-y-auto">
+        <p class="col-span-2 text-center text-navy/40 text-sm py-6">Loading staff…</p>
+      </div>
+    </div>
+
+    <!-- ===== STEP 2: PIN ENTRY ===== -->
+    <div id="step-pin" class="hidden bg-white border border-navy/10 p-5">
+      <button id="pin-back-btn" class="text-sm sky mb-3">&larr; Not you?</button>
+      <p id="pin-staff-name" class="font-display text-lg navy text-center mb-1"></p>
+      <p class="text-xs text-navy/40 text-center mb-4">Enter your 6-digit PIN</p>
+
+      <div class="flex justify-center gap-2 mb-5" id="pin-dots">
+        <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+        <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-2">
+        <button data-key="1" class="keypad-btn border border-navy/15 py-4 text-lg font-medium navy">1</button>
+        <button data-key="2" class="keypad-btn border border-navy/15 py-4 text-lg font-medium navy">2</button>
+        <button data-key="3" class="keypad-btn border border-navy/15 py-4 text-lg font-medium navy">3</button>
+        <button data-key="4" class="keypad-btn border border-navy/15 py-4 text-lg font-medium navy">4</button>
+        <button data-key="5" class="keypad-btn border border-navy/15 py-4 text-lg font-medium navy">5</button>
+        <button data-key="6" class="keypad-btn border border-navy/15 py-4 text-lg font-medium navy">6</button>
+        <button data-key="7" class="keypad-btn border border-navy/15 py-4 text-lg font-medium navy">7</button>
+        <button data-key="8" class="keypad-btn border border-navy/15 py-4 text-lg font-medium navy">8</button>
+        <button data-key="9" class="keypad-btn border border-navy/15 py-4 text-lg font-medium navy">9</button>
+        <button id="pin-clear-btn" class="keypad-btn border border-navy/15 py-4 text-sm font-medium text-navy/50">Clear</button>
+        <button data-key="0" class="keypad-btn border border-navy/15 py-4 text-lg font-medium navy">0</button>
+        <button id="pin-del-btn" class="keypad-btn border border-navy/15 py-4 text-sm font-medium text-navy/50">&larr;</button>
+      </div>
+
+      <p id="pin-error" class="hidden text-sm text-red-600 text-center mt-3"></p>
+    </div>
+
+    <!-- ===== STEP 3: CAMERA + SUBMIT ===== -->
+    <div id="step-camera" class="hidden bg-white border border-navy/10 p-5">
+      <p class="text-sm font-medium navy mb-3 text-center">Look at the camera</p>
+      <div class="relative w-full aspect-square bg-navy-dark overflow-hidden mb-4">
+        <video id="camera-video" class="w-full h-full object-cover" autoplay playsinline muted></video>
+        <canvas id="camera-canvas" class="hidden"></canvas>
+      </div>
+      <button id="capture-btn" class="w-full bg-navy text-white py-3.5 font-medium hover:bg-navy-dark transition-colors">
+        Capture &amp; submit
+      </button>
+      <p id="camera-error" class="hidden text-sm text-red-600 text-center mt-3"></p>
+    </div>
+
+    <!-- ===== STEP 4: RESULT ===== -->
+    <div id="step-result" class="hidden bg-white border border-navy/10 p-8 text-center">
+      <div id="result-icon" class="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center"></div>
+      <p id="result-message" class="font-display text-lg navy mb-1"></p>
+      <p class="text-xs text-navy/40 mt-4">Resetting for the next person…</p>
+    </div>
+
+  </div>
+
+<script>
+  const SUPABASE_URL = 'https://fenalkzgdfqaqpeoffub.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_n9AvI5YHzv51tqHzxjSAog_h85DjytA';
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/handle-attendance`;
+
+  // -------------------------------------------------------------
+  // This page deliberately never calls supabaseClient.auth.* —
+  // it's a shared device at the gate, and no login session should
+  // ever be created or persisted in its browser. All identity
+  // verification (the PIN check) happens server-side in the Edge
+  // Function using the service role key, not via Supabase Auth.
+  // -------------------------------------------------------------
+
+  let staffList = [];
+  let selectedStaff = null;
+  let currentPin = '';
+  let cameraStream = null;
+
+  const stepSelect = document.getElementById('step-select');
+  const stepPin = document.getElementById('step-pin');
+  const stepCamera = document.getElementById('step-camera');
+  const stepResult = document.getElementById('step-result');
+
+  function showStep(step) {
+    [stepSelect, stepPin, stepCamera, stepResult].forEach(s => s.classList.add('hidden'));
+    step.classList.remove('hidden');
+  }
+
+  // ===== STEP 1: Load and render staff names =====
+  // Only id and full_name are ever fetched — no email, no phone, no
+  // other personal detail is present on this public-facing page.
+  async function loadStaffList() {
+    const { data, error } = await supabaseClient
+      .from('staff')
+      .select('id, full_name')
+      .eq('status', 'Active')
+      .order('full_name');
+
+    if (error || !data) {
+      document.getElementById('staff-grid').innerHTML =
+        '<p class="col-span-2 text-center text-red-600 text-sm py-6">Could not load staff list. Check your connection.</p>';
+      return;
+    }
+    staffList = data;
+    renderStaffGrid(staffList);
+  }
+
+  function renderStaffGrid(list) {
+    const grid = document.getElementById('staff-grid');
+    if (!list.length) {
+      grid.innerHTML = '<p class="col-span-2 text-center text-navy/40 text-sm py-6">No match.</p>';
+      return;
+    }
+    grid.innerHTML = list.map(s => `
+      <button data-staff-id="${s.id}" data-staff-name="${s.full_name.replace(/"/g, '&quot;')}"
+              class="staff-pick-btn border border-navy/15 py-3 px-2 text-sm font-medium navy hover:bg-sky hover:text-white hover:border-sky transition-colors text-center">
+        ${s.full_name}
+      </button>
+    `).join('');
+    grid.querySelectorAll('.staff-pick-btn').forEach(btn => {
+      btn.addEventListener('click', () => selectStaff(btn.dataset.staffId, btn.dataset.staffName));
+    });
+  }
+
+  document.getElementById('staff-search').addEventListener('input', (e) => {
+    const term = e.target.value.trim().toLowerCase();
+    renderStaffGrid(staffList.filter(s => s.full_name.toLowerCase().includes(term)));
+  });
+
+  function selectStaff(id, name) {
+    selectedStaff = { id, name };
+    document.getElementById('pin-staff-name').textContent = name;
+    currentPin = '';
+    updatePinDots();
+    hidePinError();
+    showStep(stepPin);
+  }
+
+  document.getElementById('pin-back-btn').addEventListener('click', () => {
+    selectedStaff = null;
+    currentPin = '';
+    document.getElementById('staff-search').value = '';
+    renderStaffGrid(staffList);
+    showStep(stepSelect);
+  });
+
+  // ===== STEP 2: PIN pad =====
+  function updatePinDots() {
+    document.querySelectorAll('.pin-dot').forEach((dot, i) => {
+      dot.classList.toggle('filled', i < currentPin.length);
+    });
+  }
+  function hidePinError() {
+    document.getElementById('pin-error').classList.add('hidden');
+  }
+  function showPinError(msg) {
+    const el = document.getElementById('pin-error');
+    el.textContent = msg;
+    el.classList.remove('hidden');
+  }
+
+  document.querySelectorAll('[data-key]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (currentPin.length >= 6) return;
+      currentPin += btn.dataset.key;
+      updatePinDots();
+      hidePinError();
+      if (currentPin.length === 6) {
+        // Small delay so the 6th dot visibly fills before moving on.
+        setTimeout(() => openCamera(), 150);
+      }
+    });
+  });
+  document.getElementById('pin-del-btn').addEventListener('click', () => {
+    currentPin = currentPin.slice(0, -1);
+    updatePinDots();
+  });
+  document.getElementById('pin-clear-btn').addEventListener('click', () => {
+    currentPin = '';
+    updatePinDots();
+  });
+
+  // ===== STEP 3: Camera =====
+  async function openCamera() {
+    showStep(stepCamera);
+    document.getElementById('camera-error').classList.add('hidden');
+    const video = document.getElementById('camera-video');
+
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user' },
+        audio: false,
+      });
+      video.srcObject = cameraStream;
+    } catch (err) {
+      console.error(err);
+      document.getElementById('camera-error').textContent =
+        'Could not access the camera. Please check camera permissions on this device.';
+      document.getElementById('camera-error').classList.remove('hidden');
+    }
+  }
+
+  function stopCamera() {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(t => t.stop());
+      cameraStream = null;
+    }
+  }
+
+  // Compresses the captured frame to a reasonably small JPEG. 50KB is
+  // treated as a soft target, not a hard ceiling — quality drops in
+  // small steps until under target or a sane floor is hit, so a photo
+  // is never squeezed so hard it becomes useless for identifying who
+  // clocked in.
+  function captureCompressedPhoto() {
+    const video = document.getElementById('camera-video');
+    const canvas = document.getElementById('camera-canvas');
+    const size = 480;
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    const vw = video.videoWidth, vh = video.videoHeight;
+    const scale = Math.max(size / vw, size / vh);
+    const sw = size / scale, sh = size / scale;
+    const sx = (vw - sw) / 2, sy = (vh - sh) / 2;
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, size, size);
+
+    let quality = 0.7;
+    let dataUrl = canvas.toDataURL('image/jpeg', quality);
+    while (dataUrl.length > 50 * 1024 * 1.37 && quality > 0.35) {
+      quality -= 0.1;
+      dataUrl = canvas.toDataURL('image/jpeg', quality);
+    }
+    return dataUrl;
+  }
+
+  const captureBtn = document.getElementById('capture-btn');
+  captureBtn.addEventListener('click', async () => {
+    // Immediate disable — the frontend half of double-tap protection,
+    // on top of the database's unique constraint as a second, deeper
+    // safety net.
+    captureBtn.disabled = true;
+    captureBtn.textContent = 'Submitting…';
+
+    const photoBase64 = captureCompressedPhoto();
+    stopCamera();
+
+    try {
+      const res = await fetch(EDGE_FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'apikey': SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
+          staffId: selectedStaff.id,
+          pin: currentPin,
+          photoBase64: photoBase64,
+        }),
+      });
+
+      const body = await res.json();
+
+      if (!res.ok) {
+        // Wrong PIN or locked out — go back to the PIN screen for
+        // this same staff member rather than all the way to the
+        // start, so she doesn't have to find her name again.
+        showStep(stepPin);
+        currentPin = '';
+        updatePinDots();
+        showPinError(body.error || 'Something went wrong. Please try again.');
+        captureBtn.disabled = false;
+        captureBtn.textContent = 'Capture & submit';
+        return;
+      }
+
+      showResult(true, body.message);
+    } catch (err) {
+      console.error(err);
+      showStep(stepPin);
+      showPinError('Network error. Please try again.');
+      currentPin = '';
+      updatePinDots();
+    }
+
+    captureBtn.disabled = false;
+    captureBtn.textContent = 'Capture & submit';
+  });
+
+  // ===== STEP 4: Result + auto-reset =====
+  function showResult(success, message) {
+    const icon = document.getElementById('result-icon');
+    icon.className = `w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${success ? 'bg-emerald-100' : 'bg-red-100'}`;
+    icon.innerHTML = success
+      ? '<svg class="w-8 h-8 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>'
+      : '<svg class="w-8 h-8 text-red-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>';
+    document.getElementById('result-message').textContent = message;
+    showStep(stepResult);
+
+    setTimeout(resetKiosk, 2500);
+  }
+
+  function resetKiosk() {
+    selectedStaff = null;
+    currentPin = '';
+    updatePinDots();
+    document.getElementById('staff-search').value = '';
+    renderStaffGrid(staffList);
+    showStep(stepSelect);
+  }
+
+  loadStaffList();
+</script>
+</body>
+</html>
