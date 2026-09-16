@@ -201,7 +201,7 @@
         <!-- PANEL: STUDENT ENROLLMENT                                  -->
         <!-- ========================================================= -->
         <section id="panel-enrollment" class="panel">
-          <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Student enrollment</h1>
+          <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Register student</h1>
           <p class="text-navy/60 mb-6">Register a student and build their full profile. Login credentials are generated automatically for JSS 1 and above.</p>
 
           <form id="enrollment-form" class="bg-white border border-navy/10 p-6 sm:p-8 space-y-6">
@@ -313,8 +313,16 @@
               </button>
             </div>
           </form>
+        </section>
 
-          <div class="bg-white border border-navy/10 mt-8">
+        <!-- ========================================================= -->
+        <!-- PANEL: ALL STUDENTS                                        -->
+        <!-- ========================================================= -->
+        <section id="panel-students" class="panel">
+          <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">All students</h1>
+          <p class="text-navy/60 mb-6">Browse, search and manage every registered student.</p>
+
+          <div class="bg-white border border-navy/10">
             <div class="px-6 py-4 border-b border-navy/10 flex items-center justify-between gap-3 flex-wrap">
               <p class="font-medium text-navy">All students</p>
               <div class="flex items-center gap-2">
@@ -332,10 +340,10 @@
         </section>
 
         <!-- ========================================================= -->
-        <!-- PANEL: STAFF ROSTER                                        -->
+        <!-- PANEL: REGISTER STAFF                                      -->
         <!-- ========================================================= -->
         <section id="panel-staff" class="panel">
-          <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Staff roster</h1>
+          <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Register staff</h1>
           <p class="text-navy/60 mb-6">Pre-register teachers and manage their access. Staff cannot self-register.</p>
 
           <form id="staff-form" class="bg-white border border-navy/10 p-6 sm:p-8 space-y-5 mb-8">
@@ -361,8 +369,30 @@
                 </select>
               </div>
               <div>
+                <label class="field-label" for="st-employment-type">Employment type</label>
+                <select id="st-employment-type" class="field-input" required>
+                  <option value="" disabled selected>Select employment type</option>
+                  <option>Full Time</option>
+                  <option>Part Time</option>
+                  <option>Contract</option>
+                </select>
+              </div>
+              <div>
                 <label class="field-label" for="st-phone">Phone</label>
                 <input id="st-phone" class="field-input" type="tel">
+              </div>
+              <div>
+                <label class="field-label" for="st-expected-time">Expected clock-in time</label>
+                <input id="st-expected-time" class="field-input" type="time" required>
+                <p class="text-xs text-navy/40 mt-1">Used to flag late clock-ins on the attendance log.</p>
+              </div>
+              <div class="sm:col-span-2">
+                <label class="field-label" for="st-address">Address</label>
+                <input id="st-address" class="field-input" type="text">
+              </div>
+              <div class="sm:col-span-2">
+                <label class="field-label" for="st-qualification">Qualification</label>
+                <input id="st-qualification" class="field-input" type="text" placeholder="e.g. B.Sc. Education, NCE">
               </div>
               <div>
                 <label class="field-label" for="st-attendance-pin">Attendance PIN (6 digits)</label>
@@ -404,6 +434,14 @@
               </button>
             </div>
           </form>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- PANEL: CURRENT STAFF                                       -->
+        <!-- ========================================================= -->
+        <section id="panel-current-staff" class="panel">
+          <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Current staff</h1>
+          <p class="text-navy/60 mb-6">Full profile details for every registered staff member.</p>
 
           <div class="bg-white border border-navy/10">
             <div class="px-6 py-4 border-b border-navy/10 flex items-center justify-between">
@@ -679,13 +717,14 @@
                   <th class="px-4 py-3 font-medium">Staff</th>
                   <th class="px-4 py-3 font-medium">Date</th>
                   <th class="px-4 py-3 font-medium">Clock in</th>
+                  <th class="px-4 py-3 font-medium">Status</th>
                   <th class="px-4 py-3 font-medium">Clock out</th>
                   <th class="px-4 py-3 font-medium">Hours</th>
                   <th class="px-4 py-3 font-medium">Photos</th>
                 </tr>
               </thead>
               <tbody id="att-rows" class="divide-y divide-navy/10">
-                <tr><td class="px-4 py-6 text-navy/40" colspan="6">Loading…</td></tr>
+                <tr><td class="px-4 py-6 text-navy/40" colspan="7">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -828,8 +867,10 @@
     const NAV_ITEMS = [
       { id: 'overview',   label: 'Overview' },
       { id: 'config',     label: 'Academic configuration' },
-      { id: 'enrollment', label: 'Student enrollment' },
-      { id: 'staff',      label: 'Staff roster' },
+      { id: 'enrollment', label: 'Register student' },
+      { id: 'students',   label: 'All students' },
+      { id: 'staff',      label: 'Register staff' },
+      { id: 'current-staff', label: 'Current staff' },
       { id: 'ledger',     label: 'Ledger & history' },
       { id: 'fees',       label: 'Fees' },
       { id: 'mastersheet', label: 'View Master Sheet' },
@@ -867,6 +908,8 @@
         showPanel(btn.dataset.panel);
         if (btn.dataset.panel === 'admissions') loadAdmissionsAndInquiries();
         if (btn.dataset.panel === 'attendance') loadAttendanceLog();
+        if (btn.dataset.panel === 'students') loadStudentFullList();
+        if (btn.dataset.panel === 'current-staff') loadStaffList();
       }
     });
     showPanel('overview');
@@ -1857,7 +1900,7 @@
 
       const { data: staffRow, error: staffErr } = await supabaseClient
         .from('staff')
-        .select('id, full_name, email, role, phone, hashed_attendance_pin')
+        .select('id, full_name, email, role, phone, hashed_attendance_pin, employment_type, address, qualification, expected_time_in')
         .eq('id', staffId)
         .single();
 
@@ -1884,7 +1927,11 @@
       document.getElementById('st-email').disabled = true;
       document.getElementById('st-email-lock-note').classList.remove('hidden');
       document.getElementById('st-role').value = staffRow.role || '';
+      document.getElementById('st-employment-type').value = staffRow.employment_type || '';
       document.getElementById('st-phone').value = staffRow.phone || '';
+      document.getElementById('st-expected-time').value = staffRow.expected_time_in || '';
+      document.getElementById('st-address').value = staffRow.address || '';
+      document.getElementById('st-qualification').value = staffRow.qualification || '';
       document.getElementById('st-attendance-pin').value = '';
       document.getElementById('st-pin-note').classList.toggle('hidden', !staffRow.hashed_attendance_pin);
 
@@ -2014,7 +2061,11 @@
         full_name: fullName,
         email: teacherEmail,
         role: document.getElementById('st-role').value,
+        employment_type: document.getElementById('st-employment-type').value || null,
         phone: document.getElementById('st-phone').value.trim() || null,
+        expected_time_in: document.getElementById('st-expected-time').value || null,
+        address: document.getElementById('st-address').value.trim() || null,
+        qualification: document.getElementById('st-qualification').value.trim() || null,
         status: 'Active',
         portal_username: generatedUsername,
         portal_temp_password: generatedPassword,
@@ -2111,7 +2162,11 @@
       const updatePayload = {
         full_name: fullName,
         role: document.getElementById('st-role').value,
+        employment_type: document.getElementById('st-employment-type').value || null,
         phone: document.getElementById('st-phone').value.trim() || null,
+        expected_time_in: document.getElementById('st-expected-time').value || null,
+        address: document.getElementById('st-address').value.trim() || null,
+        qualification: document.getElementById('st-qualification').value.trim() || null,
         // email intentionally excluded — locked read-only in edit mode
         // since changing it here wouldn't change the real Auth login.
       };
@@ -2344,7 +2399,7 @@
         listEl.innerHTML = '<p class="px-6 py-8 text-center text-navy/40 text-sm">Connect Supabase to view staff.</p>';
         return;
       }
-      const { data, error } = await supabaseClient.from('staff').select('id, full_name, role, email, status').order('full_name');
+      const { data, error } = await supabaseClient.from('staff').select('id, full_name, role, email, status, phone, employment_type, address, qualification, expected_time_in').order('full_name');
       if (error || !data || data.length === 0) {
         listEl.innerHTML = '<p class="px-6 py-8 text-center text-navy/40 text-sm">No staff registered yet.</p>';
         return;
@@ -2404,6 +2459,14 @@
                 Edit
               </button>
             </div>
+          </div>
+
+          <div class="grid sm:grid-cols-2 gap-x-6 gap-y-1 border-t border-navy/5 pt-3 text-sm">
+            <p class="text-navy/70"><span class="text-navy/40">Phone:</span> ${escapeHtml(s.phone || '—')}</p>
+            <p class="text-navy/70"><span class="text-navy/40">Employment type:</span> ${escapeHtml(s.employment_type || '—')}</p>
+            <p class="text-navy/70"><span class="text-navy/40">Expected clock-in:</span> ${escapeHtml(formatTimeOfDay(s.expected_time_in))}</p>
+            <p class="text-navy/70"><span class="text-navy/40">Qualification:</span> ${escapeHtml(s.qualification || '—')}</p>
+            <p class="text-navy/70 sm:col-span-2"><span class="text-navy/40">Address:</span> ${escapeHtml(s.address || '—')}</p>
           </div>
 
           <div class="flex items-start justify-between gap-3 border-t border-navy/5 pt-3">
@@ -2607,10 +2670,45 @@
       if (!iso) return '—';
       return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     }
+    // Formats a bare "HH:MM" / "HH:MM:SS" time-of-day value (e.g. a
+    // staff member's expected_time_in, stored as a Postgres `time`
+    // column) — new Date() can't parse that on its own, unlike a full
+    // timestamp such as clock_in/clock_out.
+    function formatTimeOfDay(timeStr) {
+      if (!timeStr) return '—';
+      const [h, m] = timeStr.split(':');
+      const d = new Date();
+      d.setHours(Number(h), Number(m), 0, 0);
+      return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    }
     function computeHours(clockIn, clockOut) {
       if (!clockIn || !clockOut) return '—';
       const hrs = (new Date(clockOut) - new Date(clockIn)) / (1000 * 60 * 60);
       return hrs.toFixed(1) + 'h';
+    }
+
+    // Compares a clock_in timestamp against that staff member's
+    // expected_time_in (a bare "HH:MM:SS" time-of-day, same clock day
+    // as the clock-in). No expected time on file means there's nothing
+    // to compare against, so it's shown as "—" rather than guessed at.
+    function getLateStatus(clockInIso, expectedTimeStr) {
+      const badgeHtml = (label, cls) =>
+        `<span class="inline-flex items-center px-2 py-1 text-xs font-medium border ${cls}">${label}</span>`;
+
+      if (!clockInIso) return { badge: '<span class="text-navy/30">—</span>' };
+      if (!expectedTimeStr) return { badge: '<span class="text-navy/30">—</span>' };
+
+      const clockInDate = new Date(clockInIso);
+      const [eh, em] = expectedTimeStr.split(':');
+      const expectedDate = new Date(clockInDate);
+      expectedDate.setHours(Number(eh), Number(em), 0, 0);
+
+      const diffMinutes = Math.round((clockInDate - expectedDate) / 60000);
+
+      if (diffMinutes > 0) {
+        return { badge: badgeHtml(`Late by ${diffMinutes}m`, 'border-red-300 text-red-700 bg-red-50') };
+      }
+      return { badge: badgeHtml('On time', 'border-emerald-300 text-emerald-700 bg-emerald-50') };
     }
 
     async function loadAttendanceLog() {
@@ -2622,11 +2720,11 @@
       const searchTerm = document.getElementById('att-search').value.trim().toLowerCase();
       const { from, to } = getTimeframeRange();
 
-      rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="6">Loading…</td></tr>';
+      rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="7">Loading…</td></tr>';
 
       let query = supabaseClient
         .from('staff_attendance')
-        .select('id, staff_id, date, clock_in, clock_out, clock_in_photo_path, clock_out_photo_path, staff(full_name)')
+        .select('id, staff_id, date, clock_in, clock_out, clock_in_photo_path, clock_out_photo_path, staff(full_name, expected_time_in)')
         .gte('date', from)
         .lte('date', to)
         .order('date', { ascending: false })
@@ -2638,7 +2736,7 @@
       const { data, error } = await query;
 
       if (error) {
-        rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="6">Could not load attendance records.</td></tr>';
+        rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="7">Could not load attendance records.</td></tr>';
         console.error(error);
         return;
       }
@@ -2649,15 +2747,18 @@
       }
 
       if (!rows.length) {
-        rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="6">No attendance records match these filters.</td></tr>';
+        rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="7">No attendance records match these filters.</td></tr>';
         return;
       }
 
-      rowsEl.innerHTML = rows.map(r => `
+      rowsEl.innerHTML = rows.map(r => {
+        const lateInfo = getLateStatus(r.clock_in, r.staff?.expected_time_in);
+        return `
         <tr>
           <td class="px-4 py-3 font-medium text-navy whitespace-nowrap">${escapeHtml(r.staff?.full_name || 'Unknown')}</td>
           <td class="px-4 py-3 text-navy/70 whitespace-nowrap">${new Date(r.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
           <td class="px-4 py-3 text-navy/70">${formatClockTime(r.clock_in)}</td>
+          <td class="px-4 py-3">${lateInfo.badge}</td>
           <td class="px-4 py-3 text-navy/70">${formatClockTime(r.clock_out)}</td>
           <td class="px-4 py-3 text-navy/70">${computeHours(r.clock_in, r.clock_out)}</td>
           <td class="px-4 py-3">
@@ -2667,7 +2768,8 @@
             </div>
           </td>
         </tr>
-      `).join('');
+      `;
+      }).join('');
 
       document.querySelectorAll('.att-thumb-btn').forEach(btn => {
         btn.addEventListener('click', () => openAttendancePhoto(btn.dataset.attPhoto));
