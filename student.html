@@ -134,6 +134,26 @@
       </button>
     </div>
 
+    <!-- ===== SESSION / TERM SELECTOR ===== -->
+    <div class="no-print bg-white border border-navy/10 p-4 mb-6 flex flex-wrap items-end gap-3">
+      <div>
+        <label class="block text-xs font-medium text-navy/60 mb-1" for="select-session">Academic session</label>
+        <select id="select-session" class="border border-navy/20 px-3 py-2 text-sm min-w-[160px]"></select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-navy/60 mb-1" for="select-term">Term</label>
+        <select id="select-term" class="border border-navy/20 px-3 py-2 text-sm min-w-[140px]">
+          <option>1st Term</option>
+          <option>2nd Term</option>
+          <option>3rd Term</option>
+        </select>
+      </div>
+      <button id="view-result-btn" class="bg-navy text-white px-5 py-2 text-sm font-medium hover:bg-navy-dark transition-colors">
+        View result
+      </button>
+      <p class="text-xs text-navy/40 ml-auto">Showing your most recent result by default — pick a session &amp; term above to view an older one.</p>
+    </div>
+
     <!-- ===== PRINTABLE SHEET ===== -->
     <div id="print-sheet" class="notice-border bg-white p-8 sm:p-10">
 
@@ -172,7 +192,7 @@
         </div>
         <div>
           <p class="text-navy/50 text-xs mb-1">Clearance status</p>
-          <p class="font-medium text-emerald-700">Cleared</p>
+          <p class="font-medium" id="stat-clearance">&mdash;</p>
         </div>
       </div>
 
@@ -276,6 +296,11 @@
     const stateDashboard = document.getElementById('state-dashboard');
     const paywallOverlay = document.getElementById('paywall-overlay');
     const studentNamePill = document.getElementById('student-name-pill');
+    const selectSessionEl = document.getElementById('select-session');
+    const selectTermEl = document.getElementById('select-term');
+
+    let currentStudent = null; // cached after first successful load, so switching term/session doesn't re-resolve the auth user each time
+    let sessionsCache = [];
 
     function showOnly(el) {
       [stateGuest, stateLoading, stateDashboard].forEach(s => s.classList.add('hidden'));
@@ -355,59 +380,96 @@
     //                  exam_score, total_score, class_average)
     //   teacher_comments (student_id, term, comment)
     //
-    // "Active term" is resolved from a school_settings table so the
-    // office can flip it once per term without touching this file.
+    // Called with no override on first load — it resolves whatever is
+    // currently marked active in school_settings / academic_sessions,
+    // same as before. The session/term dropdowns above the report card
+    // let the student re-call this with an explicit {sessionId, term}
+    // to look at a past result instead, without needing a fresh
+    // "active" lookup every time.
     // ---------------------------------------------------------------
-    async function loadStudentData(user) {
+    async function loadStudentData(user, override) {
       try {
-        // 1. Resolve the active term.
-        const { data: settings, error: settingsError } = await supabaseClient
-          .from('school_settings')
-          .select('active_term')
-          .single();
+        // 1. Resolve which term to show — the override picked from the
+        // dropdown, or the school's active term if this is the first load.
+        let targetTerm = override?.term;
+        if (!targetTerm) {
+          const { data: settings, error: settingsError } = await supabaseClient
+            .from('school_settings')
+            .select('active_term')
+            .single();
 
-        if (settingsError || !settings) {
-          throw new Error('Could not determine the active term.');
+          if (settingsError || !settings) {
+            throw new Error('Could not determine the active term.');
+          }
+          targetTerm = settings.active_term;
         }
-        const activeTerm = settings.active_term;
 
-        // 1b. Resolve the active academic session — needed because
-        // class_teacher_comments is keyed by (student_id, session_id, term).
-        const { data: activeSessionRow, error: sessionRowError } = await supabaseClient
-          .from('academic_sessions')
-          .select('id')
-          .eq('is_active', true)
-          .single();
+        // 1b. Resolve which session to show, same idea — an explicit
+        // override, or whichever session is currently marked active.
+        let targetSessionId = override?.sessionId;
+        if (!targetSessionId) {
+          const { data: activeSessionRow, error: sessionRowError } = await supabaseClient
+            .from('academic_sessions')
+            .select('id')
+            .eq('is_active', true)
+            .single();
 
-        if (sessionRowError || !activeSessionRow) {
-          throw new Error('Could not determine the active academic session.');
+          if (sessionRowError || !activeSessionRow) {
+            throw new Error('Could not determine the active academic session.');
+          }
+          targetSessionId = activeSessionRow.id;
         }
-        const activeSessionId = activeSessionRow.id;
 
-        // 2. Resolve the student record tied to this auth user.
-        const { data: student, error: studentError } = await supabaseClient
-          .from('students')
-          .select('id, full_name, username, current_class_id, classes(class_name)')
-          .eq('auth_user_id', user.id)
-          .single();
-
-        if (studentError || !student) {
-          throw new Error('Could not find your student record.');
+        // 1c. Populate the session dropdown once, on first load only —
+        // every academic session on record, newest first, so a student
+        // can go back and pick an earlier one at any time.
+        if (!sessionsCache.length) {
+          const { data: allSessions } = await supabaseClient
+            .from('academic_sessions')
+            .select('id, session_label, is_active')
+            .order('session_label', { ascending: false });
+          sessionsCache = allSessions || [];
+          selectSessionEl.innerHTML = sessionsCache.map(s =>
+            `<option value="${s.id}">${escapeHtml(s.session_label)}</option>`
+          ).join('');
         }
-        student.class_name = student.classes?.class_name || '—';
+        // Keep the dropdowns in sync with whichever term/session is
+        // actually being displayed right now, whether that came from
+        // the "active" lookup above or from the student's own selection.
+        if (targetSessionId) selectSessionEl.value = targetSessionId;
+        if (targetTerm) selectTermEl.value = targetTerm;
+
+        // 2. Resolve the student record tied to this auth user. Cached
+        // after the first successful load so switching term/session
+        // doesn't need to re-resolve who's logged in every time.
+        let student = currentStudent;
+        if (!student) {
+          const { data: studentRow, error: studentError } = await supabaseClient
+            .from('students')
+            .select('id, full_name, username, current_class_id, classes(class_name)')
+            .eq('auth_user_id', user.id)
+            .single();
+
+          if (studentError || !studentRow) {
+            throw new Error('Could not find your student record.');
+          }
+          studentRow.class_name = studentRow.classes?.class_name || '—';
+          student = studentRow;
+          currentStudent = studentRow;
+        }
 
         studentNamePill.textContent = student.full_name;
         studentNamePill.classList.remove('hidden');
 
-        // 3. PAYWALL GUARD — check clearance for the active term
+        // 3. PAYWALL GUARD — check clearance for the selected term
         //    BEFORE any score data is requested or rendered.
         // Mirrors the same computation admin.html uses: Free plan is
         // always cleared; otherwise cleared means total deposits meet
         // or exceed the expected amount. If no expectation has been
         // set up yet for this term, she's treated as not cleared.
         const [{ data: expectation }, { data: deposits }] = await Promise.all([
-          supabaseClient.from('fee_expectations').select('expected_amount, is_free_plan').eq('student_id', student.id).eq('session_id', activeSessionId).eq('term', activeTerm).maybeSingle(),
-          supabaseClient.from('fee_payments').select('amount').eq('student_id', student.id).eq('session_id', activeSessionId).eq('term', activeTerm),
+          supabaseClient.from('fee_expectations').select('expected_amount, is_free_plan').eq('student_id', student.id).eq('session_id', targetSessionId).eq('term', targetTerm).maybeSingle(),
+          supabaseClient.from('fee_payments').select('amount').eq('student_id', student.id).eq('session_id', targetSessionId).eq('term', targetTerm),
         ]);
 
         const totalPaid = (deposits || []).reduce((sum, d) => sum + Number(d.amount || 0), 0);
@@ -415,19 +477,20 @@
         const isCleared = isFreePlan || (!!expectation && totalPaid >= Number(expectation.expected_amount || 0) && Number(expectation.expected_amount || 0) > 0);
 
         if (!isCleared) {
-          document.getElementById('paywall-term').textContent = activeTerm;
+          document.getElementById('paywall-term').textContent = targetTerm;
           paywallOverlay.classList.remove('hidden');
           showOnly(stateLoading); // keep everything else hidden behind the modal
           stateLoading.classList.add('hidden');
           return; // hard stop — no score data is ever fetched or shown
         }
+        paywallOverlay.classList.add('hidden');
 
         // 4. Cleared — fetch scores and comment, then render.
         const { data: scores, error: scoresError } = await supabaseClient
           .from('report_scores')
           .select('subject, ca_score, exam_score, total_score, class_average')
           .eq('student_id', student.id)
-          .eq('term', activeTerm)
+          .eq('term', targetTerm)
           .order('subject', { ascending: true });
 
         if (scoresError || !scores || scores.length === 0) {
@@ -442,8 +505,8 @@
           .from('class_teacher_comments')
           .select('comment, written_by')
           .eq('student_id', student.id)
-          .eq('session_id', activeSessionId)
-          .eq('term', activeTerm)
+          .eq('session_id', targetSessionId)
+          .eq('term', targetTerm)
           .maybeSingle();
 
         // Class teacher's name for the signature line — resolved via
@@ -456,7 +519,7 @@
             .from('staff_class_teacher')
             .select('staff:staff_id(full_name)')
             .eq('class_id', student.current_class_id)
-            .eq('session_id', activeSessionId)
+            .eq('session_id', targetSessionId)
             .maybeSingle();
           classTeacherName = ctRow?.staff?.full_name || '';
         }
@@ -474,7 +537,8 @@
 
         renderReportCard({
           student,
-          activeTerm,
+          activeTerm: targetTerm,
+          isCleared,
           scores,
           teacherComment: commentRow?.comment || 'No comment provided yet.',
           classTeacherName,
@@ -487,6 +551,13 @@
       } catch (err) {
         console.error(err);
         showOnly(stateDashboard);
+        // Clearance couldn't be verified in this failure path (the error
+        // happened before or during that check), so the badge must never
+        // default to "Cleared" here — that would show a status nothing
+        // actually confirmed. Blank it out instead.
+        const clearanceEl = document.getElementById('stat-clearance');
+        clearanceEl.textContent = '—';
+        clearanceEl.className = 'font-medium text-navy/40';
         document.getElementById('scores-body').innerHTML =
           `<tr><td colspan="6" class="py-6 text-center text-navy/50">${escapeHtml(err.message)}</td></tr>`;
       }
@@ -495,12 +566,21 @@
     // ---------------------------------------------------------------
     // RENDER REPORT CARD
     // ---------------------------------------------------------------
-    function renderReportCard({ student, activeTerm, scores, teacherComment, classTeacherName, principalName, principalSignatureUrl }) {
+    function renderReportCard({ student, activeTerm, isCleared, scores, teacherComment, classTeacherName, principalName, principalSignatureUrl }) {
       document.getElementById('dash-title').textContent = `${student.full_name.split(' ')[0]}'s report card`;
       document.getElementById('sheet-term').textContent = activeTerm;
       document.getElementById('stat-name').textContent = student.full_name;
       document.getElementById('stat-class').textContent = student.class_name;
       document.getElementById('stat-username').textContent = student.username;
+
+      // This function only ever runs after the paywall guard in
+      // loadStudentData has already confirmed isCleared === true for the
+      // term being shown, so this badge always reflects a checked status
+      // rather than assuming it — see the catch block above for what
+      // shows instead when clearance couldn't be verified at all.
+      const clearanceEl = document.getElementById('stat-clearance');
+      clearanceEl.textContent = isCleared ? 'Cleared' : 'Unpaid';
+      clearanceEl.className = isCleared ? 'font-medium text-emerald-700' : 'font-medium text-red-600';
 
       const tbody = document.getElementById('scores-body');
       tbody.innerHTML = scores.map(row => `
@@ -550,6 +630,18 @@
     // PRINT + SIGN OUT
     // ---------------------------------------------------------------
     document.getElementById('print-btn').addEventListener('click', () => window.print());
+
+    // Re-run the loader with whatever session/term is currently picked
+    // in the dropdowns, instead of the "active" ones init() started with.
+    document.getElementById('view-result-btn').addEventListener('click', async () => {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session || !session.user) return;
+      showOnly(stateLoading);
+      await loadStudentData(session.user, {
+        sessionId: selectSessionEl.value,
+        term: selectTermEl.value,
+      });
+    });
 
     async function signOut() {
       if (supabaseClient) {
