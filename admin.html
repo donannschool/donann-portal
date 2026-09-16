@@ -364,6 +364,11 @@
                 <label class="field-label" for="st-phone">Phone</label>
                 <input id="st-phone" class="field-input" type="tel">
               </div>
+              <div>
+                <label class="field-label" for="st-attendance-pin">Attendance PIN (6 digits)</label>
+                <input id="st-attendance-pin" class="field-input" type="text" inputmode="numeric" pattern="\d{6}" maxlength="6" placeholder="Leave blank to skip">
+                <p id="st-pin-note" class="hidden text-xs text-navy/40 mt-1">A PIN is already set. Enter a new 6-digit PIN here only if you want to change it.</p>
+              </div>
             </div>
 
             <div class="border-t border-navy/10 pt-5">
@@ -640,6 +645,63 @@
         </section>
 
         <!-- ========================================================= -->
+        <!-- PANEL: STAFF ATTENDANCE LOG                                -->
+        <!-- ========================================================= -->
+        <section id="panel-attendance" class="panel">
+          <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Staff Attendance Log</h1>
+          <p class="text-navy/60 mb-6">Clock-in and clock-out records from the gate kiosk. Photos are private — click a thumbnail to view it securely.</p>
+
+          <div class="bg-white border border-navy/10 p-6 sm:p-8 mb-6">
+            <div class="grid sm:grid-cols-4 gap-3 mb-4">
+              <select id="att-session" class="field-input text-sm"></select>
+              <select id="att-term" class="field-input text-sm">
+                <option value="">All terms</option>
+                <option>1st Term</option><option>2nd Term</option><option>3rd Term</option>
+              </select>
+              <select id="att-timeframe" class="field-input text-sm">
+                <option value="today">Today</option>
+                <option value="week">This week</option>
+                <option value="month">This month</option>
+                <option value="custom">Custom range</option>
+              </select>
+              <input id="att-search" type="text" class="field-input text-sm" placeholder="Search staff name…">
+            </div>
+            <div id="att-custom-range" class="hidden grid sm:grid-cols-2 gap-3">
+              <input id="att-from" type="date" class="field-input text-sm">
+              <input id="att-to" type="date" class="field-input text-sm">
+            </div>
+          </div>
+
+          <div class="bg-white border border-navy/10 overflow-x-auto">
+            <table class="w-full text-sm min-w-[720px]">
+              <thead class="bg-navy/5 text-navy text-left">
+                <tr>
+                  <th class="px-4 py-3 font-medium">Staff</th>
+                  <th class="px-4 py-3 font-medium">Date</th>
+                  <th class="px-4 py-3 font-medium">Clock in</th>
+                  <th class="px-4 py-3 font-medium">Clock out</th>
+                  <th class="px-4 py-3 font-medium">Hours</th>
+                  <th class="px-4 py-3 font-medium">Photos</th>
+                </tr>
+              </thead>
+              <tbody id="att-rows" class="divide-y divide-navy/10">
+                <tr><td class="px-4 py-6 text-navy/40" colspan="6">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Photo modal, shared for clock-in / clock-out thumbnails -->
+        <div id="att-photo-modal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div class="bg-white max-w-lg w-full p-4">
+            <div class="flex justify-end mb-2">
+              <button id="att-photo-modal-close" class="text-navy/50 hover:text-navy text-sm">Close &times;</button>
+            </div>
+            <img id="att-photo-modal-img" src="" alt="Attendance photo" class="w-full h-auto">
+          </div>
+        </div>
+
+        <!-- ========================================================= -->
         <!-- PANEL: POST NEWS                                           -->
         <!-- ========================================================= -->
         <section id="panel-news" class="panel">
@@ -772,6 +834,7 @@
       { id: 'fees',       label: 'Fees' },
       { id: 'mastersheet', label: 'View Master Sheet' },
       { id: 'admissions',  label: 'Admissions & inquiries' },
+      { id: 'attendance',  label: 'Staff Attendance Log' },
       { id: 'news',       label: 'Post news' },
     ];
 
@@ -803,6 +866,7 @@
       if (btn) {
         showPanel(btn.dataset.panel);
         if (btn.dataset.panel === 'admissions') loadAdmissionsAndInquiries();
+        if (btn.dataset.panel === 'attendance') loadAttendanceLog();
       }
     });
     showPanel('overview');
@@ -1781,6 +1845,7 @@
       document.querySelectorAll('input[name="st-class-teacher-option"]').forEach(cb => { cb.checked = false; });
       document.getElementById('st-email').disabled = false;
       document.getElementById('st-email-lock-note').classList.add('hidden');
+      document.getElementById('st-pin-note').classList.add('hidden');
       staffBtn.textContent = 'Register staff member';
       staffCancelEditBtn.classList.add('hidden');
       staffForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1792,7 +1857,7 @@
 
       const { data: staffRow, error: staffErr } = await supabaseClient
         .from('staff')
-        .select('id, full_name, email, role, phone')
+        .select('id, full_name, email, role, phone, hashed_attendance_pin')
         .eq('id', staffId)
         .single();
 
@@ -1820,6 +1885,8 @@
       document.getElementById('st-email-lock-note').classList.remove('hidden');
       document.getElementById('st-role').value = staffRow.role || '';
       document.getElementById('st-phone').value = staffRow.phone || '';
+      document.getElementById('st-attendance-pin').value = '';
+      document.getElementById('st-pin-note').classList.toggle('hidden', !staffRow.hashed_attendance_pin);
 
       // Class teacher checkboxes
       const assignedClassIds = new Set((classTeacherRows || []).map(r => r.class_id));
@@ -1934,6 +2001,15 @@
 
       if (!authProvisionOk) return;
 
+      const rawPin = document.getElementById('st-attendance-pin').value.trim();
+      if (rawPin && !/^\d{6}$/.test(rawPin)) {
+        staffBtn.disabled = false;
+        staffBtn.textContent = 'Register staff member';
+        showStatus(staffStatus, 'The attendance PIN must be exactly 6 digits, or left blank.', true);
+        return;
+      }
+      const hashedPin = rawPin ? await hashPin(rawPin) : null;
+
       const payload = {
         full_name: fullName,
         email: teacherEmail,
@@ -1944,6 +2020,7 @@
         portal_temp_password: generatedPassword,
         credentials_generated_at: new Date().toISOString(),
         auth_user_id: newAuthUserId,
+        hashed_attendance_pin: hashedPin,
       };
 
       const { data: staffRow, error } = await supabaseClient.from('staff').insert(payload).select().single();
@@ -2022,13 +2099,32 @@
       const fullName = document.getElementById('st-name').value.trim();
       const staffId = editingStaffId;
 
-      const { error: updateErr } = await supabaseClient.from('staff').update({
+      // Only touch the PIN if the admin actually typed a new one here
+      // — leaving it blank means "no change," not "clear her PIN."
+      const rawPin = document.getElementById('st-attendance-pin').value.trim();
+      if (rawPin && !/^\d{6}$/.test(rawPin)) {
+        staffBtn.disabled = false;
+        staffBtn.textContent = 'Update staff member';
+        showStatus(staffStatus, 'The attendance PIN must be exactly 6 digits, or left blank to keep her current PIN.', true);
+        return;
+      }
+      const updatePayload = {
         full_name: fullName,
         role: document.getElementById('st-role').value,
         phone: document.getElementById('st-phone').value.trim() || null,
         // email intentionally excluded — locked read-only in edit mode
         // since changing it here wouldn't change the real Auth login.
-      }).eq('id', staffId);
+      };
+      if (rawPin) {
+        updatePayload.hashed_attendance_pin = await hashPin(rawPin);
+        // A freshly (re)set PIN should also clear any lockout state
+        // from before, so she isn't accidentally still locked out
+        // under an old PIN's failure count.
+        updatePayload.failed_pin_attempts = 0;
+        updatePayload.pin_locked_until = null;
+      }
+
+      const { error: updateErr } = await supabaseClient.from('staff').update(updatePayload).eq('id', staffId);
 
       if (updateErr) {
         staffBtn.disabled = false;
@@ -2456,6 +2552,156 @@
       await supabaseClient.from(table).update({ status: newStatus }).eq('id', id);
       loadAdmissionsAndInquiries();
     }
+
+    // =================================================================
+    // STAFF ATTENDANCE LOG
+    // =================================================================
+    function populateAttendanceFilters() {
+      const sessionSelect = document.getElementById('att-session');
+      sessionSelect.innerHTML = sessionsCache
+        .map(s => `<option value="${s.id}" ${s.is_active ? 'selected' : ''}>${escapeHtml(s.session_label)}</option>`)
+        .join('');
+    }
+
+    function getTimeframeRange() {
+      const timeframe = document.getElementById('att-timeframe').value;
+      const today = new Date();
+      const todayStr = today.toISOString().slice(0, 10);
+
+      if (timeframe === 'today') return { from: todayStr, to: todayStr };
+
+      if (timeframe === 'week') {
+        const day = today.getDay(); // 0 = Sunday
+        const diffToMonday = day === 0 ? 6 : day - 1;
+        const monday = new Date(today);
+        monday.setDate(today.getDate() - diffToMonday);
+        return { from: monday.toISOString().slice(0, 10), to: todayStr };
+      }
+
+      if (timeframe === 'month') {
+        const first = new Date(today.getFullYear(), today.getMonth(), 1);
+        return { from: first.toISOString().slice(0, 10), to: todayStr };
+      }
+
+      // custom
+      const from = document.getElementById('att-from').value;
+      const to = document.getElementById('att-to').value;
+      return { from: from || todayStr, to: to || todayStr };
+    }
+
+    document.getElementById('att-timeframe').addEventListener('change', (e) => {
+      document.getElementById('att-custom-range').classList.toggle('hidden', e.target.value !== 'custom');
+      loadAttendanceLog();
+    });
+    document.getElementById('att-session').addEventListener('change', loadAttendanceLog);
+    document.getElementById('att-term').addEventListener('change', loadAttendanceLog);
+    document.getElementById('att-from').addEventListener('change', loadAttendanceLog);
+    document.getElementById('att-to').addEventListener('change', loadAttendanceLog);
+    let attSearchDebounce = null;
+    document.getElementById('att-search').addEventListener('input', () => {
+      clearTimeout(attSearchDebounce);
+      attSearchDebounce = setTimeout(loadAttendanceLog, 350);
+    });
+
+    function formatClockTime(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    }
+    function computeHours(clockIn, clockOut) {
+      if (!clockIn || !clockOut) return '—';
+      const hrs = (new Date(clockOut) - new Date(clockIn)) / (1000 * 60 * 60);
+      return hrs.toFixed(1) + 'h';
+    }
+
+    async function loadAttendanceLog() {
+      const rowsEl = document.getElementById('att-rows');
+      if (!requireSupabase(null)) return;
+
+      const sessionId = document.getElementById('att-session').value;
+      const term = document.getElementById('att-term').value;
+      const searchTerm = document.getElementById('att-search').value.trim().toLowerCase();
+      const { from, to } = getTimeframeRange();
+
+      rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="6">Loading…</td></tr>';
+
+      let query = supabaseClient
+        .from('staff_attendance')
+        .select('id, staff_id, date, clock_in, clock_out, clock_in_photo_path, clock_out_photo_path, staff(full_name)')
+        .gte('date', from)
+        .lte('date', to)
+        .order('date', { ascending: false })
+        .order('clock_in', { ascending: false });
+
+      if (sessionId) query = query.eq('session_id', sessionId);
+      if (term) query = query.eq('term', term);
+
+      const { data, error } = await query;
+
+      if (error) {
+        rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="6">Could not load attendance records.</td></tr>';
+        console.error(error);
+        return;
+      }
+
+      let rows = data || [];
+      if (searchTerm) {
+        rows = rows.filter(r => (r.staff?.full_name || '').toLowerCase().includes(searchTerm));
+      }
+
+      if (!rows.length) {
+        rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="6">No attendance records match these filters.</td></tr>';
+        return;
+      }
+
+      rowsEl.innerHTML = rows.map(r => `
+        <tr>
+          <td class="px-4 py-3 font-medium text-navy whitespace-nowrap">${escapeHtml(r.staff?.full_name || 'Unknown')}</td>
+          <td class="px-4 py-3 text-navy/70 whitespace-nowrap">${new Date(r.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+          <td class="px-4 py-3 text-navy/70">${formatClockTime(r.clock_in)}</td>
+          <td class="px-4 py-3 text-navy/70">${formatClockTime(r.clock_out)}</td>
+          <td class="px-4 py-3 text-navy/70">${computeHours(r.clock_in, r.clock_out)}</td>
+          <td class="px-4 py-3">
+            <div class="flex gap-2">
+              ${r.clock_in_photo_path ? `<button data-att-photo="${r.clock_in_photo_path}" class="att-thumb-btn w-9 h-9 border border-navy/15 bg-navy/5 flex items-center justify-center text-xs text-navy/40 hover:bg-navy/10">AM</button>` : ''}
+              ${r.clock_out_photo_path ? `<button data-att-photo="${r.clock_out_photo_path}" class="att-thumb-btn w-9 h-9 border border-navy/15 bg-navy/5 flex items-center justify-center text-xs text-navy/40 hover:bg-navy/10">PM</button>` : ''}
+            </div>
+          </td>
+        </tr>
+      `).join('');
+
+      document.querySelectorAll('.att-thumb-btn').forEach(btn => {
+        btn.addEventListener('click', () => openAttendancePhoto(btn.dataset.attPhoto));
+      });
+    }
+
+    // Signed URLs are generated fresh, on demand, and expire shortly —
+    // the private bucket has no public read access at all, so this is
+    // the only way these photos are ever viewable from the browser.
+    async function openAttendancePhoto(path) {
+      const { data, error } = await supabaseClient.storage
+        .from('attendance-photos')
+        .createSignedUrl(path, 120); // valid for 2 minutes
+
+      if (error || !data) {
+        showToast('Could not load this photo.');
+        console.error(error);
+        return;
+      }
+
+      document.getElementById('att-photo-modal-img').src = data.signedUrl;
+      document.getElementById('att-photo-modal').classList.remove('hidden');
+    }
+
+    document.getElementById('att-photo-modal-close').addEventListener('click', () => {
+      document.getElementById('att-photo-modal').classList.add('hidden');
+      document.getElementById('att-photo-modal-img').src = '';
+    });
+    document.getElementById('att-photo-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'att-photo-modal') {
+        document.getElementById('att-photo-modal').classList.add('hidden');
+        document.getElementById('att-photo-modal-img').src = '';
+      }
+    });
 
     async function loadAdmissionsAndInquiries() {
       if (!requireSupabase(null)) return;
@@ -3106,6 +3352,18 @@
     }
     function escapeAttr(str) { return escapeHtml(str).replace(/"/g, '&quot;'); }
 
+    // Hashes a PIN with SHA-256 — must produce the exact same output
+    // as the hashPin() function inside the handle-attendance Edge
+    // Function, since that's what a kiosk PIN entry gets compared
+    // against. If either side's hashing logic ever changes, the other
+    // must change identically or every existing PIN silently stops
+    // matching.
+    async function hashPin(pin) {
+      const data = new TextEncoder().encode(pin);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
     // =================================================================
     // INIT
     // =================================================================
@@ -3120,6 +3378,7 @@
       loadFeesList();
       populateAdminMasterSheetFilters();
       loadAdmissionsAndInquiries();
+      populateAttendanceFilters();
     });
   </script>
 </body>
