@@ -1294,7 +1294,14 @@
     function formatDobPassword(dobStr) {
       const d = new Date(dobStr + 'T00:00:00');
       const month = d.toLocaleString('en-US', { month: 'long' });
-      return `${month}${d.getDate()}`;
+      const day = d.getDate();
+      const year = d.getFullYear();
+      // Supabase Auth requires at least 6 characters. Short month names
+      // paired with a single-digit day (e.g. "July9" = 5 chars, "May3" =
+      // 4 chars) can fall under that limit, so the birth year is always
+      // appended — this keeps every generated password comfortably over
+      // 6 characters regardless of which month or day a student was born.
+      return `${month}${day}${year}`;
     }
 
     async function generateUniqueUsername(fullName) {
