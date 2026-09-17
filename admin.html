@@ -1869,6 +1869,10 @@
 
     document.getElementById('credentials-close').addEventListener('click', () => {
       document.getElementById('credentials-modal').classList.add('hidden');
+      // Undo the reset-password modal's username-row hiding, so the
+      // next normal registration's credentials modal shows it again.
+      document.getElementById('cred-modal-title').textContent = 'Portal login generated';
+      document.getElementById('cred-username-label').closest('div').parentElement.classList.remove('hidden');
     });
     document.querySelectorAll('.copy-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -2748,7 +2752,7 @@
         listEl.innerHTML = '<p class="px-6 py-8 text-center text-navy/40 text-sm">Connect Supabase to view staff.</p>';
         return;
       }
-      const { data, error } = await supabaseClient.from('staff').select('id, full_name, role, email, status, phone, employment_type, address, qualification, expected_time_in, state_of_origin, photo_url').order('full_name');
+      const { data, error } = await supabaseClient.from('staff').select('id, full_name, role, email, status, phone, employment_type, address, qualification, expected_time_in, state_of_origin, photo_url, auth_user_id').order('full_name');
       if (error || !data || data.length === 0) {
         listEl.innerHTML = '<p class="px-6 py-8 text-center text-navy/40 text-sm">No staff registered yet.</p>';
         return;
@@ -2837,6 +2841,12 @@
                       class="staff-edit-btn inline-flex items-center px-3 py-1.5 border border-navy/20 text-navy text-sm font-medium hover:bg-navy/5 transition-colors">
                 Edit
               </button>
+              ${s.auth_user_id ? `
+                <button data-reset-password-id="${s.auth_user_id}" data-reset-password-name="${escapeAttr(s.full_name)}"
+                        class="staff-reset-password-btn inline-flex items-center px-3 py-1.5 border border-navy/20 text-navy text-sm font-medium hover:bg-navy/5 transition-colors">
+                  Reset password
+                </button>
+              ` : ''}
             </div>
           </div>
 
@@ -2899,6 +2909,53 @@
       listEl.querySelectorAll('.staff-edit-btn').forEach(btn => {
         btn.addEventListener('click', () => enterStaffEditMode(btn.dataset.editStaffId));
       });
+
+      listEl.querySelectorAll('.staff-reset-password-btn').forEach(btn => {
+        btn.addEventListener('click', () => resetStaffPassword(btn.dataset.resetPasswordId, btn.dataset.resetPasswordName));
+      });
+    }
+
+    // Generates a fresh random password and updates it on the staff
+    // member's existing login via the reset-staff-password Edge
+    // Function (mirrors create-teacher-auth's admin-check pattern —
+    // only an admin session can call this). Nothing else about the
+    // account changes: same email, same role, same history.
+    async function resetStaffPassword(authUserId, staffName) {
+      if (!confirm(`Reset the login password for ${staffName}? Her current password will stop working immediately.`)) {
+        return;
+      }
+
+      const newPassword = generateStaffTempPassword();
+      const { data: { session } } = await supabaseClient.auth.getSession();
+
+      try {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/reset-staff-password`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token || SUPABASE_ANON_KEY}`,
+            'apikey': SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({ userId: authUserId, newPassword }),
+        });
+
+        const body = await res.json();
+        if (!res.ok) {
+          throw new Error(body.error || 'Failed to reset password');
+        }
+
+        // Reuse the same credentials modal used at registration, just
+        // with the username row hidden since only the password changed
+        // — her email/username stay exactly as they were.
+        document.getElementById('cred-modal-title').textContent = 'Password reset';
+        document.getElementById('cred-modal-subtitle').textContent = `Share this new password with ${staffName}. Her email/username has not changed.`;
+        document.getElementById('cred-username-label').closest('div').parentElement.classList.add('hidden');
+        document.getElementById('cred-password').textContent = newPassword;
+        document.getElementById('credentials-modal').classList.remove('hidden');
+      } catch (err) {
+        console.error('reset-staff-password failed:', err);
+        alert('Could not reset the password. Please try again.');
+      }
     }
     document.getElementById('staff-refresh').addEventListener('click', loadStaffList);
 
