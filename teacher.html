@@ -97,9 +97,15 @@
             <p id="teacher-name" class="text-sm text-sky mt-1"></p>
           </div>
         </div>
-        <button id="signout-btn" class="text-sm text-navy/60 hover:text-navy border border-navy/20 px-4 py-2">
-          Sign out
-        </button>
+        <div class="flex items-center gap-3">
+          <div id="teacher-avatar-wrap" class="hidden w-9 h-9 rounded-full bg-[#F5F7FA] border border-navy/15 overflow-hidden shrink-0 items-center justify-center">
+            <img id="teacher-avatar-img" class="hidden w-full h-full object-cover" alt="">
+            <span id="teacher-avatar-initial" class="text-navy/40 text-xs font-medium"></span>
+          </div>
+          <button id="signout-btn" class="text-sm text-navy/60 hover:text-navy border border-navy/20 px-4 py-2">
+            Sign out
+          </button>
+        </div>
       </div>
       <nav class="max-w-5xl mx-auto px-4 sm:px-6 flex gap-1 -mb-px overflow-x-auto" id="tab-nav">
         <button data-tab="subjects" class="tab-btn active border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">My subjects</button>
@@ -311,7 +317,7 @@
     async function afterLogin(authUser) {
       const { data: staffRow, error } = await supabaseClient
         .from('staff')
-        .select('id, full_name, role, email, status, auth_user_id, signature_url')
+        .select('id, full_name, role, email, status, auth_user_id, signature_url, photo_url')
         .eq('auth_user_id', authUser.id)
         .maybeSingle();
 
@@ -332,6 +338,24 @@
       document.getElementById('login-screen').classList.add('hidden');
       document.getElementById('app-screen').classList.remove('hidden');
       document.getElementById('teacher-name').textContent = `${staffRow.full_name} · ${staffRow.role}`;
+
+      // Show her passport photo next to her name if one was captured at
+      // registration; otherwise fall back to her first initial so the
+      // avatar circle isn't just empty.
+      const teacherAvatarWrap = document.getElementById('teacher-avatar-wrap');
+      const teacherAvatarImg = document.getElementById('teacher-avatar-img');
+      const teacherAvatarInitial = document.getElementById('teacher-avatar-initial');
+      teacherAvatarWrap.classList.remove('hidden');
+      teacherAvatarWrap.classList.add('flex');
+      if (staffRow.photo_url) {
+        teacherAvatarImg.src = staffRow.photo_url;
+        teacherAvatarImg.classList.remove('hidden');
+        teacherAvatarInitial.classList.add('hidden');
+      } else {
+        teacherAvatarImg.classList.add('hidden');
+        teacherAvatarInitial.textContent = (staffRow.full_name || '?').charAt(0);
+        teacherAvatarInitial.classList.remove('hidden');
+      }
       await loadTeacherWorkspace();
     }
 

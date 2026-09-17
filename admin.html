@@ -207,6 +207,39 @@
           <form id="enrollment-form" class="bg-white border border-navy/10 p-6 sm:p-8 space-y-6">
 
             <div>
+              <label class="field-label">Passport photo</label>
+              <div class="flex items-center gap-4">
+                <div class="w-24 h-24 bg-[#F5F7FA] border border-navy/15 overflow-hidden flex items-center justify-center shrink-0">
+                  <img id="en-photo-preview" class="hidden w-full h-full object-cover" alt="">
+                  <span id="en-photo-placeholder" class="text-navy/30 text-xs text-center px-2">No photo yet</span>
+                </div>
+                <div class="flex flex-col gap-2">
+                  <button type="button" id="en-photo-open-camera-btn" class="border-2 border-navy text-navy px-4 py-2 text-sm font-semibold hover:bg-navy hover:text-white transition-colors">
+                    Take photo
+                  </button>
+                  <button type="button" id="en-photo-retake-btn" class="hidden text-xs text-navy/50 hover:text-navy underline text-left">
+                    Retake photo
+                  </button>
+                </div>
+              </div>
+              <div id="en-photo-camera-wrap" class="hidden mt-3">
+                <div class="relative w-full max-w-xs aspect-square bg-navy-dark overflow-hidden mb-2">
+                  <video id="en-photo-video" class="w-full h-full object-cover" autoplay playsinline muted></video>
+                  <canvas id="en-photo-canvas" class="hidden"></canvas>
+                </div>
+                <div class="flex gap-2">
+                  <button type="button" id="en-photo-capture-btn" class="bg-navy text-white px-4 py-2 text-sm font-medium hover:bg-navy-dark transition-colors">
+                    Capture
+                  </button>
+                  <button type="button" id="en-photo-cancel-camera-btn" class="text-sm text-navy/50 hover:text-navy underline">
+                    Cancel
+                  </button>
+                </div>
+                <p id="en-photo-camera-error" class="hidden text-sm text-red-600 mt-2"></p>
+              </div>
+            </div>
+
+            <div>
               <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Student details</p>
               <div class="grid sm:grid-cols-2 gap-5">
                 <div>
@@ -351,6 +384,45 @@
           <p class="text-navy/60 mb-6">Pre-register teachers and manage their access. Staff cannot self-register.</p>
 
           <form id="staff-form" class="bg-white border border-navy/10 p-6 sm:p-8 space-y-5 mb-8">
+            <!-- Passport photo capture — reuses the same live-camera
+                 pattern as the attendance kiosk (clockin.html): a video
+                 preview, capture to canvas, compress to a small JPEG.
+                 Optional — staff already registered without one will
+                 just show a placeholder until a photo is added via Edit. -->
+            <div>
+              <label class="field-label">Passport photo</label>
+              <div class="flex items-center gap-4">
+                <div class="w-24 h-24 bg-[#F5F7FA] border border-navy/15 overflow-hidden flex items-center justify-center shrink-0">
+                  <img id="st-photo-preview" class="hidden w-full h-full object-cover" alt="">
+                  <span id="st-photo-placeholder" class="text-navy/30 text-xs text-center px-2">No photo yet</span>
+                </div>
+                <div class="flex flex-col gap-2">
+                  <button type="button" id="st-photo-open-camera-btn" class="border-2 border-navy text-navy px-4 py-2 text-sm font-semibold hover:bg-navy hover:text-white transition-colors">
+                    Take photo
+                  </button>
+                  <button type="button" id="st-photo-retake-btn" class="hidden text-xs text-navy/50 hover:text-navy underline text-left">
+                    Retake photo
+                  </button>
+                </div>
+              </div>
+              <!-- Live camera view, hidden until "Take photo" is clicked -->
+              <div id="st-photo-camera-wrap" class="hidden mt-3">
+                <div class="relative w-full max-w-xs aspect-square bg-navy-dark overflow-hidden mb-2">
+                  <video id="st-photo-video" class="w-full h-full object-cover" autoplay playsinline muted></video>
+                  <canvas id="st-photo-canvas" class="hidden"></canvas>
+                </div>
+                <div class="flex gap-2">
+                  <button type="button" id="st-photo-capture-btn" class="bg-navy text-white px-4 py-2 text-sm font-medium hover:bg-navy-dark transition-colors">
+                    Capture
+                  </button>
+                  <button type="button" id="st-photo-cancel-camera-btn" class="text-sm text-navy/50 hover:text-navy underline">
+                    Cancel
+                  </button>
+                </div>
+                <p id="st-photo-camera-error" class="hidden text-sm text-red-600 mt-2"></p>
+              </div>
+            </div>
+
             <div class="grid sm:grid-cols-2 gap-5">
               <div>
                 <label class="field-label" for="st-name">Full name</label>
@@ -1345,6 +1417,150 @@
       return base + Date.now().toString().slice(-4);
     }
 
+    // =================================================================
+    // PASSPORT PHOTO CAPTURE (shared by staff + student registration)
+    //
+    // One live-camera capture widget, wired up twice — once per form
+    // prefix ('st' for staff, 'en' for student/enrollment) — using the
+    // exact same getUserMedia + canvas-compress pattern as the
+    // attendance kiosk (clockin.html), just triggered manually instead
+    // of automatically. Returns an object exposing getPhotoDataUrl()
+    // and reset(), so the submit handlers can pull out whatever was
+    // captured (or null if the photo was skipped) and clear it after
+    // a successful save.
+    // =================================================================
+    function setupPhotoCapture(prefix) {
+      let stream = null;
+      let capturedDataUrl = null;
+
+      const openBtn = document.getElementById(`${prefix}-photo-open-camera-btn`);
+      const retakeBtn = document.getElementById(`${prefix}-photo-retake-btn`);
+      const cameraWrap = document.getElementById(`${prefix}-photo-camera-wrap`);
+      const video = document.getElementById(`${prefix}-photo-video`);
+      const canvas = document.getElementById(`${prefix}-photo-canvas`);
+      const captureBtn = document.getElementById(`${prefix}-photo-capture-btn`);
+      const cancelBtn = document.getElementById(`${prefix}-photo-cancel-camera-btn`);
+      const errorEl = document.getElementById(`${prefix}-photo-camera-error`);
+      const preview = document.getElementById(`${prefix}-photo-preview`);
+      const placeholder = document.getElementById(`${prefix}-photo-placeholder`);
+
+      async function openCamera() {
+        errorEl.classList.add('hidden');
+        cameraWrap.classList.remove('hidden');
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+          video.srcObject = stream;
+        } catch (err) {
+          console.error(err);
+          errorEl.textContent = 'Could not access the camera. Please check camera permissions on this device.';
+          errorEl.classList.remove('hidden');
+        }
+      }
+
+      function stopCamera() {
+        if (stream) {
+          stream.getTracks().forEach(t => t.stop());
+          stream = null;
+        }
+        cameraWrap.classList.add('hidden');
+      }
+
+      // Same compression approach as clockin.html: a 480x480 square
+      // crop from the video, JPEG-encoded, quality stepped down until
+      // it's comfortably small without going so low the photo becomes
+      // useless for actually recognizing the person.
+      function captureCompressedPhoto() {
+        const size = 480;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const vw = video.videoWidth, vh = video.videoHeight;
+        const scale = Math.max(size / vw, size / vh);
+        const sw = size / scale, sh = size / scale;
+        const sx = (vw - sw) / 2, sy = (vh - sh) / 2;
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, size, size);
+
+        let quality = 0.7;
+        let dataUrl = canvas.toDataURL('image/jpeg', quality);
+        while (dataUrl.length > 50 * 1024 * 1.37 && quality > 0.35) {
+          quality -= 0.1;
+          dataUrl = canvas.toDataURL('image/jpeg', quality);
+        }
+        return dataUrl;
+      }
+
+      openBtn.addEventListener('click', openCamera);
+      retakeBtn.addEventListener('click', openCamera);
+      cancelBtn.addEventListener('click', stopCamera);
+
+      captureBtn.addEventListener('click', () => {
+        capturedDataUrl = captureCompressedPhoto();
+        stopCamera();
+        preview.src = capturedDataUrl;
+        preview.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+        openBtn.classList.add('hidden');
+        retakeBtn.classList.remove('hidden');
+      });
+
+      return {
+        getPhotoDataUrl: () => capturedDataUrl,
+        // Called after a successful save (new registration) so the form
+        // doesn't still show someone else's captured photo if the admin
+        // registers another person right after.
+        reset: () => {
+          capturedDataUrl = null;
+          preview.classList.add('hidden');
+          preview.src = '';
+          placeholder.classList.remove('hidden');
+          openBtn.classList.remove('hidden');
+          retakeBtn.classList.add('hidden');
+        },
+        // Called when entering Edit mode, to show the person's existing
+        // photo (if any) without treating it as a newly captured one —
+        // getPhotoDataUrl() stays null until the admin actually retakes
+        // it, so an unrelated edit never re-uploads the same photo.
+        showExisting: (url) => {
+          if (url) {
+            preview.src = url;
+            preview.classList.remove('hidden');
+            placeholder.classList.add('hidden');
+            retakeBtn.classList.remove('hidden');
+            openBtn.classList.add('hidden');
+          } else {
+            preview.classList.add('hidden');
+            placeholder.classList.remove('hidden');
+            retakeBtn.classList.add('hidden');
+            openBtn.classList.remove('hidden');
+          }
+        },
+      };
+    }
+
+    const staffPhotoCapture = setupPhotoCapture('st');
+    const studentPhotoCapture = setupPhotoCapture('en');
+
+    // Uploads a captured photo (data URL) to the profile-photos bucket
+    // and returns its public URL, or null if nothing was captured —
+    // callers should keep whatever photo_url already existed when this
+    // returns null, rather than overwriting it with nothing.
+    async function uploadPhotoIfCaptured(dataUrl, folder, id) {
+      if (!dataUrl) return null;
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const path = `${folder}/${id}-${Date.now()}.jpg`;
+      const { error } = await supabaseClient.storage.from('profile-photos').upload(path, blob, {
+        contentType: 'image/jpeg',
+        upsert: true,
+      });
+      if (error) {
+        console.error('Photo upload failed:', error);
+        return null;
+      }
+      const { data } = supabaseClient.storage.from('profile-photos').getPublicUrl(path);
+      return data?.publicUrl || null;
+    }
+
     const enrollmentForm = document.getElementById('enrollment-form');
     const enrollmentStatus = document.getElementById('enrollment-status');
     const enrollmentBtn = document.getElementById('enrollment-btn');
@@ -1357,6 +1573,7 @@
     function exitStudentEditMode() {
       editingStudentId = null;
       enrollmentForm.reset();
+      studentPhotoCapture.reset();
       document.getElementById('en-department-wrap').classList.add('hidden');
       enrollmentBtn.textContent = 'Register student';
       enrollmentCancelEditBtn.classList.add('hidden');
@@ -1370,7 +1587,7 @@
 
       const { data: student, error } = await supabaseClient
         .from('students')
-        .select('id, surname, first_name, other_names, current_class_id, gender, date_of_birth, religion, state_of_origin, department_id, blood_group, allergies, parent_name, parent_contact_address, parent_email, parent_phone, parent_whatsapp')
+        .select('id, surname, first_name, other_names, current_class_id, gender, date_of_birth, religion, state_of_origin, department_id, blood_group, allergies, parent_name, parent_contact_address, parent_email, parent_phone, parent_whatsapp, photo_url')
         .eq('id', studentId)
         .single();
 
@@ -1397,6 +1614,7 @@
       document.getElementById('en-parent-email').value = student.parent_email || '';
       document.getElementById('en-parent-phone').value = student.parent_phone || '';
       document.getElementById('en-parent-whatsapp').value = student.parent_whatsapp || '';
+      studentPhotoCapture.showExisting(student.photo_url);
 
       // Show/hide + populate the department field the same way the
       // class-change handler already does, so switching her class in
@@ -1531,7 +1749,7 @@
         payload.auth_user_id = studentAuthUserId;
       }
 
-      const { error } = await supabaseClient.from('students').insert(payload);
+      const { data: insertedRows, error } = await supabaseClient.from('students').insert(payload).select('id');
 
       enrollmentBtn.disabled = false;
       enrollmentBtn.textContent = 'Register student';
@@ -1542,8 +1760,22 @@
         return;
       }
 
+      // Photo is uploaded after the row exists, since the storage path
+      // is named using the student's own id. A failed upload here
+      // doesn't undo the registration that already succeeded — it just
+      // leaves photo_url empty, addable later from Edit.
+      const newStudentId = insertedRows?.[0]?.id;
+      const capturedPhoto = studentPhotoCapture.getPhotoDataUrl();
+      if (newStudentId && capturedPhoto) {
+        const photoUrl = await uploadPhotoIfCaptured(capturedPhoto, 'students', newStudentId);
+        if (photoUrl) {
+          await supabaseClient.from('students').update({ photo_url: photoUrl }).eq('id', newStudentId);
+        }
+      }
+
       showStatus(enrollmentStatus, `${fullName} has been registered successfully.`, false);
       enrollmentForm.reset();
+      studentPhotoCapture.reset();
       document.getElementById('en-department-wrap').classList.add('hidden');
       loadStats();
       loadStudentFullList();
@@ -1601,6 +1833,15 @@
         current_class_id: classId,
         department_id: deptId,
       };
+
+      // Only touch photo_url if a new photo was actually retaken during
+      // this edit — otherwise the student's existing photo (if any)
+      // stays exactly as it was.
+      const capturedPhoto = studentPhotoCapture.getPhotoDataUrl();
+      if (capturedPhoto) {
+        const photoUrl = await uploadPhotoIfCaptured(capturedPhoto, 'students', studentId);
+        if (photoUrl) payload.photo_url = photoUrl;
+      }
 
       // Note: this intentionally never touches portal_username,
       // portal_temp_password, or auth_user_id — editing a student's
@@ -1918,6 +2159,7 @@
     function exitStaffEditMode() {
       editingStaffId = null;
       staffForm.reset();
+      staffPhotoCapture.reset();
       assignmentRows = [];
       renderAllAssignmentRows();
       document.querySelectorAll('input[name="st-class-teacher-option"]').forEach(cb => { cb.checked = false; });
@@ -1936,7 +2178,7 @@
 
       const { data: staffRow, error: staffErr } = await supabaseClient
         .from('staff')
-        .select('id, full_name, email, role, phone, hashed_attendance_pin, employment_type, address, qualification, expected_time_in')
+        .select('id, full_name, email, role, phone, hashed_attendance_pin, employment_type, address, qualification, expected_time_in, state_of_origin, photo_url')
         .eq('id', staffId)
         .single();
 
@@ -1969,6 +2211,7 @@
       document.getElementById('st-address').value = staffRow.address || '';
       document.getElementById('st-qualification').value = staffRow.qualification || '';
       document.getElementById('st-state-of-origin').value = staffRow.state_of_origin || '';
+      staffPhotoCapture.showExisting(staffRow.photo_url);
       document.getElementById('st-attendance-pin').value = '';
       document.getElementById('st-pin-note').classList.toggle('hidden', !staffRow.hashed_attendance_pin);
 
@@ -2122,6 +2365,18 @@
         return;
       }
 
+      // Photo is uploaded after the row exists, since the storage path
+      // is named using her own id. A failed upload here doesn't undo
+      // the registration that already succeeded — it just leaves
+      // photo_url empty, addable later from Edit.
+      const capturedStaffPhoto = staffPhotoCapture.getPhotoDataUrl();
+      if (capturedStaffPhoto) {
+        const photoUrl = await uploadPhotoIfCaptured(capturedStaffPhoto, 'staff', staffRow.id);
+        if (photoUrl) {
+          await supabaseClient.from('staff').update({ photo_url: photoUrl }).eq('id', staffRow.id);
+        }
+      }
+
       const activeSession = sessionsCache.find(s => s.is_active) || sessionsCache[0];
       const classTeacherIds = getSelectedClassTeacherIds();
 
@@ -2175,6 +2430,7 @@
       document.getElementById('cred-password').textContent = generatedPassword;
       document.getElementById('credentials-modal').classList.remove('hidden');
       staffForm.reset();
+      staffPhotoCapture.reset();
       assignmentRows = [];
       renderAllAssignmentRows();
       loadStaffList();
@@ -2216,6 +2472,14 @@
         // under an old PIN's failure count.
         updatePayload.failed_pin_attempts = 0;
         updatePayload.pin_locked_until = null;
+      }
+
+      // Only touch photo_url if a new photo was actually retaken during
+      // this edit — otherwise her existing photo (if any) stays as is.
+      const capturedStaffPhoto = staffPhotoCapture.getPhotoDataUrl();
+      if (capturedStaffPhoto) {
+        const photoUrl = await uploadPhotoIfCaptured(capturedStaffPhoto, 'staff', staffId);
+        if (photoUrl) updatePayload.photo_url = photoUrl;
       }
 
       const { error: updateErr } = await supabaseClient.from('staff').update(updatePayload).eq('id', staffId);
@@ -2381,7 +2645,7 @@
 
       let query = supabaseClient
         .from('students')
-        .select('id, full_name, current_class_id, is_active, gender, date_of_birth, religion, state_of_origin, blood_group, allergies, parent_name, parent_contact_address, parent_email, parent_phone, parent_whatsapp, classes(class_name)')
+        .select('id, full_name, current_class_id, is_active, gender, date_of_birth, religion, state_of_origin, blood_group, allergies, parent_name, parent_contact_address, parent_email, parent_phone, parent_whatsapp, photo_url, classes(class_name)')
         .order('full_name');
 
       if (classFilter) query = query.eq('current_class_id', classFilter);
@@ -2403,9 +2667,16 @@
       listEl.innerHTML = data.map(s => `
         <div class="px-6 py-4 flex flex-col gap-3">
           <div class="flex items-center justify-between gap-4 flex-wrap">
-            <div>
-              <p class="font-medium text-navy">${escapeHtml(s.full_name)}</p>
-              <p class="text-sm text-navy/50">${escapeHtml(s.classes?.class_name || 'No class')} ${s.is_active === false ? '&middot; <span class="text-red-600">Inactive</span>' : ''}</p>
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-full bg-[#F5F7FA] border border-navy/10 overflow-hidden shrink-0 flex items-center justify-center">
+                ${s.photo_url
+                  ? `<img src="${escapeAttr(s.photo_url)}" class="w-full h-full object-cover" alt="">`
+                  : `<span class="text-navy/30 text-xs font-medium">${escapeHtml((s.full_name || '?').charAt(0))}</span>`}
+              </div>
+              <div>
+                <p class="font-medium text-navy">${escapeHtml(s.full_name)}</p>
+                <p class="text-sm text-navy/50">${escapeHtml(s.classes?.class_name || 'No class')} ${s.is_active === false ? '&middot; <span class="text-red-600">Inactive</span>' : ''}</p>
+              </div>
             </div>
             <div class="flex items-center gap-2">
               <button data-toggle-student-details="${s.id}"
@@ -2477,7 +2748,7 @@
         listEl.innerHTML = '<p class="px-6 py-8 text-center text-navy/40 text-sm">Connect Supabase to view staff.</p>';
         return;
       }
-      const { data, error } = await supabaseClient.from('staff').select('id, full_name, role, email, status, phone, employment_type, address, qualification, expected_time_in, state_of_origin').order('full_name');
+      const { data, error } = await supabaseClient.from('staff').select('id, full_name, role, email, status, phone, employment_type, address, qualification, expected_time_in, state_of_origin, photo_url').order('full_name');
       if (error || !data || data.length === 0) {
         listEl.innerHTML = '<p class="px-6 py-8 text-center text-navy/40 text-sm">No staff registered yet.</p>';
         return;
@@ -2544,9 +2815,16 @@
         return `
         <div class="px-6 py-4 flex flex-col gap-3">
           <div class="flex items-center justify-between gap-4 flex-wrap">
-            <div>
-              <p class="font-medium text-navy">${escapeHtml(s.full_name)}</p>
-              <p class="text-sm text-navy/50">${escapeHtml(s.role)} &middot; ${escapeHtml(s.email || '')}</p>
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-full bg-[#F5F7FA] border border-navy/10 overflow-hidden shrink-0 flex items-center justify-center">
+                ${s.photo_url
+                  ? `<img src="${escapeAttr(s.photo_url)}" class="w-full h-full object-cover" alt="">`
+                  : `<span class="text-navy/30 text-xs font-medium">${escapeHtml((s.full_name || '?').charAt(0))}</span>`}
+              </div>
+              <div>
+                <p class="font-medium text-navy">${escapeHtml(s.full_name)}</p>
+                <p class="text-sm text-navy/50">${escapeHtml(s.role)} &middot; ${escapeHtml(s.email || '')}</p>
+              </div>
             </div>
             <div class="flex items-center gap-2">
               <button data-staff-id="${s.id}" data-current="${s.status}"
