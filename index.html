@@ -217,6 +217,20 @@
     <div id="news-grid" class="hidden grid sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
   </section>
 
+  <!-- ============ PHOTO GALLERY ============ -->
+  <section class="max-w-6xl mx-auto px-6 py-16">
+    <div class="flex items-baseline justify-between mb-8 border-b-2 border-navy pb-3">
+      <h2 class="font-display text-3xl text-navy">Photo gallery</h2>
+      <p class="text-sm text-navy/60">Life around the school</p>
+    </div>
+
+    <div id="gallery-loading" class="text-navy/50 py-10 text-center">Loading photos…</div>
+    <div id="gallery-empty" class="hidden text-navy/50 py-10 text-center">
+      No photos posted yet. Check back soon.
+    </div>
+    <div id="gallery-grid" class="hidden grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+  </section>
+
   <!-- ============ ADMISSION APPLICATION ============ -->
   <section id="admission" class="bg-brown/5 border-t-4 border-brown">
     <div class="max-w-6xl mx-auto px-6 py-16 grid md:grid-cols-2 gap-12 items-start">
@@ -552,6 +566,52 @@
       grid.classList.remove('hidden');
     }
 
+    // ---------------------------------------------------------------
+    // PHOTO GALLERY
+    // ---------------------------------------------------------------
+    async function loadGallery() {
+      const grid = document.getElementById('gallery-grid');
+      const loading = document.getElementById('gallery-loading');
+      const empty = document.getElementById('gallery-empty');
+
+      if (!supabaseClient) {
+        loading.classList.add('hidden');
+        empty.textContent = 'Photos will appear here once the site is connected to Supabase.';
+        empty.classList.remove('hidden');
+        return;
+      }
+
+      const { data, error } = await supabaseClient
+        .from('gallery_photos')
+        .select('id, image_url, caption, created_at')
+        .eq('is_published', true)
+        .order('created_at', { ascending: false })
+        .limit(24);
+
+      loading.classList.add('hidden');
+
+      if (error) {
+        empty.textContent = 'Unable to load photos right now. Please try again shortly.';
+        empty.classList.remove('hidden');
+        console.error(error);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        empty.classList.remove('hidden');
+        return;
+      }
+
+      grid.innerHTML = data.map((item, i) => `
+        <figure class="fade-in aspect-square bg-navy/5 overflow-hidden border border-navy/10" style="animation-delay:${i * 40}ms">
+          <img src="${escapeAttr(item.image_url)}" alt="${escapeAttr(item.caption || 'School photo')}"
+               class="w-full h-full object-cover"
+               onerror="this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center text-navy/30 text-sm\\'>Image unavailable</div>'">
+        </figure>
+      `).join('');
+      grid.classList.remove('hidden');
+    }
+
     function escapeHtml(str) {
       const d = document.createElement('div');
       d.textContent = str ?? '';
@@ -562,6 +622,7 @@
     }
 
     loadNews();
+    loadGallery();
 
     // ---------------------------------------------------------------
     // Shared helper for showing a status message under a form

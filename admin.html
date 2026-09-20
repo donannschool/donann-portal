@@ -741,53 +741,6 @@
         </section>
 
         <!-- ========================================================= -->
-        <!-- PANEL: STUDENT ATTENDANCE (read-only, any class)           -->
-        <!-- ========================================================= -->
-        <section id="panel-student-attendance" class="panel">
-          <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Student attendance</h1>
-          <p class="text-navy/60 mb-6">Read-only view of any class's daily attendance, as marked by the class teacher.</p>
-
-          <div class="bg-white border border-navy/10 p-6 sm:p-8 mb-6">
-            <div class="grid sm:grid-cols-3 gap-3">
-              <select id="asa-class" class="field-input text-sm">
-                <option value="" disabled selected>Select class</option>
-              </select>
-              <input id="asa-date" type="date" class="field-input text-sm">
-              <select id="asa-session" class="field-input text-sm"></select>
-            </div>
-          </div>
-
-          <div id="asa-summary" class="hidden grid grid-cols-3 gap-3 mb-6">
-            <div class="bg-white border border-navy/10 px-4 py-3">
-              <p class="text-xs uppercase tracking-wide text-navy/40">Present</p>
-              <p id="asa-count-present" class="text-2xl font-display text-emerald-700">0</p>
-            </div>
-            <div class="bg-white border border-navy/10 px-4 py-3">
-              <p class="text-xs uppercase tracking-wide text-navy/40">Late</p>
-              <p id="asa-count-late" class="text-2xl font-display text-amber-600">0</p>
-            </div>
-            <div class="bg-white border border-navy/10 px-4 py-3">
-              <p class="text-xs uppercase tracking-wide text-navy/40">Absent</p>
-              <p id="asa-count-absent" class="text-2xl font-display text-red-600">0</p>
-            </div>
-          </div>
-
-          <div class="bg-white border border-navy/10 overflow-x-auto">
-            <table class="w-full text-sm min-w-[480px]">
-              <thead class="bg-navy/5 text-navy text-left">
-                <tr>
-                  <th class="px-4 py-3 font-medium">Student</th>
-                  <th class="px-4 py-3 font-medium w-40">Status</th>
-                </tr>
-              </thead>
-              <tbody id="asa-rows" class="divide-y divide-navy/10">
-                <tr><td class="px-4 py-6 text-navy/40" colspan="2">Select a class and date above.</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <!-- ========================================================= -->
         <!-- PANEL: ADMISSIONS & INQUIRIES                              -->
         <!-- ========================================================= -->
         <section id="panel-admissions" class="panel">
@@ -900,8 +853,8 @@
               <textarea id="news-description" class="field-input" rows="4" required></textarea>
             </div>
             <div>
-              <label class="field-label" for="news-image">Image URL (from Postimages or similar)</label>
-              <input id="news-image" class="field-input" type="url" placeholder="https://i.postimg.cc/..." required>
+              <label class="field-label" for="news-image">Photo</label>
+              <input id="news-image" class="field-input" type="file" accept="image/*" required>
             </div>
             <div id="news-preview-wrap" class="hidden">
               <p class="text-xs text-navy/50 mb-2">Preview</p>
@@ -913,6 +866,41 @@
               Publish to homepage
             </button>
           </form>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- PANEL: PHOTO GALLERY                                       -->
+        <!-- ========================================================= -->
+        <section id="panel-gallery" class="panel">
+          <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Photo gallery</h1>
+          <p class="text-navy/60 mb-6">Upload photos of school activities. These appear in the public gallery on the homepage.</p>
+
+          <form id="gallery-form" class="bg-white border border-navy/10 p-6 sm:p-8 space-y-5 max-w-xl mb-10">
+            <div>
+              <label class="field-label" for="gallery-file">Photo</label>
+              <input id="gallery-file" class="field-input" type="file" accept="image/*" required>
+            </div>
+            <div id="gallery-preview-wrap" class="hidden">
+              <p class="text-xs text-navy/50 mb-2">Preview</p>
+              <img id="gallery-preview" class="w-full max-w-xs aspect-[4/3] object-cover border border-navy/10">
+            </div>
+            <div>
+              <label class="field-label" for="gallery-caption">Caption (optional)</label>
+              <input id="gallery-caption" class="field-input" type="text" placeholder="e.g. Inter-house sports day 2026">
+            </div>
+            <p id="gallery-status" class="hidden text-sm px-3 py-2 border"></p>
+            <button type="submit" id="gallery-btn"
+                    class="w-full sm:w-auto bg-navy text-white px-8 py-3 font-medium hover:bg-navy-dark transition-colors">
+              Upload to gallery
+            </button>
+          </form>
+
+          <div class="flex items-baseline justify-between mb-4 border-b border-navy/10 pb-2">
+            <h2 class="font-display text-lg text-navy">Uploaded photos</h2>
+          </div>
+          <div id="gallery-admin-grid" class="grid sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            <p class="text-navy/40 text-sm col-span-full">Loading…</p>
+          </div>
         </section>
 
       </div>
@@ -1017,10 +1005,10 @@
       { id: 'ledger',     label: 'Ledger & history' },
       { id: 'fees',       label: 'Fees' },
       { id: 'mastersheet', label: 'View Master Sheet' },
-      { id: 'student-attendance', label: 'Student Attendance' },
       { id: 'admissions',  label: 'Admissions & inquiries' },
       { id: 'attendance',  label: 'Staff Attendance Log' },
       { id: 'news',       label: 'Post news' },
+      { id: 'gallery',    label: 'Photo gallery' },
     ];
 
     function renderNav(containerId) {
@@ -1054,6 +1042,8 @@
         if (btn.dataset.panel === 'attendance') loadAttendanceLog();
         if (btn.dataset.panel === 'students') loadStudentFullList();
         if (btn.dataset.panel === 'current-staff') loadStaffList();
+        if (btn.dataset.panel === 'gallery') loadGalleryAdminGrid();
+        if (btn.dataset.panel === 'student-attendance') { /* already wired via its own selects */ }
       }
     });
     showPanel('overview');
@@ -3073,106 +3063,6 @@
     }
 
     // =================================================================
-    // STUDENT ATTENDANCE (admin) — read-only, any class/date. RLS lets
-    // Principal read every row (see attendance_admin_all policy), so no
-    // class-teacher restriction applies here, unlike teacher.html.
-    // =================================================================
-    function populateAdminAttendanceFilters() {
-      const classSelect = document.getElementById('asa-class');
-      classSelect.innerHTML = '<option value="" disabled selected>Select class</option>' +
-        classesCache.map(c => `<option value="${c.id}">${escapeHtml(c.class_name)}</option>`).join('');
-
-      const sessionSelect = document.getElementById('asa-session');
-      sessionSelect.innerHTML = sessionsCache
-        .map(s => `<option value="${s.id}" ${s.is_active ? 'selected' : ''}>${escapeHtml(s.session_label)}</option>`)
-        .join('');
-
-      const dateEl = document.getElementById('asa-date');
-      if (!dateEl.value) {
-        const d = new Date();
-        dateEl.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      }
-    }
-
-    async function loadAdminAttendance() {
-      const classId = document.getElementById('asa-class').value;
-      const date = document.getElementById('asa-date').value;
-      const rowsEl = document.getElementById('asa-rows');
-      const summaryEl = document.getElementById('asa-summary');
-      if (!classId || !date) {
-        rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="2">Select a class and date above.</td></tr>';
-        summaryEl.classList.add('hidden');
-        return;
-      }
-      rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="2">Loading…</td></tr>';
-
-      // Roster comes from students (so anyone with no row yet still shows,
-      // as an implicit "not marked"), then attendance is left-joined in.
-      const { data: students, error: studentsError } = await supabaseClient
-        .from('students')
-        .select('id, full_name')
-        .eq('current_class_id', classId)
-        .eq('is_active', true)
-        .order('full_name');
-
-      if (studentsError) {
-        rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-red-600" colspan="2">Could not load the class roster.</td></tr>';
-        console.error(studentsError);
-        return;
-      }
-
-      const { data: attendance, error: attError } = await supabaseClient
-        .from('student_attendance')
-        .select('student_id, status')
-        .eq('class_id', classId)
-        .eq('attendance_date', date);
-
-      if (attError) {
-        rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-red-600" colspan="2">Could not load attendance for this date.</td></tr>';
-        console.error(attError);
-        return;
-      }
-
-      const statusByStudent = {};
-      (attendance || []).forEach(r => { statusByStudent[r.student_id] = r.status; });
-
-      const STATUS_CLASS = {
-        present: 'text-emerald-700 font-medium',
-        late: 'text-amber-600 font-medium',
-        absent: 'text-red-600 font-medium',
-      };
-
-      if (!students || students.length === 0) {
-        rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="2">No students found in this class.</td></tr>';
-        summaryEl.classList.add('hidden');
-        return;
-      }
-
-      let present = 0, late = 0, absent = 0, unmarked = 0;
-      rowsEl.innerHTML = students.map(s => {
-        const status = statusByStudent[s.id];
-        if (status === 'present') present++;
-        else if (status === 'late') late++;
-        else if (status === 'absent') absent++;
-        else unmarked++;
-        return `
-          <tr>
-            <td class="px-4 py-3">${escapeHtml(s.full_name)}</td>
-            <td class="px-4 py-3 capitalize ${status ? STATUS_CLASS[status] : 'text-navy/30'}">${status || 'Not marked'}</td>
-          </tr>`;
-      }).join('');
-
-      document.getElementById('asa-count-present').textContent = present;
-      document.getElementById('asa-count-late').textContent = late;
-      document.getElementById('asa-count-absent').textContent = absent;
-      summaryEl.classList.remove('hidden');
-    }
-
-    document.getElementById('asa-class').addEventListener('change', loadAdminAttendance);
-    document.getElementById('asa-date').addEventListener('change', loadAdminAttendance);
-    document.getElementById('asa-session').addEventListener('change', loadAdminAttendance);
-
-    // =================================================================
     // ADMISSIONS & INQUIRIES — read + status update for public-site
     // submissions. No edit of the applicant's own details, just
     // tracking where the admin is in following up with them.
@@ -4017,12 +3907,12 @@
     const newsStatus = document.getElementById('news-status');
     const newsBtn = document.getElementById('news-btn');
 
-    document.getElementById('news-image').addEventListener('input', (e) => {
-      const url = e.target.value.trim();
+    document.getElementById('news-image').addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
       const wrap = document.getElementById('news-preview-wrap');
       const img = document.getElementById('news-preview');
-      if (!url) { wrap.classList.add('hidden'); return; }
-      img.src = url;
+      if (!file) { wrap.classList.add('hidden'); return; }
+      img.src = URL.createObjectURL(file);
       wrap.classList.remove('hidden');
     });
 
@@ -4033,10 +3923,33 @@
       newsBtn.disabled = true;
       newsBtn.textContent = 'Publishing…';
 
+      const file = document.getElementById('news-image').files?.[0];
+      if (!file) {
+        newsBtn.disabled = false;
+        newsBtn.textContent = 'Publish to homepage';
+        showStatus(newsStatus, 'Please choose a photo.', true);
+        return;
+      }
+
+      const path = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      const { error: uploadError } = await supabaseClient.storage
+        .from('news-photos')
+        .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false });
+
+      if (uploadError) {
+        newsBtn.disabled = false;
+        newsBtn.textContent = 'Publish to homepage';
+        showStatus(newsStatus, 'Something went wrong uploading this photo. Please try again.', true);
+        console.error(uploadError);
+        return;
+      }
+
+      const { data: publicUrlData } = supabaseClient.storage.from('news-photos').getPublicUrl(path);
+
       const payload = {
         title: document.getElementById('news-title').value.trim(),
         description: document.getElementById('news-description').value.trim(),
-        image_url: document.getElementById('news-image').value.trim(),
+        image_url: publicUrlData?.publicUrl,
         is_published: true,
       };
 
@@ -4056,6 +3969,115 @@
       document.getElementById('news-preview-wrap').classList.add('hidden');
       loadStats();
     });
+
+    // =================================================================
+    // 7. PHOTO GALLERY — real file upload via the gallery-photos storage
+    // bucket (unlike News, which uses a pasted external URL), since the
+    // gallery will hold far more images over time.
+    // =================================================================
+    const galleryForm = document.getElementById('gallery-form');
+    const galleryStatus = document.getElementById('gallery-status');
+    const galleryBtn = document.getElementById('gallery-btn');
+
+    document.getElementById('gallery-file').addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      const wrap = document.getElementById('gallery-preview-wrap');
+      const img = document.getElementById('gallery-preview');
+      if (!file) { wrap.classList.add('hidden'); return; }
+      img.src = URL.createObjectURL(file);
+      wrap.classList.remove('hidden');
+    });
+
+    galleryForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!requireSupabase(galleryStatus)) return;
+
+      const file = document.getElementById('gallery-file').files?.[0];
+      if (!file) return;
+
+      galleryBtn.disabled = true;
+      galleryBtn.textContent = 'Uploading…';
+
+      const path = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      const { error: uploadError } = await supabaseClient.storage
+        .from('gallery-photos')
+        .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false });
+
+      if (uploadError) {
+        galleryBtn.disabled = false;
+        galleryBtn.textContent = 'Upload to gallery';
+        showStatus(galleryStatus, 'Something went wrong uploading this photo. Please try again.', true);
+        console.error(uploadError);
+        return;
+      }
+
+      const { data: publicUrlData } = supabaseClient.storage.from('gallery-photos').getPublicUrl(path);
+
+      const { error: insertError } = await supabaseClient.from('gallery_photos').insert({
+        image_url: publicUrlData?.publicUrl,
+        caption: document.getElementById('gallery-caption').value.trim() || null,
+        is_published: true,
+      });
+
+      galleryBtn.disabled = false;
+      galleryBtn.textContent = 'Upload to gallery';
+
+      if (insertError) {
+        showStatus(galleryStatus, 'Photo uploaded, but saving its details failed. Please try again.', true);
+        console.error(insertError);
+        return;
+      }
+
+      showStatus(galleryStatus, 'Uploaded — this will now appear on the public homepage gallery.', false);
+      galleryForm.reset();
+      document.getElementById('gallery-preview-wrap').classList.add('hidden');
+      loadGalleryAdminGrid();
+    });
+
+    async function loadGalleryAdminGrid() {
+      const grid = document.getElementById('gallery-admin-grid');
+      const { data, error } = await supabaseClient
+        .from('gallery_photos')
+        .select('id, image_url, caption, created_at')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        grid.innerHTML = '<p class="text-red-600 text-sm col-span-full">Could not load gallery photos.</p>';
+        console.error(error);
+        return;
+      }
+      if (!data || data.length === 0) {
+        grid.innerHTML = '<p class="text-navy/40 text-sm col-span-full">No photos uploaded yet.</p>';
+        return;
+      }
+
+      grid.innerHTML = data.map(p => `
+        <div class="border border-navy/10 bg-white">
+          <div class="aspect-square bg-navy/5">
+            <img src="${escapeAttr(p.image_url)}" alt="${escapeAttr(p.caption || '')}" class="w-full h-full object-cover">
+          </div>
+          <div class="p-2 flex items-center justify-between gap-2">
+            <p class="text-xs text-navy/50 truncate">${escapeHtml(p.caption || 'Untitled')}</p>
+            <button data-gallery-delete="${p.id}" data-gallery-path="${escapeAttr(p.image_url)}"
+                    class="text-red-600 text-xs font-medium hover:underline shrink-0">Delete</button>
+          </div>
+        </div>
+      `).join('');
+
+      grid.querySelectorAll('[data-gallery-delete]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Delete this photo? This cannot be undone.')) return;
+          const id = btn.dataset.galleryDelete;
+          const { error: delError } = await supabaseClient.from('gallery_photos').delete().eq('id', id);
+          if (delError) {
+            alert('Could not delete this photo. Please try again.');
+            console.error(delError);
+            return;
+          }
+          loadGalleryAdminGrid();
+        });
+      });
+    }
 
     // =================================================================
     // UTILITIES
@@ -4092,7 +4114,6 @@
       populateFeesFilters();
       loadFeesList();
       populateAdminMasterSheetFilters();
-      populateAdminAttendanceFilters();
       loadAdmissionsAndInquiries();
       populateAttendanceFilters();
     });
