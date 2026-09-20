@@ -567,7 +567,7 @@
     }
 
     // ---------------------------------------------------------------
-    // PHOTO GALLERY
+    // PHOTO GALLERY — grouped into albums (one event, many photos)
     // ---------------------------------------------------------------
     async function loadGallery() {
       const grid = document.getElementById('gallery-grid');
@@ -581,38 +581,87 @@
         return;
       }
 
-      const { data, error } = await supabaseClient
-        .from('gallery_photos')
-        .select('id, image_url, caption, created_at')
+      const { data: albums, error: albumsError } = await supabaseClient
+        .from('gallery_albums')
+        .select('id, title, description, created_at')
         .eq('is_published', true)
         .order('created_at', { ascending: false })
-        .limit(24);
+        .limit(12);
 
       loading.classList.add('hidden');
 
-      if (error) {
+      if (albumsError) {
         empty.textContent = 'Unable to load photos right now. Please try again shortly.';
         empty.classList.remove('hidden');
-        console.error(error);
+        console.error(albumsError);
         return;
       }
-
-      if (!data || data.length === 0) {
+      if (!albums || albums.length === 0) {
         empty.classList.remove('hidden');
         return;
       }
 
-      grid.innerHTML = data.map((item, i) => `
-        <figure class="fade-in bg-white border border-navy/10 overflow-hidden" style="animation-delay:${i * 40}ms">
-          <div class="aspect-square bg-navy/5">
-            <img src="${escapeAttr(item.image_url)}" alt="${escapeAttr(item.caption || 'School photo')}"
-                 class="w-full h-full object-cover"
-                 onerror="this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center text-navy/30 text-sm\\'>Image unavailable</div>'">
-          </div>
-          ${item.caption ? `<figcaption class="px-3 py-2 text-xs text-navy/70">${escapeHtml(item.caption)}</figcaption>` : ''}
-        </figure>
-      `).join('');
+      const { data: photos, error: photosError } = await supabaseClient
+        .from('gallery_photos')
+        .select('id, album_id, image_url')
+        .eq('is_published', true);
+      if (photosError) console.error(photosError);
+
+      const photosByAlbum = {};
+      (photos || []).forEach(p => { (photosByAlbum[p.album_id] ||= []).push(p); });
+
+      grid.innerHTML = albums.map((album, i) => {
+        const albumPhotos = photosByAlbum[album.id] || [];
+        const cover = albumPhotos[0];
+        const extraCount = albumPhotos.length - 1;
+        return `
+          <button type="button" data-album-open="${album.id}"
+                  class="fade-in text-left bg-white border border-navy/10 overflow-hidden hover:shadow-md transition-shadow" style="animation-delay:${i * 60}ms">
+            <div class="aspect-square bg-navy/5 relative">
+              ${cover ? `
+                <img src="${escapeAttr(cover.image_url)}" alt="${escapeAttr(album.title)}" class="w-full h-full object-cover">
+                ${extraCount > 0 ? `<span class="absolute bottom-2 right-2 bg-navy-dark/80 text-white text-xs px-2 py-1">+${extraCount} more</span>` : ''}
+              ` : `<div class="w-full h-full flex items-center justify-center text-navy/30 text-sm">No photos</div>`}
+            </div>
+            <div class="p-3">
+              <p class="font-display text-navy text-sm">${escapeHtml(album.title)}</p>
+              <p class="text-xs text-navy/40">${albumPhotos.length} photo${albumPhotos.length === 1 ? '' : 's'}</p>
+            </div>
+          </button>
+        `;
+      }).join('');
       grid.classList.remove('hidden');
+
+      grid.querySelectorAll('[data-album-open]').forEach(btn => {
+        btn.addEventListener('click', () => openAlbumModal(btn.dataset.albumOpen, albums, photosByAlbum));
+      });
+    }
+
+    function openAlbumModal(albumId, albums, photosByAlbum) {
+      const album = albums.find(a => a.id === albumId);
+      const photos = photosByAlbum[albumId] || [];
+      const modal = document.createElement('div');
+      modal.className = 'fixed inset-0 z-50 bg-navy-dark/80 flex items-center justify-center p-4';
+      modal.innerHTML = `
+        <div class="bg-white max-w-3xl w-full max-h-[85vh] overflow-y-auto">
+          <div class="p-5 border-b border-navy/10 flex items-start justify-between gap-4 sticky top-0 bg-white">
+            <div>
+              <h3 class="font-display text-xl text-navy">${escapeHtml(album.title)}</h3>
+              ${album.description ? `<p class="text-sm text-navy/60 mt-1">${escapeHtml(album.description)}</p>` : ''}
+            </div>
+            <button id="album-modal-close" class="text-navy/50 hover:text-navy text-xl leading-none px-2">✕</button>
+          </div>
+          <div class="p-5 grid grid-cols-2 sm:grid-cols-3 gap-3">
+            ${photos.map(p => `
+              <img src="${escapeAttr(p.image_url)}" class="w-full aspect-square object-cover border border-navy/10">
+            `).join('')}
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      const close = () => modal.remove();
+      modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+      modal.querySelector('#album-modal-close').addEventListener('click', close);
     }
 
     function escapeHtml(str) {
