@@ -110,6 +110,7 @@
       <nav class="max-w-5xl mx-auto px-4 sm:px-6 flex gap-1 -mb-px overflow-x-auto" id="tab-nav">
         <button data-tab="subjects" class="tab-btn active border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">My subjects</button>
         <button data-tab="masterclass" class="tab-btn hidden border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">My Class Master Sheet</button>
+        <button data-tab="attendance" class="tab-btn hidden border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">Attendance</button>
         <button data-tab="signature" class="tab-btn hidden border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">My Signature</button>
         <button data-tab="quizzes" class="tab-btn hidden border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">Quizzes</button>
       </nav>
@@ -193,6 +194,33 @@
           </table>
         </div>
         <p id="master-status" class="hidden text-sm px-3 py-2 border mt-4"></p>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB: ATTENDANCE (class teacher only, one day at a time)    -->
+      <!-- ========================================================= -->
+      <section id="tab-attendance" class="panel">
+        <h1 class="font-display text-2xl text-navy mb-1">Attendance</h1>
+        <p id="attendance-subtitle" class="text-navy/60 mb-6">Everyone defaults to Present — just tap the students who were Absent or Late.</p>
+
+        <div class="flex flex-wrap gap-3 mb-6">
+          <div id="attendance-class-wrap" class="hidden">
+            <select id="attendance-class" class="field-input text-sm max-w-[220px]"></select>
+          </div>
+          <input id="attendance-date" type="date" class="field-input text-sm max-w-[180px]">
+        </div>
+
+        <div class="bg-white border border-navy/10">
+          <div id="attendance-rows" class="divide-y divide-navy/10">
+            <p class="px-6 py-6 text-navy/40 text-sm">Loading class roster…</p>
+          </div>
+        </div>
+        <div class="flex items-center justify-between mt-4">
+          <p id="attendance-status" class="hidden text-sm px-3 py-2 border"></p>
+          <button id="attendance-save" class="bg-navy text-white px-6 py-2.5 font-medium hover:bg-navy-dark transition-colors ml-auto">
+            Save attendance
+          </button>
+        </div>
       </section>
 
       <!-- ========================================================= -->
@@ -528,12 +556,15 @@
         .eq('staff_id', currentStaff.id);
 
       const masterTab = document.querySelector('[data-tab="masterclass"]');
+      const attendanceTab = document.querySelector('[data-tab="attendance"]');
       if (classTeacherRows && classTeacherRows.length) {
         currentClassTeacherOf = classTeacherRows.map(r => ({
           classId: r.class_id, className: r.classes?.class_name,
         }));
         masterTab.classList.remove('hidden');
+        attendanceTab.classList.remove('hidden');
         populateMasterClassSelect();
+        populateAttendanceClassSelect();
         document.getElementById('masterclass-subtitle').textContent =
           currentClassTeacherOf.length > 1
             ? 'Read-only overview for your assigned classes. Subject scores are entered by each subject teacher.'
@@ -541,6 +572,7 @@
       } else {
         currentClassTeacherOf = [];
         masterTab.classList.add('hidden');
+        attendanceTab.classList.add('hidden');
       }
 
       // 4b. Quizzes tab — only for teachers with at least one JSS 1 – SS 3 assignment.
@@ -817,6 +849,169 @@
     document.getElementById('master-term').addEventListener('change', loadMasterSheet);
     document.getElementById('master-class').addEventListener('change', loadMasterSheet);
     document.querySelector('[data-tab="masterclass"]')?.addEventListener('click', loadMasterSheet);
+
+    // =================================================================
+    // ATTENDANCE (class teacher only; one school day at a time)
+    // Defaults every student to Present so the teacher only has to tap
+    // the exceptions (Absent / Late), matching how a paper register works.
+    // =================================================================
+    function todayLocalISODate() {
+      // Avoid UTC shifting the date near midnight — build the date string
+      // from local Y/M/D rather than new Date().toISOString().
+      const d = new Date();
+      const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    function populateAttendanceClassSelect() {
+      const wrap = document.getElementById('attendance-class-wrap');
+      const select = document.getElementById('attendance-class');
+      if (currentClassTeacherOf.length <= 1) {
+        wrap.classList.add('hidden');
+        return;
+      }
+      wrap.classList.remove('hidden');
+      select.innerHTML = currentClassTeacherOf
+        .map(c => `<option value="${c.classId}">${escapeHtml(c.className || 'Unnamed class')}</option>`)
+        .join('');
+    }
+
+    function getSelectedAttendanceClass() {
+      if (!currentClassTeacherOf.length) return null;
+      if (currentClassTeacherOf.length === 1) return currentClassTeacherOf[0];
+      const selectedId = document.getElementById('attendance-class').value;
+      return currentClassTeacherOf.find(c => c.classId === selectedId) || currentClassTeacherOf[0];
+    }
+
+    let attendanceRoster = []; // [{id, full_name, status}]
+
+    async function loadAttendanceRoster() {
+      const cls = getSelectedAttendanceClass();
+      const rowsEl = document.getElementById('attendance-rows');
+      if (!cls) {
+        rowsEl.innerHTML = '<p class="px-6 py-6 text-navy/40 text-sm">You are not currently assigned as a class teacher.</p>';
+        return;
+      }
+      rowsEl.innerHTML = '<p class="px-6 py-6 text-navy/40 text-sm">Loading class roster…</p>';
+
+      const dateEl = document.getElementById('attendance-date');
+      if (!dateEl.value) dateEl.value = todayLocalISODate();
+      const attendanceDate = dateEl.value;
+
+      // Same roster pattern used for scoring: pull active students in this
+      // class, never typed in manually.
+      const { data: students, error: studentsError } = await supabaseClient
+        .from('students')
+        .select('id, full_name')
+        .eq('current_class_id', cls.classId)
+        .eq('is_active', true)
+        .order('full_name');
+
+      if (studentsError) {
+        rowsEl.innerHTML = '<p class="px-6 py-6 text-red-600 text-sm">Could not load the class roster. Please try again.</p>';
+        console.error(studentsError);
+        return;
+      }
+
+      // Pull any attendance already saved for this class + date, so
+      // reopening the same day shows what was already marked instead of
+      // resetting everyone to Present.
+      const { data: existing } = await supabaseClient
+        .from('student_attendance')
+        .select('student_id, status')
+        .eq('class_id', cls.classId)
+        .eq('attendance_date', attendanceDate);
+      const existingByStudent = {};
+      (existing || []).forEach(r => { existingByStudent[r.student_id] = r.status; });
+
+      attendanceRoster = (students || []).map(s => ({
+        id: s.id,
+        full_name: s.full_name,
+        status: existingByStudent[s.id] || 'present', // default Present
+      }));
+
+      renderAttendanceRoster();
+    }
+
+    function renderAttendanceRoster() {
+      const rowsEl = document.getElementById('attendance-rows');
+      if (attendanceRoster.length === 0) {
+        rowsEl.innerHTML = '<p class="px-6 py-6 text-navy/40 text-sm">No students found in this class.</p>';
+        return;
+      }
+      rowsEl.innerHTML = attendanceRoster.map((s, i) => `
+        <div class="px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
+          <p class="font-medium text-navy">${escapeHtml(s.full_name)}</p>
+          <div class="flex gap-1" data-att-group="${i}">
+            ${['present', 'late', 'absent'].map(st => `
+              <button type="button" data-att-status="${st}" data-att-index="${i}"
+                class="att-status-btn px-3 py-1.5 text-xs font-medium border capitalize transition-colors
+                  ${s.status === st
+                    ? (st === 'present' ? 'bg-emerald-600 text-white border-emerald-600'
+                       : st === 'late' ? 'bg-amber-500 text-white border-amber-500'
+                       : 'bg-red-600 text-white border-red-600')
+                    : 'bg-white text-navy/50 border-navy/15 hover:border-navy/30'}">
+                ${st}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      `).join('');
+
+      rowsEl.querySelectorAll('.att-status-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = Number(btn.dataset.attIndex);
+          attendanceRoster[idx].status = btn.dataset.attStatus;
+          renderAttendanceRoster();
+        });
+      });
+    }
+
+    document.getElementById('attendance-class').addEventListener('change', loadAttendanceRoster);
+    document.getElementById('attendance-date').addEventListener('change', loadAttendanceRoster);
+    document.querySelector('[data-tab="attendance"]')?.addEventListener('click', loadAttendanceRoster);
+
+    document.getElementById('attendance-save').addEventListener('click', async () => {
+      const cls = getSelectedAttendanceClass();
+      const statusEl = document.getElementById('attendance-status');
+      if (!cls || attendanceRoster.length === 0) return;
+
+      const attendanceDate = document.getElementById('attendance-date').value;
+      const activeSession = sessionsCache.find(s => s.is_active) || sessionsCache[0];
+      if (!activeSession) {
+        showStatus(statusEl, 'No academic session is set up yet. Please contact the administrator.', true);
+        return;
+      }
+
+      const saveBtn = document.getElementById('attendance-save');
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving…';
+
+      // upsert on (student_id, attendance_date) — re-saving the same day
+      // updates existing rows instead of duplicating them.
+      const rows = attendanceRoster.map(s => ({
+        student_id: s.id,
+        class_id: cls.classId,
+        session_id: activeSession.id,
+        attendance_date: attendanceDate,
+        status: s.status,
+        marked_by: currentStaff.id,
+      }));
+
+      const { error } = await supabaseClient
+        .from('student_attendance')
+        .upsert(rows, { onConflict: 'student_id,attendance_date' });
+
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save attendance';
+
+      if (error) {
+        showStatus(statusEl, 'Something went wrong saving attendance. Please try again.', true);
+        console.error(error);
+        return;
+      }
+      showStatus(statusEl, 'Attendance saved.', false);
+    });
 
     function getSelectedMasterClass() {
       if (!currentClassTeacherOf.length) return null;
