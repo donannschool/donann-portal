@@ -111,6 +111,7 @@
         <button data-tab="subjects" class="tab-btn active border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">My subjects</button>
         <button data-tab="masterclass" class="tab-btn hidden border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">My Class Master Sheet</button>
         <button data-tab="signature" class="tab-btn hidden border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">My Signature</button>
+        <button data-tab="quizzes" class="tab-btn hidden border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">Quizzes</button>
       </nav>
     </header>
 
@@ -216,6 +217,112 @@
           </div>
           <button id="signature-upload-btn" class="bg-navy text-white px-6 py-2.5 font-medium hover:bg-navy-dark transition-colors">Save signature</button>
           <p id="signature-status" class="hidden text-sm px-3 py-2 border"></p>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB: QUIZZES (AI-assisted multiple-choice quizzes)         -->
+      <!-- ========================================================= -->
+      <section id="tab-quizzes" class="panel">
+        <div id="qz-list-view">
+          <div class="flex items-start justify-between gap-3 flex-wrap mb-6">
+            <div>
+              <h1 class="font-display text-2xl text-navy mb-1">Quizzes</h1>
+              <p class="text-navy/60">Create multiple-choice quizzes for the classes you teach and see how students did.</p>
+            </div>
+            <button id="qz-new-btn" class="bg-navy text-white px-5 py-2.5 font-medium hover:bg-navy-dark transition-colors">+ New quiz</button>
+          </div>
+          <div id="qz-list" class="space-y-3"><p class="text-navy/40 text-sm">Loading your quizzes…</p></div>
+        </div>
+
+        <!-- ---------- CREATE / EDIT VIEW ---------- -->
+        <div id="qz-create-view" class="hidden">
+          <button id="qz-create-back" class="text-sm text-sky font-medium mb-4 hover:underline">&larr; Back to my quizzes</button>
+          <h1 class="font-display text-2xl text-navy mb-6">New quiz</h1>
+
+          <div class="bg-white border border-navy/10 p-6 mb-6">
+            <p class="text-xs uppercase tracking-wide text-navy/50 mb-4">1. Quiz details</p>
+            <div class="grid sm:grid-cols-2 gap-4">
+              <div class="sm:col-span-2">
+                <label class="field-label" for="qz-title">Quiz title</label>
+                <input id="qz-title" class="field-input" type="text" maxlength="120" placeholder="e.g. Week 4 — Photosynthesis">
+              </div>
+              <div>
+                <label class="field-label" for="qz-class">Class</label>
+                <select id="qz-class" class="field-input"></select>
+              </div>
+              <div>
+                <label class="field-label" for="qz-subject">Subject</label>
+                <select id="qz-subject" class="field-input"></select>
+              </div>
+              <div>
+                <label class="field-label" for="qz-duration">Time allowed (minutes)</label>
+                <input id="qz-duration" class="field-input" type="number" min="1" max="300" value="30">
+              </div>
+              <div>
+                <label class="field-label" for="qz-due">Due date &amp; time</label>
+                <input id="qz-due" class="field-input" type="datetime-local">
+              </div>
+            </div>
+            <p id="qz-dept-note" class="text-xs text-navy/50 mt-3"></p>
+          </div>
+
+          <div class="bg-white border border-navy/10 p-6 mb-6">
+            <p class="text-xs uppercase tracking-wide text-navy/50 mb-4">2. Generate questions with AI <span class="normal-case text-navy/40">(optional)</span></p>
+            <div class="grid sm:grid-cols-[1fr_120px_140px_auto] gap-3 items-end">
+              <div>
+                <label class="field-label" for="qz-ai-topic">Topic</label>
+                <input id="qz-ai-topic" class="field-input" type="text" maxlength="300" placeholder="e.g. Photosynthesis and the light reaction">
+              </div>
+              <div>
+                <label class="field-label" for="qz-ai-count">Questions</label>
+                <input id="qz-ai-count" class="field-input" type="number" min="1" max="30" value="10">
+              </div>
+              <div>
+                <label class="field-label" for="qz-ai-diff">Difficulty</label>
+                <select id="qz-ai-diff" class="field-input"><option>Easy</option><option selected>Medium</option><option>Hard</option></select>
+              </div>
+              <button id="qz-ai-btn" class="bg-sky text-white px-5 py-[.65rem] font-medium hover:opacity-90 transition-opacity">Generate</button>
+            </div>
+            <p id="qz-ai-status" class="hidden text-sm px-3 py-2 border mt-4"></p>
+            <p class="text-xs text-navy/40 mt-3">AI drafts are added to the list below. Read each question and fix anything wrong before you save.</p>
+          </div>
+
+          <div class="bg-white border border-navy/10 p-6 mb-6">
+            <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
+              <p class="text-xs uppercase tracking-wide text-navy/50">3. Questions (<span id="qz-q-count">0</span>)</p>
+              <button id="qz-add-q" class="text-sm text-sky font-medium hover:underline">+ Add a question manually</button>
+            </div>
+            <div id="qz-questions" class="space-y-5"></div>
+            <p id="qz-questions-empty" class="text-sm text-navy/40">No questions yet — generate some above or add one manually.</p>
+          </div>
+
+          <div class="flex items-center justify-between gap-3 flex-wrap">
+            <p id="qz-save-status" class="hidden text-sm px-3 py-2 border"></p>
+            <button id="qz-save-btn" class="bg-navy text-white px-8 py-3 font-medium hover:bg-navy-dark transition-colors ml-auto">Save quiz</button>
+          </div>
+        </div>
+
+        <!-- ---------- RESULTS VIEW ---------- -->
+        <div id="qz-results-view" class="hidden">
+          <button id="qz-results-back" class="text-sm text-sky font-medium mb-4 hover:underline">&larr; Back to my quizzes</button>
+          <h1 id="qz-results-title" class="font-display text-2xl text-navy mb-1"></h1>
+          <p id="qz-results-sub" class="text-navy/60 mb-6"></p>
+          <div class="bg-white border border-navy/10 overflow-x-auto">
+            <table class="w-full text-sm min-w-[560px]">
+              <thead class="bg-navy/5 text-navy text-left">
+                <tr>
+                  <th class="px-4 py-3 font-medium">Student</th>
+                  <th class="px-4 py-3 font-medium">Status</th>
+                  <th class="px-4 py-3 font-medium text-center">Score</th>
+                  <th class="px-4 py-3 font-medium">Submitted</th>
+                  <th class="px-4 py-3 font-medium text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody id="qz-results-rows" class="divide-y divide-navy/10"></tbody>
+            </table>
+          </div>
+          <p id="qz-results-status" class="hidden text-sm px-3 py-2 border mt-4"></p>
         </div>
       </section>
 
@@ -434,6 +541,11 @@
       } else {
         currentClassTeacherOf = [];
         masterTab.classList.add('hidden');
+      }
+
+      // 4b. Quizzes tab — only for teachers with at least one JSS 1 – SS 3 assignment.
+      if (typeof qzEligibleAssignments === 'function' && qzEligibleAssignments().length > 0) {
+        document.querySelector('[data-tab="quizzes"]').classList.remove('hidden');
       }
 
       // 5. Signature tab — Principal only.
@@ -912,6 +1024,449 @@
       const d = new Date(dobStr + 'T00:00:00');
       const month = d.toLocaleString('en-US', { month: 'long' });
       return `${month}${d.getDate()}`;
+    }
+
+    // =================================================================
+    // QUIZZES TAB (teacher) — self-contained; everything is prefixed qz*
+    // Relies on the page's existing: supabaseClient, currentStaff,
+    // currentAssignments, escapeHtml, showStatus, showToast, SUPABASE_URL,
+    // SUPABASE_ANON_KEY.
+    // =================================================================
+    const QZ_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/quiz-ai`;
+    let qzSubjectsCache = null;   // rows from `subjects` incl. class_level + department
+    let qzDraftQuestions = [];    // [{ question_text, option_a..d, correct_option }]
+
+    // 'JSS 1' -> 'Junior Secondary', 'SS 2' -> 'Senior Secondary', else null.
+    function qzClassLevelCategory(className) {
+      const c = String(className || '').trim().toUpperCase().replace(/\s+/g, ' ');
+      if (/^JSS ?[123]$/.test(c)) return 'Junior Secondary';
+      if (/^SS ?[123]$/.test(c)) return 'Senior Secondary';
+      return null;
+    }
+
+    function qzShowView(name) {
+      ['list', 'create', 'results'].forEach(v =>
+        document.getElementById(`qz-${v}-view`).classList.toggle('hidden', v !== name));
+    }
+
+    // Load the Quizzes tab whenever it is opened.
+    document.querySelector('[data-tab="quizzes"]').addEventListener('click', () => {
+      qzShowView('list');
+      qzLoadList();
+    });
+
+    // ---- assignments limited to JSS 1 – SS 3 (quizzes don't apply below) ----
+    function qzEligibleAssignments() {
+      return currentAssignments.filter(a => qzClassLevelCategory(a.className));
+    }
+
+    // ------------------------------------------------------------------
+    // LIST VIEW
+    // ------------------------------------------------------------------
+    async function qzLoadList() {
+      const listEl = document.getElementById('qz-list');
+      listEl.innerHTML = '<p class="text-navy/40 text-sm">Loading your quizzes…</p>';
+
+      const { data: quizzes, error } = await supabaseClient
+        .from('quizzes')
+        .select('id, title, class_level, target_department, duration_minutes, due_date, created_at, subjects(subject_name)')
+        .eq('created_by', currentStaff.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        listEl.innerHTML = '<p class="text-red-600 text-sm">Could not load your quizzes. Please refresh and try again.</p>';
+        console.error(error);
+        return;
+      }
+      if (!quizzes || quizzes.length === 0) {
+        listEl.innerHTML = '<div class="bg-white border border-navy/10 p-8 text-center text-navy/50 text-sm">You have not created any quizzes yet. Click <strong>+ New quiz</strong> to start.</div>';
+        return;
+      }
+
+      // Submission counts per quiz in ONE query.
+      const { data: subs } = await supabaseClient
+        .from('quiz_submissions')
+        .select('quiz_id, submitted_at')
+        .in('quiz_id', quizzes.map(q => q.id));
+      const submittedCount = {};
+      (subs || []).forEach(s => { if (s.submitted_at) submittedCount[s.quiz_id] = (submittedCount[s.quiz_id] || 0) + 1; });
+
+      listEl.innerHTML = quizzes.map(q => {
+        const due = new Date(q.due_date);
+        const isClosed = due < new Date();
+        return `
+          <div class="bg-white border border-navy/10 p-5 flex items-center justify-between gap-4 flex-wrap">
+            <div class="min-w-0">
+              <p class="font-medium text-navy truncate">${escapeHtml(q.title)}</p>
+              <p class="text-sm text-navy/50">
+                ${escapeHtml(q.subjects?.subject_name || 'Subject')} · ${escapeHtml(q.class_level)}
+                ${q.target_department && q.target_department !== 'General' ? ' · ' + escapeHtml(q.target_department) : ''}
+                · ${q.duration_minutes} min
+              </p>
+              <p class="text-xs mt-1 ${isClosed ? 'text-red-600' : 'text-navy/40'}">
+                ${isClosed ? 'Closed' : 'Due'} ${due.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                · ${submittedCount[q.id] || 0} submitted
+              </p>
+            </div>
+            <div class="flex gap-2 shrink-0">
+              <button data-qz-results="${q.id}" class="border border-navy/25 text-navy px-4 py-2 text-sm hover:bg-navy hover:text-white transition-colors">View results</button>
+              <button data-qz-delete="${q.id}" class="border border-red-200 text-red-600 px-4 py-2 text-sm hover:bg-red-50 transition-colors">Delete</button>
+            </div>
+          </div>`;
+      }).join('');
+
+      listEl.querySelectorAll('[data-qz-results]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const quiz = quizzes.find(q => q.id === btn.dataset.qzResults);
+          qzOpenResults(quiz);
+        });
+      });
+      listEl.querySelectorAll('[data-qz-delete]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Delete this quiz and ALL student submissions for it? This cannot be undone.')) return;
+          const { error: delErr } = await supabaseClient.from('quizzes').delete().eq('id', btn.dataset.qzDelete);
+          if (delErr) { showToast('Could not delete the quiz.'); console.error(delErr); return; }
+          showToast('Quiz deleted.');
+          qzLoadList();
+        });
+      });
+    }
+
+    // ------------------------------------------------------------------
+    // CREATE VIEW
+    // ------------------------------------------------------------------
+    document.getElementById('qz-new-btn').addEventListener('click', async () => {
+      const eligible = qzEligibleAssignments();
+      if (eligible.length === 0) {
+        showToast('Quizzes are for JSS 1 – SS 3. You have no subjects assigned in those classes.');
+        return;
+      }
+      qzDraftQuestions = [];
+      document.getElementById('qz-title').value = '';
+      document.getElementById('qz-duration').value = 30;
+      document.getElementById('qz-due').value = '';
+      document.getElementById('qz-ai-topic').value = '';
+      document.getElementById('qz-ai-status').classList.add('hidden');
+      document.getElementById('qz-save-status').classList.add('hidden');
+
+      // Class dropdown = only the distinct classes this teacher is assigned to.
+      const classes = [...new Map(eligible.map(a => [a.classId, a.className])).entries()];
+      document.getElementById('qz-class').innerHTML =
+        classes.map(([id, name]) => `<option value="${id}">${escapeHtml(name)}</option>`).join('');
+
+      await qzLoadSubjects();
+      qzRefreshSubjectOptions();
+      qzRenderQuestions();
+      qzShowView('create');
+    });
+
+    document.getElementById('qz-create-back').addEventListener('click', () => {
+      if (qzDraftQuestions.length && !confirm('Discard this unsaved quiz?')) return;
+      qzShowView('list');
+    });
+    document.getElementById('qz-results-back').addEventListener('click', () => qzShowView('list'));
+
+    async function qzLoadSubjects() {
+      if (qzSubjectsCache) return;
+      const { data, error } = await supabaseClient
+        .from('subjects').select('id, subject_name, class_level, department');
+      if (error) { console.error(error); showToast('Could not load subjects.'); }
+      qzSubjectsCache = data || [];
+    }
+
+    // Subject dropdown = subjects this teacher is assigned to for the chosen
+    // class, further filtered by that class's category (Junior/Senior).
+    function qzRefreshSubjectOptions() {
+      const classId = document.getElementById('qz-class').value;
+      const className = (currentAssignments.find(a => a.classId === classId) || {}).className;
+      const category = qzClassLevelCategory(className);
+
+      const assignedSubjectIds = new Set(
+        currentAssignments.filter(a => a.classId === classId).map(a => a.subjectId));
+
+      const options = qzSubjectsCache.filter(s =>
+        assignedSubjectIds.has(s.id) && (!s.class_level || s.class_level === category));
+
+      const subjEl = document.getElementById('qz-subject');
+      subjEl.innerHTML = options.length
+        ? options.map(s => `<option value="${s.id}">${escapeHtml(s.subject_name)}</option>`).join('')
+        : '<option value="">No matching subjects</option>';
+      qzUpdateDeptNote();
+    }
+
+    function qzSelectedSubject() {
+      const id = document.getElementById('qz-subject').value;
+      return qzSubjectsCache.find(s => s.id === id) || null;
+    }
+
+    // target_department is pulled from the subject row automatically.
+    function qzUpdateDeptNote() {
+      const s = qzSelectedSubject();
+      const dept = s?.department || 'General';
+      document.getElementById('qz-dept-note').textContent =
+        dept === 'General'
+          ? 'This quiz will be visible to every student in the selected class.'
+          : `This is a ${dept} subject, so only ${dept} students in the class will see this quiz.`;
+    }
+    document.getElementById('qz-class').addEventListener('change', qzRefreshSubjectOptions);
+    document.getElementById('qz-subject').addEventListener('change', qzUpdateDeptNote);
+
+    // ---- question editor ----
+    function qzRenderQuestions() {
+      const wrap = document.getElementById('qz-questions');
+      document.getElementById('qz-q-count').textContent = qzDraftQuestions.length;
+      document.getElementById('qz-questions-empty').classList.toggle('hidden', qzDraftQuestions.length > 0);
+
+      wrap.innerHTML = qzDraftQuestions.map((q, i) => `
+        <div class="border border-navy/15 p-4" data-qi="${i}">
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-xs font-medium text-navy/50">Question ${i + 1}</p>
+            <button data-qz-remove="${i}" class="text-xs text-red-600 hover:underline">Remove</button>
+          </div>
+          <textarea data-f="question_text" rows="2" class="field-input mb-3" placeholder="Type the question…">${escapeHtml(q.question_text)}</textarea>
+          <div class="grid sm:grid-cols-2 gap-2 mb-3">
+            ${['a', 'b', 'c', 'd'].map(l => `
+              <div class="flex items-center gap-2">
+                <span class="w-6 text-sm font-medium text-navy">${l.toUpperCase()}.</span>
+                <input data-f="option_${l}" class="field-input" type="text" value="${escapeHtml(q['option_' + l])}" placeholder="Option ${l.toUpperCase()}">
+              </div>`).join('')}
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="text-sm text-navy/70" for="qz-correct-${i}">Correct answer:</label>
+            <select id="qz-correct-${i}" data-f="correct_option" class="field-input !w-24 text-sm">
+              ${['A', 'B', 'C', 'D'].map(l => `<option ${q.correct_option === l ? 'selected' : ''}>${l}</option>`).join('')}
+            </select>
+          </div>
+        </div>`).join('');
+
+      // Keep the in-memory draft in sync with what the teacher types.
+      wrap.querySelectorAll('[data-qi]').forEach(card => {
+        const i = Number(card.dataset.qi);
+        card.querySelectorAll('[data-f]').forEach(inp => {
+          inp.addEventListener('input', () => { qzDraftQuestions[i][inp.dataset.f] = inp.value; });
+        });
+      });
+      wrap.querySelectorAll('[data-qz-remove]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          qzDraftQuestions.splice(Number(btn.dataset.qzRemove), 1);
+          qzRenderQuestions();
+        });
+      });
+    }
+
+    document.getElementById('qz-add-q').addEventListener('click', () => {
+      qzDraftQuestions.push({ question_text: '', option_a: '', option_b: '', option_c: '', option_d: '', correct_option: 'A' });
+      qzRenderQuestions();
+      const cards = document.querySelectorAll('#qz-questions [data-qi]');
+      cards[cards.length - 1]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+
+    // ---- AI generation ----
+    document.getElementById('qz-ai-btn').addEventListener('click', async () => {
+      const statusEl = document.getElementById('qz-ai-status');
+      const topic = document.getElementById('qz-ai-topic').value.trim();
+      const count = Number(document.getElementById('qz-ai-count').value);
+      const difficulty = document.getElementById('qz-ai-diff').value;
+      const subject = qzSelectedSubject();
+      const classId = document.getElementById('qz-class').value;
+      const className = (currentAssignments.find(a => a.classId === classId) || {}).className;
+
+      if (!topic) { showStatus(statusEl, 'Enter a topic first.', true); return; }
+      if (!count || count < 1 || count > 30) { showStatus(statusEl, 'Choose between 1 and 30 questions.', true); return; }
+
+      const btn = document.getElementById('qz-ai-btn');
+      btn.disabled = true;
+      btn.textContent = 'Generating…';
+      statusEl.classList.add('hidden');
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const res = await fetch(`${QZ_FUNCTION_URL}/generate-quiz`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token || SUPABASE_ANON_KEY}`,
+            'apikey': SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({ topic, count, difficulty, subjectName: subject?.subject_name, classLevel: className }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || 'Could not generate questions.');
+
+        qzDraftQuestions.push(...body.questions);
+        qzRenderQuestions();
+        showStatus(statusEl, `Added ${body.questions.length} question${body.questions.length === 1 ? '' : 's'}. Please review them below before saving.`, false);
+      } catch (err) {
+        showStatus(statusEl, err.message || 'Could not generate questions.', true);
+        console.error(err);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Generate';
+      }
+    });
+
+    // ---- save ----
+    document.getElementById('qz-save-btn').addEventListener('click', async () => {
+      const statusEl = document.getElementById('qz-save-status');
+      const title = document.getElementById('qz-title').value.trim();
+      const classId = document.getElementById('qz-class').value;
+      const className = (currentAssignments.find(a => a.classId === classId) || {}).className;
+      const subject = qzSelectedSubject();
+      const duration = Number(document.getElementById('qz-duration').value);
+      const dueRaw = document.getElementById('qz-due').value;
+
+      if (!title) { showStatus(statusEl, 'Give the quiz a title.', true); return; }
+      if (!subject) { showStatus(statusEl, 'Choose a subject.', true); return; }
+      if (!duration || duration < 1) { showStatus(statusEl, 'Set the time allowed in minutes.', true); return; }
+      if (!dueRaw) { showStatus(statusEl, 'Set a due date and time.', true); return; }
+      const due = new Date(dueRaw);
+      if (due <= new Date()) { showStatus(statusEl, 'The due date must be in the future.', true); return; }
+      if (qzDraftQuestions.length === 0) { showStatus(statusEl, 'Add at least one question.', true); return; }
+
+      // Every question must be complete.
+      for (let i = 0; i < qzDraftQuestions.length; i++) {
+        const q = qzDraftQuestions[i];
+        if (![q.question_text, q.option_a, q.option_b, q.option_c, q.option_d].every(v => String(v || '').trim())) {
+          showStatus(statusEl, `Question ${i + 1} is incomplete — fill in the question and all four options.`, true);
+          return;
+        }
+      }
+
+      const btn = document.getElementById('qz-save-btn');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+
+      // Rule 2: class_level = the exact class string ('JSS 1'); the
+      // target_department comes straight from the chosen subject row.
+      const { data: quizRow, error: quizErr } = await supabaseClient
+        .from('quizzes')
+        .insert({
+          title,
+          subject_id: subject.id,
+          class_level: className,
+          target_department: subject.department || 'General',
+          duration_minutes: duration,
+          due_date: due.toISOString(),
+          created_by: currentStaff.id,
+        })
+        .select('id')
+        .single();
+
+      if (quizErr || !quizRow) {
+        btn.disabled = false; btn.textContent = 'Save quiz';
+        showStatus(statusEl, 'Could not save the quiz. Please check the details and try again.', true);
+        console.error(quizErr);
+        return;
+      }
+
+      const { error: qErr } = await supabaseClient.from('quiz_questions').insert(
+        qzDraftQuestions.map((q, i) => ({
+          quiz_id: quizRow.id,
+          question_text: q.question_text.trim(),
+          option_a: q.option_a.trim(), option_b: q.option_b.trim(),
+          option_c: q.option_c.trim(), option_d: q.option_d.trim(),
+          correct_option: q.correct_option,
+          sort_order: i + 1,
+        })));
+
+      if (qErr) {
+        // Don't leave a quiz with no questions behind.
+        await supabaseClient.from('quizzes').delete().eq('id', quizRow.id);
+        btn.disabled = false; btn.textContent = 'Save quiz';
+        showStatus(statusEl, 'Could not save the questions. Nothing was saved — please try again.', true);
+        console.error(qErr);
+        return;
+      }
+
+      btn.disabled = false; btn.textContent = 'Save quiz';
+      qzDraftQuestions = [];
+      showToast('Quiz saved.');
+      qzShowView('list');
+      qzLoadList();
+    });
+
+    // ------------------------------------------------------------------
+    // RESULTS VIEW
+    // ------------------------------------------------------------------
+    async function qzOpenResults(quiz) {
+      qzShowView('results');
+      document.getElementById('qz-results-title').textContent = quiz.title;
+      document.getElementById('qz-results-sub').textContent =
+        `${quiz.subjects?.subject_name || ''} · ${quiz.class_level}`;
+      document.getElementById('qz-results-status').classList.add('hidden');
+      await qzLoadResults(quiz);
+    }
+
+    async function qzLoadResults(quiz) {
+      const rowsEl = document.getElementById('qz-results-rows');
+      rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="5">Loading…</td></tr>';
+
+      // Everyone in the class (and department) who is eligible for this quiz.
+      const { data: cls } = await supabaseClient.from('classes').select('id').eq('class_name', quiz.class_level).maybeSingle();
+      let studentQuery = supabaseClient.from('students')
+        .select('id, full_name, department_id, departments(department_name)')
+        .eq('current_class_id', cls?.id).eq('is_active', true).order('full_name');
+      const { data: allStudents } = await studentQuery;
+
+      const students = (allStudents || []).filter(s =>
+        !quiz.target_department || quiz.target_department === 'General' ||
+        s.departments?.department_name === quiz.target_department);
+
+      const { data: subs } = await supabaseClient
+        .from('quiz_submissions')
+        .select('id, student_id, score_percentage, submitted_at, started_at, allowed_attempts')
+        .eq('quiz_id', quiz.id);
+      const subByStudent = {};
+      (subs || []).forEach(s => { subByStudent[s.student_id] = s; });
+
+      if (students.length === 0) {
+        rowsEl.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="5">No eligible students found.</td></tr>';
+        return;
+      }
+
+      rowsEl.innerHTML = students.map(st => {
+        const sub = subByStudent[st.id];
+        let status, score = '—', when = '—', action = '';
+        if (!sub) {
+          status = '<span class="text-navy/40">Not started</span>';
+        } else if (sub.submitted_at) {
+          status = '<span class="text-emerald-700">Submitted</span>';
+          const pctClass = sub.score_percentage >= 50 ? 'text-emerald-700' : 'text-red-600';
+          score = `<span class="font-medium ${pctClass}">${sub.score_percentage}%</span>`;
+          when = new Date(sub.submitted_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+          action = `<button data-qz-reopen="${sub.id}" class="text-xs border border-navy/25 text-navy px-3 py-1.5 hover:bg-navy hover:text-white transition-colors">Allow re-attempt</button>`;
+        } else if (sub.started_at) {
+          status = '<span class="text-amber-700">In progress</span>';
+        } else {
+          status = '<span class="text-sky">Re-attempt granted</span>';
+        }
+        const attempts = sub && (sub.allowed_attempts || 1) > 1 ? ` <span class="text-xs text-navy/40">(attempts allowed: ${sub.allowed_attempts})</span>` : '';
+        return `
+          <tr>
+            <td class="px-4 py-3 font-medium text-navy">${escapeHtml(st.full_name)}${attempts}</td>
+            <td class="px-4 py-3">${status}</td>
+            <td class="px-4 py-3 text-center">${score}</td>
+            <td class="px-4 py-3 text-navy/60">${when}</td>
+            <td class="px-4 py-3 text-right">${action}</td>
+          </tr>`;
+      }).join('');
+
+      rowsEl.querySelectorAll('[data-qz-reopen]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Let this student retake the quiz? Their current score will be erased.')) return;
+          btn.disabled = true;
+          const { data, error } = await supabaseClient.rpc('grant_quiz_reattempt', { p_submission_id: btn.dataset.qzReopen });
+          const statusEl = document.getElementById('qz-results-status');
+          if (error || data?.error) {
+            btn.disabled = false;
+            showStatus(statusEl, data?.error || 'Could not grant a re-attempt. Please try again.', true);
+            console.error(error);
+            return;
+          }
+          showStatus(statusEl, 'Re-attempt granted. The student can open the quiz again.', false);
+          qzLoadResults(quiz);
+        });
+      });
     }
   </script>
 </body>

@@ -39,6 +39,7 @@
   }
 
   .signature-cursive { font-family: 'Dancing Script', cursive; }
+  .stab-btn.active { border-color:#1B3A6B; color:#1B3A6B; }
 
   @media (prefers-reduced-motion: no-preference) {
     .fade-in { animation: fadeIn 0.5s ease-out both; }
@@ -129,6 +130,13 @@
 
   <!-- ============ DASHBOARD (CLEARED) ============ -->
   <main id="state-dashboard" class="hidden max-w-4xl mx-auto px-6 py-10">
+
+    <!-- ===== SECTION TABS (Report card | Quizzes) ===== -->
+    <nav class="no-print flex gap-1 border-b border-navy/15 mb-8" id="student-tab-nav">
+      <button data-stab="report" class="stab-btn active border-b-2 border-navy text-navy px-4 py-3 text-sm font-medium">Report card</button>
+      <button data-stab="quizzes" class="stab-btn border-b-2 border-transparent text-navy/50 px-4 py-3 text-sm font-medium">Quizzes</button>
+    </nav>
+
 
     <div class="no-print flex items-start justify-between gap-4 flex-wrap mb-8">
       <div>
@@ -261,6 +269,50 @@
       <p class="text-center text-xs text-navy/30 mt-8">Generated on <span id="print-date"></span> &middot; Don-Ann School Student Portal</p>
     </div>
     <!-- ===== END PRINTABLE SHEET ===== -->
+
+    <!-- ===== QUIZZES SECTION ===== -->
+    <div id="student-quizzes-section" class="no-print hidden">
+
+      <!-- List of available quizzes -->
+      <div id="sq-list-view">
+        <p class="text-sky font-medium text-sm uppercase tracking-wide mb-1">Quizzes &amp; assignments</p>
+        <h1 class="font-display text-3xl text-navy mb-6">Your quizzes</h1>
+        <div id="sq-list" class="space-y-3"><p class="text-navy/40 text-sm">Loading quizzes…</p></div>
+      </div>
+
+      <!-- Taking a quiz -->
+      <div id="sq-take-view" class="hidden">
+        <div class="sticky top-0 z-30 bg-[#F7F9FC] border-b border-navy/15 -mx-6 px-6 py-3 mb-6 flex items-center justify-between gap-4">
+          <div class="min-w-0">
+            <p id="sq-take-title" class="font-display text-lg text-navy truncate"></p>
+            <p class="text-xs text-navy/50"><span id="sq-answered">0</span> of <span id="sq-total">0</span> answered</p>
+          </div>
+          <div class="text-right shrink-0">
+            <p class="text-xs text-navy/50">Time left</p>
+            <p id="sq-timer" class="font-mono text-2xl text-navy">--:--</p>
+          </div>
+        </div>
+        <div id="sq-questions" class="space-y-5"></div>
+        <div class="mt-8 flex items-center justify-between gap-4 flex-wrap">
+          <p id="sq-take-status" class="hidden text-sm px-3 py-2 border"></p>
+          <button id="sq-submit-btn" class="bg-navy text-white px-8 py-3 font-medium hover:bg-navy-dark transition-colors ml-auto">Submit quiz</button>
+        </div>
+      </div>
+
+      <!-- Result + review -->
+      <div id="sq-result-view" class="hidden">
+        <div class="notice-border bg-white p-8 text-center mb-8 fade-in">
+          <p class="text-xs uppercase tracking-wide text-navy/50 mb-2">Your score</p>
+          <p id="sq-result-score" class="font-display text-6xl text-navy mb-2"></p>
+          <p id="sq-result-detail" class="text-navy/60"></p>
+          <p id="sq-result-note" class="hidden text-sm text-amber-700 mt-3"></p>
+        </div>
+        <p class="text-xs uppercase tracking-wide text-navy/50 mb-3">Review your answers</p>
+        <div id="sq-review" class="space-y-4 mb-8"></div>
+        <button id="sq-result-back" class="border border-navy text-navy px-6 py-3 font-medium hover:bg-navy hover:text-white transition-colors">Back to quizzes</button>
+      </div>
+    </div>
+
 
   </main>
 
@@ -708,6 +760,304 @@
     }
     document.getElementById('logout-btn').addEventListener('click', signOut);
     document.getElementById('paywall-signout').addEventListener('click', signOut);
+
+    // ---------------------------------------------------------------
+    // QUIZZES (student) — self-contained; everything is prefixed sq*
+    // Relies on the page's existing: supabaseClient, currentStudent,
+    // escapeHtml, SUPABASE_URL, SUPABASE_ANON_KEY, showOnly.
+    // The answer key never reaches this browser until AFTER submit.
+    // ---------------------------------------------------------------
+    const SQ_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/quiz-ai`;
+    let sqActive = null;        // { quizId, questions, answers, deadlineMs }
+    let sqTimerHandle = null;
+    let sqSubmitting = false;
+
+    function sqShowView(name) {
+      ['list', 'take', 'result'].forEach(v =>
+        document.getElementById(`sq-${v}-view`).classList.toggle('hidden', v !== name));
+    }
+
+    // ---- section tabs: Report card | Quizzes ----
+    document.getElementById('student-tab-nav').addEventListener('click', (e) => {
+      const btn = e.target.closest('.stab-btn');
+      if (!btn) return;
+      const goingToQuizzes = btn.dataset.stab === 'quizzes';
+
+      // Don't let a student wander off mid-quiz by accident.
+      if (!goingToQuizzes && sqActive && !confirm('Leave this quiz? Your timer keeps running.')) return;
+
+      document.querySelectorAll('.stab-btn').forEach(b => {
+        const on = b === btn;
+        b.classList.toggle('active', on);
+        b.classList.toggle('border-navy', on);
+        b.classList.toggle('text-navy', on);
+        b.classList.toggle('border-transparent', !on);
+        b.classList.toggle('text-navy/50', !on);
+      });
+
+      // Everything that belongs to the report card view.
+      const reportEls = document.querySelectorAll('#state-dashboard > .no-print:not(#student-tab-nav):not(#student-quizzes-section), #print-sheet');
+      reportEls.forEach(el => el.classList.toggle('hidden', goingToQuizzes));
+      document.getElementById('student-quizzes-section').classList.toggle('hidden', !goingToQuizzes);
+
+      if (goingToQuizzes && !sqActive) { sqShowView('list'); sqLoadList(); }
+    });
+
+    // ---- list ----
+    async function sqLoadList() {
+      const listEl = document.getElementById('sq-list');
+      listEl.innerHTML = '<p class="text-navy/40 text-sm">Loading quizzes…</p>';
+
+      // RLS returns only quizzes for this student's class + department,
+      // and only while their fees are cleared — no client-side filtering
+      // is needed for security, only for display.
+      const { data: quizzes, error } = await supabaseClient
+        .from('quizzes')
+        .select('id, title, duration_minutes, due_date, subjects(subject_name)')
+        .order('due_date', { ascending: true });
+
+      if (error) {
+        listEl.innerHTML = '<p class="text-red-600 text-sm">Could not load your quizzes. Please refresh and try again.</p>';
+        console.error(error);
+        return;
+      }
+      if (!quizzes || quizzes.length === 0) {
+        // RLS hides quizzes from students whose CURRENT-term fees are not
+        // cleared. An empty list could therefore mean "no quizzes" OR "fees
+        // outstanding" — ask the database which, so the message is honest.
+        const { data: cleared } = await supabaseClient.rpc('student_is_cleared');
+        listEl.innerHTML = cleared === false
+          ? '<div class="bg-white border-l-4 border-red-400 p-6 text-sm text-navy/70">Quizzes are locked because fees for the current term are outstanding. Please contact the Bursar\'s office.</div>'
+          : '<div class="bg-white border border-navy/10 p-8 text-center text-navy/50 text-sm">There are no quizzes for your class right now.</div>';
+        return;
+      }
+
+      const { data: subs } = await supabaseClient
+        .from('quiz_submissions')
+        .select('quiz_id, score_percentage, submitted_at, started_at')
+        .in('quiz_id', quizzes.map(q => q.id));
+      const subByQuiz = {};
+      (subs || []).forEach(s => { subByQuiz[s.quiz_id] = s; });
+
+      const now = new Date();
+      listEl.innerHTML = quizzes.map(q => {
+        const sub = subByQuiz[q.id];
+        const due = new Date(q.due_date);
+        const overdue = due < now;
+        const done = sub && sub.submitted_at;
+        const inProgress = sub && !sub.submitted_at && sub.started_at;
+
+        let badge, button = '';
+        if (done) {
+          badge = `<span class="text-emerald-700 font-medium">Completed · ${sub.score_percentage}%</span>`;
+        } else if (overdue) {
+          badge = '<span class="text-red-600 font-medium">Closed</span>';
+        } else {
+          badge = inProgress
+            ? '<span class="text-amber-700 font-medium">In progress</span>'
+            : '<span class="text-sky font-medium">Open</span>';
+          button = `<button data-sq-start="${q.id}" class="bg-navy text-white px-5 py-2 text-sm font-medium hover:bg-navy-dark transition-colors">${inProgress ? 'Continue' : 'Start quiz'}</button>`;
+        }
+
+        return `
+          <div class="bg-white border border-navy/10 p-5 flex items-center justify-between gap-4 flex-wrap">
+            <div class="min-w-0">
+              <p class="font-medium text-navy">${escapeHtml(q.title)}</p>
+              <p class="text-sm text-navy/50">${escapeHtml(q.subjects?.subject_name || 'Subject')} · ${q.duration_minutes} minutes</p>
+              <p class="text-xs text-navy/40 mt-1">Due ${due.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+            </div>
+            <div class="flex items-center gap-4 shrink-0">
+              <span class="text-sm">${badge}</span>
+              ${button}
+            </div>
+          </div>`;
+      }).join('');
+
+      listEl.querySelectorAll('[data-sq-start]').forEach(btn => {
+        btn.addEventListener('click', () => sqStart(btn.dataset.sqStart, btn));
+      });
+    }
+
+    // ---- start (calls the start_quiz RPC — the only way to read questions) ----
+    async function sqStart(quizId, btn) {
+      const listEl = document.getElementById('sq-list');
+      if (btn) { btn.disabled = true; btn.textContent = 'Opening…'; }
+
+      const { data, error } = await supabaseClient.rpc('start_quiz', { p_quiz_id: quizId });
+
+      if (error || !data || data.error) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Start quiz'; }
+        alert(data?.error || 'Could not open this quiz. Please try again.');
+        console.error(error);
+        sqLoadList();
+        return;
+      }
+
+      // Deadline comes from the SERVER clock (started_at + duration), adjusted
+      // for any difference between the device clock and the server clock, so
+      // changing the phone's time or refreshing the page cannot add minutes.
+      const clockOffsetMs = new Date(data.server_now).getTime() - Date.now();
+      const deadlineMs = new Date(data.started_at).getTime() + data.quiz.duration_minutes * 60_000 - clockOffsetMs;
+
+      sqActive = { quizId, questions: data.questions, answers: {}, deadlineMs };
+      sqSubmitting = false;
+
+      document.getElementById('sq-take-title').textContent = data.quiz.title;
+      document.getElementById('sq-total').textContent = data.questions.length;
+      document.getElementById('sq-take-status').classList.add('hidden');
+      document.getElementById('sq-submit-btn').disabled = false;
+      document.getElementById('sq-submit-btn').textContent = 'Submit quiz';
+      sqRenderQuestions();
+      sqUpdateAnswered();
+      sqShowView('take');
+      window.scrollTo({ top: 0 });
+      sqStartTimer();
+    }
+
+    function sqRenderQuestions() {
+      const wrap = document.getElementById('sq-questions');
+      wrap.innerHTML = sqActive.questions.map((q, i) => `
+        <div class="bg-white border border-navy/10 p-5" data-qid="${q.id}">
+          <p class="font-medium text-navy mb-3"><span class="text-navy/40 mr-1">${i + 1}.</span> ${escapeHtml(q.question_text)}</p>
+          <div class="space-y-2">
+            ${['A', 'B', 'C', 'D'].map(l => `
+              <label class="flex items-start gap-3 border border-navy/15 px-4 py-3 cursor-pointer hover:border-sky transition-colors has-[:checked]:border-navy has-[:checked]:bg-navy/5">
+                <input type="radio" name="q-${q.id}" value="${l}" class="mt-1 accent-[#1B3A6B]">
+                <span class="text-sm text-navy"><span class="font-medium mr-1">${l}.</span>${escapeHtml(q['option_' + l.toLowerCase()])}</span>
+              </label>`).join('')}
+          </div>
+        </div>`).join('');
+
+      wrap.querySelectorAll('input[type="radio"]').forEach(r => {
+        r.addEventListener('change', () => {
+          sqActive.answers[r.name.replace('q-', '')] = r.value;
+          sqUpdateAnswered();
+        });
+      });
+    }
+
+    function sqUpdateAnswered() {
+      document.getElementById('sq-answered').textContent = Object.keys(sqActive.answers).length;
+    }
+
+    // ---- countdown (setInterval) + auto-submit at 00:00 ----
+    function sqStartTimer() {
+      clearInterval(sqTimerHandle);
+      const timerEl = document.getElementById('sq-timer');
+
+      const tick = () => {
+        const remaining = Math.max(0, Math.ceil((sqActive.deadlineMs - Date.now()) / 1000));
+        const m = String(Math.floor(remaining / 60)).padStart(2, '0');
+        const s = String(remaining % 60).padStart(2, '0');
+        timerEl.textContent = `${m}:${s}`;
+        timerEl.classList.toggle('text-red-600', remaining <= 60);
+        timerEl.classList.toggle('text-navy', remaining > 60);
+
+        if (remaining <= 0) {
+          clearInterval(sqTimerHandle);
+          sqSubmit(true);
+        }
+      };
+      tick();
+      sqTimerHandle = setInterval(tick, 1000);
+    }
+
+    // ---- submit -> Edge Function grades it server-side ----
+    document.getElementById('sq-submit-btn').addEventListener('click', () => {
+      const unanswered = sqActive.questions.length - Object.keys(sqActive.answers).length;
+      if (unanswered > 0 && !confirm(`You have ${unanswered} unanswered question${unanswered === 1 ? '' : 's'}. Submit anyway?`)) return;
+      sqSubmit(false);
+    });
+
+    async function sqSubmit(auto) {
+      if (!sqActive || sqSubmitting) return;   // double-tap / timer+click guard
+      sqSubmitting = true;
+      clearInterval(sqTimerHandle);
+
+      const btn = document.getElementById('sq-submit-btn');
+      const statusEl = document.getElementById('sq-take-status');
+      btn.disabled = true;
+      btn.textContent = auto ? 'Time is up — submitting…' : 'Submitting…';
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const res = await fetch(`${SQ_FUNCTION_URL}/grade-quiz`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token || SUPABASE_ANON_KEY}`,
+            'apikey': SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({ quizId: sqActive.quizId, answers: sqActive.answers }),
+        });
+        const body = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          // Already submitted elsewhere / closed: don't loop, just go back.
+          if (res.status === 409 || res.status === 403) {
+            alert(body.error || 'This quiz can no longer be submitted.');
+            sqActive = null;
+            sqShowView('list'); sqLoadList();
+            return;
+          }
+          throw new Error(body.error || 'Could not submit.');
+        }
+
+        sqShowResult(body);
+        sqActive = null;
+      } catch (err) {
+        console.error(err);
+        // Network failure: let her try again (timer already at zero is fine —
+        // the server decides whether the submission is still in time).
+        sqSubmitting = false;
+        btn.disabled = false;
+        btn.textContent = 'Try submitting again';
+        statusEl.textContent = 'Could not reach the server. Check your connection, then tap the button again — your answers are still here.';
+        statusEl.className = 'text-sm px-3 py-2 border text-red-700 bg-red-50 border-red-200';
+        statusEl.classList.remove('hidden');
+      }
+    }
+
+    // ---- result + review (correct answers are revealed only now) ----
+    function sqShowResult(r) {
+      document.getElementById('sq-result-score').textContent = `${r.score}%`;
+      document.getElementById('sq-result-detail').textContent = `${r.correctCount} of ${r.total} correct`;
+      const noteEl = document.getElementById('sq-result-note');
+      noteEl.classList.toggle('hidden', !r.timedOut);
+      if (r.timedOut) noteEl.textContent = 'Your time ran out, so this quiz was submitted automatically.';
+
+      document.getElementById('sq-review').innerHTML = r.review.map((q, i) => {
+        const gotIt = q.your_answer === q.correct_option;
+        return `
+          <div class="bg-white border ${gotIt ? 'border-emerald-300' : 'border-red-300'} p-5">
+            <p class="font-medium text-navy mb-3"><span class="text-navy/40 mr-1">${i + 1}.</span> ${escapeHtml(q.question_text)}</p>
+            <div class="space-y-1.5 text-sm">
+              ${['A', 'B', 'C', 'D'].map(l => {
+                const isCorrect = l === q.correct_option;
+                const isYours = l === q.your_answer;
+                let cls = 'text-navy/70', tag = '';
+                if (isCorrect) { cls = 'text-emerald-800 bg-emerald-50 font-medium'; tag = ' ✓ Correct answer'; }
+                else if (isYours) { cls = 'text-red-800 bg-red-50'; tag = ' ✗ Your answer'; }
+                return `<p class="px-3 py-2 ${cls}">${l}. ${escapeHtml(q['option_' + l.toLowerCase()])}${tag}</p>`;
+              }).join('')}
+            </div>
+            ${q.your_answer === null ? '<p class="text-xs text-amber-700 mt-2">You did not answer this question.</p>' : ''}
+          </div>`;
+      }).join('');
+
+      sqShowView('result');
+      window.scrollTo({ top: 0 });
+    }
+
+    document.getElementById('sq-result-back').addEventListener('click', () => {
+      sqShowView('list');
+      sqLoadList();
+    });
+
+    // Warn before closing the tab in the middle of a quiz.
+    window.addEventListener('beforeunload', (e) => {
+      if (sqActive && !sqSubmitting) { e.preventDefault(); e.returnValue = ''; }
+    });
 
     init();
   </script>
