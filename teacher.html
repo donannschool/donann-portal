@@ -1184,8 +1184,20 @@
       const assignedSubjectIds = new Set(
         currentAssignments.filter(a => a.classId === classId).map(a => a.subjectId));
 
-      const options = qzSubjectsCache.filter(s =>
-        assignedSubjectIds.has(s.id) && (!s.class_level || s.class_level === category));
+      // The teacher's own assignment for this class is the real permission
+      // check (and RLS enforces it again on save). subjects.class_level is
+      // NOT used to hide anything here: it may be blank, differently
+      // spelled, or wrong for some subjects, and hiding a subject the
+      // teacher is genuinely assigned to is far worse than showing it.
+      const options = qzSubjectsCache.filter(s => assignedSubjectIds.has(s.id));
+
+      // Some assigned subject ids may be missing from the subjects list the
+      // browser was allowed to read. Fall back to the assignment's own name
+      // so the teacher can still pick it.
+      const haveIds = new Set(options.map(s => s.id));
+      currentAssignments
+        .filter(a => a.classId === classId && !haveIds.has(a.subjectId))
+        .forEach(a => options.push({ id: a.subjectId, subject_name: a.subjectName, class_level: null, department: null }));
 
       const subjEl = document.getElementById('qz-subject');
       subjEl.innerHTML = options.length
