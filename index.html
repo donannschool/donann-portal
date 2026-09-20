@@ -603,10 +603,13 @@
       }
 
       grid.innerHTML = data.map((item, i) => `
-        <figure class="fade-in aspect-square bg-navy/5 overflow-hidden border border-navy/10" style="animation-delay:${i * 40}ms">
-          <img src="${escapeAttr(item.image_url)}" alt="${escapeAttr(item.caption || 'School photo')}"
-               class="w-full h-full object-cover"
-               onerror="this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center text-navy/30 text-sm\\'>Image unavailable</div>'">
+        <figure class="fade-in bg-white border border-navy/10 overflow-hidden" style="animation-delay:${i * 40}ms">
+          <div class="aspect-square bg-navy/5">
+            <img src="${escapeAttr(item.image_url)}" alt="${escapeAttr(item.caption || 'School photo')}"
+                 class="w-full h-full object-cover"
+                 onerror="this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center text-navy/30 text-sm\\'>Image unavailable</div>'">
+          </div>
+          ${item.caption ? `<figcaption class="px-3 py-2 text-xs text-navy/70">${escapeHtml(item.caption)}</figcaption>` : ''}
         </figure>
       `).join('');
       grid.classList.remove('hidden');
