@@ -129,6 +129,25 @@
               <p id="stat-news" class="font-display text-3xl text-navy">—</p>
             </div>
           </div>
+
+          <div class="mt-8">
+            <h2 class="font-display text-lg text-navy mb-3">Students per class</h2>
+            <div class="bg-white border border-navy/10 overflow-x-auto">
+              <table class="w-full text-sm min-w-[420px]">
+                <thead class="bg-navy/5 text-navy text-left">
+                  <tr>
+                    <th class="px-4 py-3 font-medium">Class</th>
+                    <th class="px-4 py-3 font-medium text-right">Total</th>
+                    <th class="px-4 py-3 font-medium text-right">Male</th>
+                    <th class="px-4 py-3 font-medium text-right">Female</th>
+                  </tr>
+                </thead>
+                <tbody id="overview-class-counts" class="divide-y divide-navy/10">
+                  <tr><td class="px-4 py-6 text-navy/40" colspan="4">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </section>
 
         <!-- ========================================================= -->
@@ -1371,6 +1390,60 @@
       document.getElementById('stat-students').textContent = studentCount ?? '—';
       document.getElementById('stat-staff').textContent = staffCount ?? '—';
       document.getElementById('stat-news').textContent = newsCount ?? '—';
+      loadClassCounts();
+    }
+
+    // Per-class enrollment breakdown (total / male / female) for the
+    // overview page, so admin doesn't need to open All Students and count.
+    async function loadClassCounts() {
+      const tbody = document.getElementById('overview-class-counts');
+      if (!tbody || !supabaseClient) return;
+
+      const [{ data: classes, error: classesError }, { data: students, error: studentsError }] = await Promise.all([
+        supabaseClient.from('classes').select('id, class_name').order('class_name'),
+        supabaseClient.from('students').select('current_class_id, gender').eq('is_active', true),
+      ]);
+
+      if (classesError || studentsError) {
+        tbody.innerHTML = '<tr><td class="px-4 py-6 text-red-600" colspan="4">Could not load class counts.</td></tr>';
+        console.error(classesError || studentsError);
+        return;
+      }
+
+      const countsByClass = {};
+      (students || []).forEach(s => {
+        const key = s.current_class_id || 'unassigned';
+        const bucket = (countsByClass[key] ||= { total: 0, male: 0, female: 0 });
+        bucket.total++;
+        const g = (s.gender || '').toLowerCase();
+        if (g === 'male' || g === 'm') bucket.male++;
+        else if (g === 'female' || g === 'f') bucket.female++;
+      });
+
+      const rows = (classes || []).map(c => {
+        const counts = countsByClass[c.id] || { total: 0, male: 0, female: 0 };
+        return { name: c.class_name, ...counts };
+      });
+
+      // Students with no current_class_id (shouldn't normally happen, but
+      // worth surfacing rather than silently dropping them from the count).
+      if (countsByClass['unassigned']) {
+        rows.push({ name: 'No class assigned', ...countsByClass['unassigned'] });
+      }
+
+      if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="4">No classes set up yet.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = rows.map(r => `
+        <tr>
+          <td class="px-4 py-3 text-navy font-medium">${escapeHtml(r.name)}</td>
+          <td class="px-4 py-3 text-right text-navy">${r.total}</td>
+          <td class="px-4 py-3 text-right text-navy/60">${r.male}</td>
+          <td class="px-4 py-3 text-right text-navy/60">${r.female}</td>
+        </tr>
+      `).join('');
     }
 
     // =================================================================
