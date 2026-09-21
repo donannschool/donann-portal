@@ -108,26 +108,6 @@
     Checking your account…
   </main>
 
-  <!-- ============ PAYWALL: UNPAID ============ -->
-  <div id="paywall-overlay" class="hidden fixed inset-0 bg-navy-dark/90 z-50 flex items-center justify-center px-6">
-    <div class="notice-border bg-white max-w-sm w-full p-8 text-center fade-in">
-      <div class="w-14 h-14 rounded-full bg-red-50 border-2 border-red-300 text-red-600 flex items-center justify-center mx-auto mb-5 text-2xl">
-        &#128274;
-      </div>
-      <p class="font-display text-2xl text-navy mb-3">Access Denied</p>
-      <p class="text-navy/70 leading-relaxed mb-6">
-        Please contact the Bursar's office to settle outstanding term fees.
-      </p>
-      <div class="text-sm text-navy/50 border-t border-navy/10 pt-4 mb-6">
-        Clearance status for <span id="paywall-term" class="font-medium text-navy/70"></span>:
-        <span class="font-medium text-red-600">Unpaid</span>
-      </div>
-      <button id="paywall-signout" class="w-full bg-navy text-white py-3 font-medium hover:bg-navy-dark transition-colors">
-        Sign out
-      </button>
-    </div>
-  </div>
-
   <!-- ============ DASHBOARD (CLEARED) ============ -->
   <main id="state-dashboard" class="hidden max-w-4xl mx-auto px-6 py-10">
 
@@ -168,6 +148,13 @@
       <p class="text-xs text-navy/40 ml-auto">Showing your most recent result by default — pick a session &amp; term above to view an older one.</p>
     </div>
 
+    <!-- ===== REPORT CARD: LOCKED (unpaid) ===== -->
+    <div id="report-card-locked" class="hidden no-print bg-white border-l-4 border-red-400 p-6 text-sm text-navy/70">
+      Your report card for <span id="paywall-term" class="font-medium"></span> is locked because fees for this term are outstanding. Please contact the Bursar's office. Quizzes remain available regardless of fee status.
+    </div>
+
+    <!-- ===== REPORT CARD: CONTENT (cleared) ===== -->
+    <div id="report-card-content">
     <!-- ===== PRINTABLE SHEET ===== -->
     <div id="print-sheet" class="notice-border bg-white p-8 sm:p-10">
 
@@ -269,6 +256,8 @@
       <p class="text-center text-xs text-navy/30 mt-8">Generated on <span id="print-date"></span> &middot; Don-Ann School Student Portal</p>
     </div>
     <!-- ===== END PRINTABLE SHEET ===== -->
+    </div>
+    <!-- ===== END report-card-content ===== -->
 
     <!-- ===== QUIZZES SECTION ===== -->
     <div id="student-quizzes-section" class="no-print hidden">
@@ -352,7 +341,6 @@
     const stateGuest = document.getElementById('state-guest');
     const stateLoading = document.getElementById('state-loading');
     const stateDashboard = document.getElementById('state-dashboard');
-    const paywallOverlay = document.getElementById('paywall-overlay');
     const studentNamePill = document.getElementById('student-name-pill');
     const selectSessionEl = document.getElementById('select-session');
     const selectTermEl = document.getElementById('select-term');
@@ -553,14 +541,22 @@
         const isFreePlan = !!expectation?.is_free_plan;
         const isCleared = isFreePlan || (!!expectation && totalPaid >= Number(expectation.expected_amount || 0) && Number(expectation.expected_amount || 0) > 0);
 
+        // 3. FEE CLEARANCE — affects the Report Card tab's own content
+        // only. Quizzes are intentionally open to every student
+        // regardless of fee status (see quizzes_student_select RLS and
+        // start_quiz — neither checks clearance). So instead of hard-
+        // stopping the whole page here, show the portal shell either
+        // way, and let the Report Card tab render its own locked state
+        // if unpaid, while the Quizzes tab stays fully reachable.
         if (!isCleared) {
           document.getElementById('paywall-term').textContent = targetTerm;
-          paywallOverlay.classList.remove('hidden');
-          showOnly(stateLoading); // keep everything else hidden behind the modal
-          stateLoading.classList.add('hidden');
-          return; // hard stop — no score data is ever fetched or shown
+          showOnly(stateDashboard);
+          document.getElementById('report-card-locked').classList.remove('hidden');
+          document.getElementById('report-card-content').classList.add('hidden');
+          return; // no score data fetched for a locked report card
         }
-        paywallOverlay.classList.add('hidden');
+        document.getElementById('report-card-locked').classList.add('hidden');
+        document.getElementById('report-card-content').classList.remove('hidden');
 
         // 4. Cleared — fetch scores and comment, then render.
         const { data: scores, error: scoresError } = await supabaseClient
@@ -759,7 +755,6 @@
       window.location.href = 'index.html';
     }
     document.getElementById('logout-btn').addEventListener('click', signOut);
-    document.getElementById('paywall-signout').addEventListener('click', signOut);
 
     // ---------------------------------------------------------------
     // QUIZZES (student) — self-contained; everything is prefixed sq*
@@ -822,13 +817,7 @@
         return;
       }
       if (!quizzes || quizzes.length === 0) {
-        // RLS hides quizzes from students whose CURRENT-term fees are not
-        // cleared. An empty list could therefore mean "no quizzes" OR "fees
-        // outstanding" — ask the database which, so the message is honest.
-        const { data: cleared } = await supabaseClient.rpc('student_is_cleared');
-        listEl.innerHTML = cleared === false
-          ? '<div class="bg-white border-l-4 border-red-400 p-6 text-sm text-navy/70">Quizzes are locked because fees for the current term are outstanding. Please contact the Bursar\'s office.</div>'
-          : '<div class="bg-white border border-navy/10 p-8 text-center text-navy/50 text-sm">There are no quizzes for your class right now.</div>';
+        listEl.innerHTML = '<div class="bg-white border border-navy/10 p-8 text-center text-navy/50 text-sm">There are no quizzes for your class right now.</div>';
         return;
       }
 
