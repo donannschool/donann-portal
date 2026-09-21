@@ -201,25 +201,60 @@
       <!-- ========================================================= -->
       <section id="tab-attendance" class="panel">
         <h1 class="font-display text-2xl text-navy mb-1">Attendance</h1>
-        <p id="attendance-subtitle" class="text-navy/60 mb-6">Everyone defaults to Present — just tap the students who were Absent or Late.</p>
+        <p id="attendance-subtitle" class="text-navy/60 mb-4">Everyone defaults to Present — just tap the students who were Absent or Late.</p>
 
-        <div class="flex flex-wrap gap-3 mb-6">
-          <div id="attendance-class-wrap" class="hidden">
-            <select id="attendance-class" class="field-input text-sm max-w-[220px]"></select>
-          </div>
-          <input id="attendance-date" type="date" class="field-input text-sm max-w-[180px]">
+        <div class="flex gap-1 mb-6 border-b border-navy/10">
+          <button type="button" id="att-mode-mark" class="att-mode-btn px-4 py-2 text-sm font-medium border-b-2 border-navy text-navy">Mark attendance</button>
+          <button type="button" id="att-mode-summary" class="att-mode-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-navy/50 hover:text-navy">View summary</button>
         </div>
 
-        <div class="bg-white border border-navy/10">
-          <div id="attendance-rows" class="divide-y divide-navy/10">
-            <p class="px-6 py-6 text-navy/40 text-sm">Loading class roster…</p>
+        <!-- MARK MODE: one day at a time -->
+        <div id="att-panel-mark">
+          <div class="flex flex-wrap gap-3 mb-6">
+            <div id="attendance-class-wrap" class="hidden">
+              <select id="attendance-class" class="field-input text-sm max-w-[220px]"></select>
+            </div>
+            <input id="attendance-date" type="date" class="field-input text-sm max-w-[180px]">
+          </div>
+
+          <div class="bg-white border border-navy/10">
+            <div id="attendance-rows" class="divide-y divide-navy/10">
+              <p class="px-6 py-6 text-navy/40 text-sm">Loading class roster…</p>
+            </div>
+          </div>
+          <div class="flex items-center justify-between mt-4">
+            <p id="attendance-status" class="hidden text-sm px-3 py-2 border"></p>
+            <button id="attendance-save" class="bg-navy text-white px-6 py-2.5 font-medium hover:bg-navy-dark transition-colors ml-auto">
+              Save attendance
+            </button>
           </div>
         </div>
-        <div class="flex items-center justify-between mt-4">
-          <p id="attendance-status" class="hidden text-sm px-3 py-2 border"></p>
-          <button id="attendance-save" class="bg-navy text-white px-6 py-2.5 font-medium hover:bg-navy-dark transition-colors ml-auto">
-            Save attendance
-          </button>
+
+        <!-- SUMMARY MODE: date range, all students, register-style grid -->
+        <div id="att-panel-summary" class="hidden">
+          <div class="flex flex-wrap items-end gap-3 mb-6">
+            <div id="att-summary-class-wrap" class="hidden">
+              <label class="block text-xs text-navy/50 mb-1">Class</label>
+              <select id="att-summary-class" class="field-input text-sm max-w-[220px]"></select>
+            </div>
+            <div>
+              <label class="block text-xs text-navy/50 mb-1">From</label>
+              <input id="att-summary-from" type="date" class="field-input text-sm max-w-[180px]">
+            </div>
+            <div>
+              <label class="block text-xs text-navy/50 mb-1">To</label>
+              <input id="att-summary-to" type="date" class="field-input text-sm max-w-[180px]">
+            </div>
+            <button id="att-summary-load" class="bg-navy text-white px-5 py-2.5 text-sm font-medium hover:bg-navy-dark transition-colors">
+              View attendance
+            </button>
+          </div>
+
+          <p id="att-summary-status" class="hidden text-sm px-3 py-2 border mb-4"></p>
+
+          <div id="att-summary-wrap" class="bg-white border border-navy/10 overflow-x-auto">
+            <p class="px-6 py-6 text-navy/40 text-sm">Pick a date range and click "View attendance".</p>
+          </div>
         </div>
       </section>
 
@@ -1012,6 +1047,212 @@
       }
       showStatus(statusEl, 'Attendance saved.', false);
     });
+
+    // =================================================================
+    // ATTENDANCE SUMMARY (class teacher only; date range, all students)
+    // Register-style grid: one column per day, one row per student,
+    // matching the paper attendance register the school already uses.
+    // =================================================================
+    document.getElementById('att-mode-mark').addEventListener('click', () => {
+      document.getElementById('att-mode-mark').classList.add('border-navy', 'text-navy');
+      document.getElementById('att-mode-mark').classList.remove('border-transparent', 'text-navy/50');
+      document.getElementById('att-mode-summary').classList.remove('border-navy', 'text-navy');
+      document.getElementById('att-mode-summary').classList.add('border-transparent', 'text-navy/50');
+      document.getElementById('att-panel-mark').classList.remove('hidden');
+      document.getElementById('att-panel-summary').classList.add('hidden');
+    });
+
+    document.getElementById('att-mode-summary').addEventListener('click', () => {
+      document.getElementById('att-mode-summary').classList.add('border-navy', 'text-navy');
+      document.getElementById('att-mode-summary').classList.remove('border-transparent', 'text-navy/50');
+      document.getElementById('att-mode-mark').classList.remove('border-navy', 'text-navy');
+      document.getElementById('att-mode-mark').classList.add('border-transparent', 'text-navy/50');
+      document.getElementById('att-panel-mark').classList.add('hidden');
+      document.getElementById('att-panel-summary').classList.remove('hidden');
+      populateAttSummaryClassSelect();
+      // Default range: current month to date, first time this panel is opened.
+      const fromEl = document.getElementById('att-summary-from');
+      const toEl = document.getElementById('att-summary-to');
+      if (!toEl.value) toEl.value = todayLocalISODate();
+      if (!fromEl.value) {
+        const d = new Date();
+        d.setDate(1);
+        const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0');
+        fromEl.value = `${y}-${m}-01`;
+      }
+    });
+
+    function populateAttSummaryClassSelect() {
+      const wrap = document.getElementById('att-summary-class-wrap');
+      const select = document.getElementById('att-summary-class');
+      if (currentClassTeacherOf.length <= 1) {
+        wrap.classList.add('hidden');
+        return;
+      }
+      wrap.classList.remove('hidden');
+      if (!select.innerHTML) {
+        select.innerHTML = currentClassTeacherOf
+          .map(c => `<option value="${c.classId}">${escapeHtml(c.className || 'Unnamed class')}</option>`)
+          .join('');
+      }
+    }
+
+    function getSelectedAttSummaryClass() {
+      if (!currentClassTeacherOf.length) return null;
+      if (currentClassTeacherOf.length === 1) return currentClassTeacherOf[0];
+      const selectedId = document.getElementById('att-summary-class').value;
+      return currentClassTeacherOf.find(c => c.classId === selectedId) || currentClassTeacherOf[0];
+    }
+
+    // Local-date list between two ISO dates (inclusive), no timezone drift.
+    function dateRangeISO(fromISO, toISO) {
+      const out = [];
+      const [fy, fm, fd] = fromISO.split('-').map(Number);
+      const [ty, tm, td] = toISO.split('-').map(Number);
+      let cur = new Date(fy, fm - 1, fd);
+      const end = new Date(ty, tm - 1, td);
+      while (cur <= end) {
+        const y = cur.getFullYear(), m = String(cur.getMonth() + 1).padStart(2, '0'), d = String(cur.getDate()).padStart(2, '0');
+        out.push(`${y}-${m}-${d}`);
+        cur.setDate(cur.getDate() + 1);
+      }
+      return out;
+    }
+
+    function shortDateLabel(iso) {
+      const [y, m, d] = iso.split('-').map(Number);
+      const dt = new Date(y, m - 1, d);
+      return dt.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
+    }
+
+    document.getElementById('att-summary-load').addEventListener('click', loadAttendanceSummary);
+
+    async function loadAttendanceSummary() {
+      const cls = getSelectedAttSummaryClass();
+      const wrap = document.getElementById('att-summary-wrap');
+      const statusEl = document.getElementById('att-summary-status');
+      statusEl.classList.add('hidden');
+
+      if (!cls) {
+        wrap.innerHTML = '<p class="px-6 py-6 text-navy/40 text-sm">You are not currently assigned as a class teacher.</p>';
+        return;
+      }
+
+      const fromISO = document.getElementById('att-summary-from').value;
+      const toISO = document.getElementById('att-summary-to').value;
+      if (!fromISO || !toISO) {
+        showStatus(statusEl, 'Please pick both a from and to date.', true);
+        return;
+      }
+      if (fromISO > toISO) {
+        showStatus(statusEl, 'The "From" date must be before the "To" date.', true);
+        return;
+      }
+
+      const days = dateRangeISO(fromISO, toISO);
+      if (days.length > 62) {
+        showStatus(statusEl, 'Please choose a range of 62 days or less.', true);
+        return;
+      }
+
+      wrap.innerHTML = '<p class="px-6 py-6 text-navy/40 text-sm">Loading attendance…</p>';
+
+      const { data: students, error: studentsError } = await supabaseClient
+        .from('students')
+        .select('id, full_name')
+        .eq('current_class_id', cls.classId)
+        .eq('is_active', true)
+        .order('full_name');
+
+      if (studentsError) {
+        wrap.innerHTML = '<p class="px-6 py-6 text-red-600 text-sm">Could not load the class roster. Please try again.</p>';
+        console.error(studentsError);
+        return;
+      }
+
+      const { data: records, error: recordsError } = await supabaseClient
+        .from('student_attendance')
+        .select('student_id, attendance_date, status')
+        .eq('class_id', cls.classId)
+        .gte('attendance_date', fromISO)
+        .lte('attendance_date', toISO);
+
+      if (recordsError) {
+        wrap.innerHTML = '<p class="px-6 py-6 text-red-600 text-sm">Could not load attendance records. Please try again.</p>';
+        console.error(recordsError);
+        return;
+      }
+
+      // byStudent[studentId][date] = status
+      const byStudent = {};
+      (records || []).forEach(r => {
+        if (!byStudent[r.student_id]) byStudent[r.student_id] = {};
+        byStudent[r.student_id][r.attendance_date] = r.status;
+      });
+
+      renderAttendanceSummary(students || [], days, byStudent);
+    }
+
+    const ATT_STATUS_ABBR = { present: 'P', late: 'L', absent: 'A' };
+    const ATT_STATUS_CLASS = {
+      present: 'text-emerald-700',
+      late: 'text-amber-600',
+      absent: 'text-red-600 font-semibold',
+    };
+
+    function renderAttendanceSummary(students, days, byStudent) {
+      const wrap = document.getElementById('att-summary-wrap');
+      if (students.length === 0) {
+        wrap.innerHTML = '<p class="px-6 py-6 text-navy/40 text-sm">No students found in this class.</p>';
+        return;
+      }
+      if (days.length === 0) {
+        wrap.innerHTML = '<p class="px-6 py-6 text-navy/40 text-sm">No dates in the selected range.</p>';
+        return;
+      }
+
+      const headerCells = days.map(d => `<th class="px-2 py-2 text-center font-medium text-navy/60 whitespace-nowrap border-l border-navy/10">${shortDateLabel(d)}</th>`).join('');
+
+      const bodyRows = students.map(s => {
+        const rec = byStudent[s.id] || {};
+        let present = 0, late = 0, absent = 0, marked = 0;
+        const cells = days.map(d => {
+          const status = rec[d];
+          if (!status) return `<td class="px-2 py-2 text-center text-navy/20 border-l border-navy/10">–</td>`;
+          marked++;
+          if (status === 'present') present++;
+          else if (status === 'late') late++;
+          else if (status === 'absent') absent++;
+          return `<td class="px-2 py-2 text-center border-l border-navy/10 ${ATT_STATUS_CLASS[status] || ''}">${ATT_STATUS_ABBR[status] || '–'}</td>`;
+        }).join('');
+        return `
+          <tr class="border-t border-navy/10">
+            <td class="px-4 py-2 font-medium text-navy whitespace-nowrap sticky left-0 bg-white">${escapeHtml(s.full_name)}</td>
+            ${cells}
+            <td class="px-3 py-2 text-center border-l border-navy/10 text-emerald-700">${present}</td>
+            <td class="px-3 py-2 text-center border-l border-navy/10 text-amber-600">${late}</td>
+            <td class="px-3 py-2 text-center border-l border-navy/10 text-red-600 font-semibold">${absent}</td>
+            <td class="px-3 py-2 text-center border-l border-navy/10 text-navy/50">${marked}/${days.length}</td>
+          </tr>
+        `;
+      }).join('');
+
+      wrap.innerHTML = `
+        <table class="text-xs min-w-full">
+          <thead>
+            <tr class="bg-navy/5">
+              <th class="px-4 py-2 text-left font-medium text-navy/60 whitespace-nowrap sticky left-0 bg-navy/5">Student</th>
+              ${headerCells}
+              <th class="px-3 py-2 text-center font-medium text-emerald-700 border-l border-navy/10 whitespace-nowrap">P</th>
+              <th class="px-3 py-2 text-center font-medium text-amber-600 border-l border-navy/10 whitespace-nowrap">L</th>
+              <th class="px-3 py-2 text-center font-medium text-red-600 border-l border-navy/10 whitespace-nowrap">A</th>
+              <th class="px-3 py-2 text-center font-medium text-navy/50 border-l border-navy/10 whitespace-nowrap">Marked</th>
+            </tr>
+          </thead>
+          <tbody>${bodyRows}</tbody>
+        </table>
+      `;
+    }
 
     function getSelectedMasterClass() {
       if (!currentClassTeacherOf.length) return null;

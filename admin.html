@@ -764,45 +764,84 @@
         <!-- ========================================================= -->
         <section id="panel-student-attendance" class="panel">
           <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Student attendance</h1>
-          <p class="text-navy/60 mb-6">Read-only view of any class's daily attendance, as marked by the class teacher.</p>
+          <p class="text-navy/60 mb-4">Read-only view of any class's attendance, as marked by the class teacher.</p>
 
-          <div class="bg-white border border-navy/10 p-6 sm:p-8 mb-6">
-            <div class="grid sm:grid-cols-3 gap-3">
-              <select id="asa-class" class="field-input text-sm">
-                <option value="" disabled selected>Select class</option>
-              </select>
-              <input id="asa-date" type="date" class="field-input text-sm">
-              <select id="asa-session" class="field-input text-sm"></select>
+          <div class="flex gap-1 mb-6 border-b border-navy/10">
+            <button type="button" id="asa-mode-day" class="asa-mode-btn px-4 py-2 text-sm font-medium border-b-2 border-navy text-navy">Daily view</button>
+            <button type="button" id="asa-mode-range" class="asa-mode-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-navy/50 hover:text-navy">Range summary</button>
+          </div>
+
+          <!-- DAILY VIEW: one day at a time -->
+          <div id="asa-panel-day">
+            <div class="bg-white border border-navy/10 p-6 sm:p-8 mb-6">
+              <div class="grid sm:grid-cols-3 gap-3">
+                <select id="asa-class" class="field-input text-sm">
+                  <option value="" disabled selected>Select class</option>
+                </select>
+                <input id="asa-date" type="date" class="field-input text-sm">
+                <select id="asa-session" class="field-input text-sm"></select>
+              </div>
+            </div>
+
+            <div id="asa-summary" class="hidden grid grid-cols-3 gap-3 mb-6">
+              <div class="bg-white border border-navy/10 px-4 py-3">
+                <p class="text-xs uppercase tracking-wide text-navy/40">Present</p>
+                <p id="asa-count-present" class="text-2xl font-display text-emerald-700">0</p>
+              </div>
+              <div class="bg-white border border-navy/10 px-4 py-3">
+                <p class="text-xs uppercase tracking-wide text-navy/40">Late</p>
+                <p id="asa-count-late" class="text-2xl font-display text-amber-600">0</p>
+              </div>
+              <div class="bg-white border border-navy/10 px-4 py-3">
+                <p class="text-xs uppercase tracking-wide text-navy/40">Absent</p>
+                <p id="asa-count-absent" class="text-2xl font-display text-red-600">0</p>
+              </div>
+            </div>
+
+            <div class="bg-white border border-navy/10 overflow-x-auto">
+              <table class="w-full text-sm min-w-[480px]">
+                <thead class="bg-navy/5 text-navy text-left">
+                  <tr>
+                    <th class="px-4 py-3 font-medium">Student</th>
+                    <th class="px-4 py-3 font-medium w-40">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="asa-rows" class="divide-y divide-navy/10">
+                  <tr><td class="px-4 py-6 text-navy/40" colspan="2">Select a class and date above.</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
 
-          <div id="asa-summary" class="hidden grid grid-cols-3 gap-3 mb-6">
-            <div class="bg-white border border-navy/10 px-4 py-3">
-              <p class="text-xs uppercase tracking-wide text-navy/40">Present</p>
-              <p id="asa-count-present" class="text-2xl font-display text-emerald-700">0</p>
+          <!-- RANGE SUMMARY: date range, all students, register-style grid -->
+          <div id="asa-panel-range" class="hidden">
+            <div class="bg-white border border-navy/10 p-6 sm:p-8 mb-6">
+              <div class="grid sm:grid-cols-4 gap-3 items-end">
+                <div>
+                  <label class="block text-xs text-navy/50 mb-1">Class</label>
+                  <select id="asa-range-class" class="field-input text-sm">
+                    <option value="" disabled selected>Select class</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs text-navy/50 mb-1">From</label>
+                  <input id="asa-range-from" type="date" class="field-input text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs text-navy/50 mb-1">To</label>
+                  <input id="asa-range-to" type="date" class="field-input text-sm">
+                </div>
+                <button id="asa-range-load" class="bg-navy text-white px-5 py-2.5 text-sm font-medium hover:bg-navy-dark transition-colors">
+                  View attendance
+                </button>
+              </div>
             </div>
-            <div class="bg-white border border-navy/10 px-4 py-3">
-              <p class="text-xs uppercase tracking-wide text-navy/40">Late</p>
-              <p id="asa-count-late" class="text-2xl font-display text-amber-600">0</p>
-            </div>
-            <div class="bg-white border border-navy/10 px-4 py-3">
-              <p class="text-xs uppercase tracking-wide text-navy/40">Absent</p>
-              <p id="asa-count-absent" class="text-2xl font-display text-red-600">0</p>
-            </div>
-          </div>
 
-          <div class="bg-white border border-navy/10 overflow-x-auto">
-            <table class="w-full text-sm min-w-[480px]">
-              <thead class="bg-navy/5 text-navy text-left">
-                <tr>
-                  <th class="px-4 py-3 font-medium">Student</th>
-                  <th class="px-4 py-3 font-medium w-40">Status</th>
-                </tr>
-              </thead>
-              <tbody id="asa-rows" class="divide-y divide-navy/10">
-                <tr><td class="px-4 py-6 text-navy/40" colspan="2">Select a class and date above.</td></tr>
-              </tbody>
-            </table>
+            <p id="asa-range-status" class="hidden text-sm px-3 py-2 border mb-4"></p>
+
+            <div id="asa-range-wrap" class="bg-white border border-navy/10 overflow-x-auto">
+              <p class="px-6 py-6 text-navy/40 text-sm">Select a class and date range, then click "View attendance".</p>
+            </div>
           </div>
         </section>
 
@@ -3271,6 +3310,195 @@
     document.getElementById('asa-class').addEventListener('change', loadAdminAttendance);
     document.getElementById('asa-date').addEventListener('change', loadAdminAttendance);
     document.getElementById('asa-session').addEventListener('change', loadAdminAttendance);
+
+    // =================================================================
+    // STUDENT ATTENDANCE — RANGE SUMMARY (admin, any class)
+    // Same register-style grid as the daily view, but across a date
+    // range: one column per day, P/L/A per student per day, with totals.
+    // =================================================================
+    document.getElementById('asa-mode-day').addEventListener('click', () => {
+      document.getElementById('asa-mode-day').classList.add('border-navy', 'text-navy');
+      document.getElementById('asa-mode-day').classList.remove('border-transparent', 'text-navy/50');
+      document.getElementById('asa-mode-range').classList.remove('border-navy', 'text-navy');
+      document.getElementById('asa-mode-range').classList.add('border-transparent', 'text-navy/50');
+      document.getElementById('asa-panel-day').classList.remove('hidden');
+      document.getElementById('asa-panel-range').classList.add('hidden');
+    });
+
+    document.getElementById('asa-mode-range').addEventListener('click', () => {
+      document.getElementById('asa-mode-range').classList.add('border-navy', 'text-navy');
+      document.getElementById('asa-mode-range').classList.remove('border-transparent', 'text-navy/50');
+      document.getElementById('asa-mode-day').classList.remove('border-navy', 'text-navy');
+      document.getElementById('asa-mode-day').classList.add('border-transparent', 'text-navy/50');
+      document.getElementById('asa-panel-day').classList.add('hidden');
+      document.getElementById('asa-panel-range').classList.remove('hidden');
+      populateAdminAttendanceRangeFilters();
+    });
+
+    function populateAdminAttendanceRangeFilters() {
+      const classSelect = document.getElementById('asa-range-class');
+      if (classSelect.options.length <= 1) {
+        classSelect.innerHTML = '<option value="" disabled selected>Select class</option>' +
+          classesCache.map(c => `<option value="${c.id}">${escapeHtml(c.class_name)}</option>`).join('');
+      }
+      const toEl = document.getElementById('asa-range-to');
+      const fromEl = document.getElementById('asa-range-from');
+      if (!toEl.value) {
+        const d = new Date();
+        toEl.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      }
+      if (!fromEl.value) {
+        const d = new Date();
+        d.setDate(1);
+        fromEl.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+      }
+    }
+
+    function adminDateRangeISO(fromISO, toISO) {
+      const out = [];
+      const [fy, fm, fd] = fromISO.split('-').map(Number);
+      const [ty, tm, td] = toISO.split('-').map(Number);
+      let cur = new Date(fy, fm - 1, fd);
+      const end = new Date(ty, tm - 1, td);
+      while (cur <= end) {
+        const y = cur.getFullYear(), m = String(cur.getMonth() + 1).padStart(2, '0'), d = String(cur.getDate()).padStart(2, '0');
+        out.push(`${y}-${m}-${d}`);
+        cur.setDate(cur.getDate() + 1);
+      }
+      return out;
+    }
+
+    function adminShortDateLabel(iso) {
+      const [y, m, d] = iso.split('-').map(Number);
+      return new Date(y, m - 1, d).toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
+    }
+
+    document.getElementById('asa-range-load').addEventListener('click', loadAdminAttendanceRange);
+
+    async function loadAdminAttendanceRange() {
+      const classId = document.getElementById('asa-range-class').value;
+      const fromISO = document.getElementById('asa-range-from').value;
+      const toISO = document.getElementById('asa-range-to').value;
+      const wrap = document.getElementById('asa-range-wrap');
+      const statusEl = document.getElementById('asa-range-status');
+      statusEl.classList.add('hidden');
+
+      if (!classId) {
+        showStatus(statusEl, 'Please select a class.', true);
+        return;
+      }
+      if (!fromISO || !toISO) {
+        showStatus(statusEl, 'Please pick both a from and to date.', true);
+        return;
+      }
+      if (fromISO > toISO) {
+        showStatus(statusEl, 'The "From" date must be before the "To" date.', true);
+        return;
+      }
+
+      const days = adminDateRangeISO(fromISO, toISO);
+      if (days.length > 62) {
+        showStatus(statusEl, 'Please choose a range of 62 days or less.', true);
+        return;
+      }
+
+      wrap.innerHTML = '<p class="px-6 py-6 text-navy/40 text-sm">Loading attendance…</p>';
+
+      const { data: students, error: studentsError } = await supabaseClient
+        .from('students')
+        .select('id, full_name')
+        .eq('current_class_id', classId)
+        .eq('is_active', true)
+        .order('full_name');
+
+      if (studentsError) {
+        wrap.innerHTML = '<p class="px-6 py-6 text-red-600 text-sm">Could not load the class roster.</p>';
+        console.error(studentsError);
+        return;
+      }
+
+      const { data: records, error: recordsError } = await supabaseClient
+        .from('student_attendance')
+        .select('student_id, attendance_date, status')
+        .eq('class_id', classId)
+        .gte('attendance_date', fromISO)
+        .lte('attendance_date', toISO);
+
+      if (recordsError) {
+        wrap.innerHTML = '<p class="px-6 py-6 text-red-600 text-sm">Could not load attendance records.</p>';
+        console.error(recordsError);
+        return;
+      }
+
+      const byStudent = {};
+      (records || []).forEach(r => {
+        if (!byStudent[r.student_id]) byStudent[r.student_id] = {};
+        byStudent[r.student_id][r.attendance_date] = r.status;
+      });
+
+      renderAdminAttendanceRange(students || [], days, byStudent);
+    }
+
+    const ASA_STATUS_ABBR = { present: 'P', late: 'L', absent: 'A' };
+    const ASA_STATUS_CLASS = {
+      present: 'text-emerald-700',
+      late: 'text-amber-600',
+      absent: 'text-red-600 font-semibold',
+    };
+
+    function renderAdminAttendanceRange(students, days, byStudent) {
+      const wrap = document.getElementById('asa-range-wrap');
+      if (students.length === 0) {
+        wrap.innerHTML = '<p class="px-6 py-6 text-navy/40 text-sm">No students found in this class.</p>';
+        return;
+      }
+      if (days.length === 0) {
+        wrap.innerHTML = '<p class="px-6 py-6 text-navy/40 text-sm">No dates in the selected range.</p>';
+        return;
+      }
+
+      const headerCells = days.map(d => `<th class="px-2 py-2 text-center font-medium text-navy/60 whitespace-nowrap border-l border-navy/10">${adminShortDateLabel(d)}</th>`).join('');
+
+      const bodyRows = students.map(s => {
+        const rec = byStudent[s.id] || {};
+        let present = 0, late = 0, absent = 0, marked = 0;
+        const cells = days.map(d => {
+          const status = rec[d];
+          if (!status) return `<td class="px-2 py-2 text-center text-navy/20 border-l border-navy/10">–</td>`;
+          marked++;
+          if (status === 'present') present++;
+          else if (status === 'late') late++;
+          else if (status === 'absent') absent++;
+          return `<td class="px-2 py-2 text-center border-l border-navy/10 ${ASA_STATUS_CLASS[status] || ''}">${ASA_STATUS_ABBR[status] || '–'}</td>`;
+        }).join('');
+        return `
+          <tr class="border-t border-navy/10">
+            <td class="px-4 py-2 font-medium text-navy whitespace-nowrap sticky left-0 bg-white">${escapeHtml(s.full_name)}</td>
+            ${cells}
+            <td class="px-3 py-2 text-center border-l border-navy/10 text-emerald-700">${present}</td>
+            <td class="px-3 py-2 text-center border-l border-navy/10 text-amber-600">${late}</td>
+            <td class="px-3 py-2 text-center border-l border-navy/10 text-red-600 font-semibold">${absent}</td>
+            <td class="px-3 py-2 text-center border-l border-navy/10 text-navy/50">${marked}/${days.length}</td>
+          </tr>
+        `;
+      }).join('');
+
+      wrap.innerHTML = `
+        <table class="text-xs min-w-full">
+          <thead>
+            <tr class="bg-navy/5">
+              <th class="px-4 py-2 text-left font-medium text-navy/60 whitespace-nowrap sticky left-0 bg-navy/5">Student</th>
+              ${headerCells}
+              <th class="px-3 py-2 text-center font-medium text-emerald-700 border-l border-navy/10 whitespace-nowrap">P</th>
+              <th class="px-3 py-2 text-center font-medium text-amber-600 border-l border-navy/10 whitespace-nowrap">L</th>
+              <th class="px-3 py-2 text-center font-medium text-red-600 border-l border-navy/10 whitespace-nowrap">A</th>
+              <th class="px-3 py-2 text-center font-medium text-navy/50 border-l border-navy/10 whitespace-nowrap">Marked</th>
+            </tr>
+          </thead>
+          <tbody>${bodyRows}</tbody>
+        </table>
+      `;
+    }
 
     // =================================================================
     // ADMISSIONS & INQUIRIES — read + status update for public-site
