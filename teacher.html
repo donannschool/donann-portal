@@ -1062,7 +1062,7 @@
       document.getElementById('att-panel-summary').classList.add('hidden');
     });
 
-    document.getElementById('att-mode-summary').addEventListener('click', () => {
+    document.getElementById('att-mode-summary').addEventListener('click', async () => {
       document.getElementById('att-mode-summary').classList.add('border-navy', 'text-navy');
       document.getElementById('att-mode-summary').classList.remove('border-transparent', 'text-navy/50');
       document.getElementById('att-mode-mark').classList.remove('border-navy', 'text-navy');
@@ -1070,17 +1070,52 @@
       document.getElementById('att-panel-mark').classList.add('hidden');
       document.getElementById('att-panel-summary').classList.remove('hidden');
       populateAttSummaryClassSelect();
-      // Default range: current month to date, first time this panel is opened.
+      // Default range: active term's start date to today, first time
+      // this panel is opened, rather than an arbitrary calendar date.
       const fromEl = document.getElementById('att-summary-from');
       const toEl = document.getElementById('att-summary-to');
       if (!toEl.value) toEl.value = todayLocalISODate();
       if (!fromEl.value) {
-        const d = new Date();
-        d.setDate(1);
-        const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0');
-        fromEl.value = `${y}-${m}-01`;
+        fromEl.value = await getActiveTermStartDate();
       }
     });
+
+    // Looks up the active session + active term, then that term's
+    // start_date from the terms table. Falls back to the 1st of the
+    // current month if nothing has been configured yet in Academic
+    // configuration (admin side).
+    async function getActiveTermStartDate() {
+      const fallback = () => {
+        const d = new Date();
+        d.setDate(1);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+      };
+      try {
+        const { data: settings } = await supabaseClient.from('school_settings').select('active_session_id, active_term').limit(1).maybeSingle();
+        if (!settings?.active_session_id || !settings?.active_term) return fallback();
+        const { data: term } = await supabaseClient
+          .from('terms')
+          .select('start_date')
+          .eq('session_id', settings.active_session_id)
+          .eq('term', settings.active_term)
+          .maybeSingle();
+        return term?.start_date || fallback();
+      } catch (e) {
+        console.error(e);
+        return fallback();
+      }
+    }
+
+    // Is this ISO date a Saturday or Sunday?
+    function isWeekendISO(iso) {
+      const [y, m, d] = iso.split('-').map(Number);
+      const day = new Date(y, m - 1, d).getDay();
+      return day === 0 || day === 6;
+    }
+
+    function isClosureISO(iso, closures) {
+      return closures.some(c => iso >= c.start_date && iso <= c.end_date);
+    }
 
     function populateAttSummaryClassSelect() {
       const wrap = document.getElementById('att-summary-class-wrap');
@@ -1149,13 +1184,25 @@
         return;
       }
 
-      const days = dateRangeISO(fromISO, toISO);
-      if (days.length > 62) {
-        showStatus(statusEl, 'Please choose a range of 62 days or less.', true);
+      const allDays = dateRangeISO(fromISO, toISO);
+      if (allDays.length > 120) {
+        showStatus(statusEl, 'Please choose a range of 120 days or less.', true);
         return;
       }
 
       wrap.innerHTML = '<p class="px-6 py-6 text-navy/40 text-sm">Loading attendance…</p>';
+
+      const { data: closures, error: closuresError } = await supabaseClient
+        .from('school_closures')
+        .select('start_date, end_date, label')
+        .lte('start_date', toISO)
+        .gte('end_date', fromISO);
+
+      if (closuresError) console.error(closuresError);
+      const closureList = closures || [];
+
+      // School days only: no weekends, no dates inside a closure range.
+      const days = allDays.filter(d => !isWeekendISO(d) && !isClosureISO(d, closureList));
 
       const { data: students, error: studentsError } = await supabaseClient
         .from('students')

@@ -184,6 +184,70 @@
             </p>
           </div>
 
+          <!-- Term dates -->
+          <div class="bg-white border border-navy/10 p-6 sm:p-8 mb-6">
+            <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Term dates</p>
+            <p class="text-sm text-navy/50 mb-5">
+              Start and end date for each term of the active session. Attendance summaries use these dates to know where a term begins,
+              so the view doesn't start from an arbitrary date.
+            </p>
+            <div class="grid sm:grid-cols-4 gap-5 items-end mb-5">
+              <div>
+                <label class="field-label" for="term-select">Term</label>
+                <select id="term-select" class="field-input">
+                  <option value="1st Term">1st Term</option>
+                  <option value="2nd Term">2nd Term</option>
+                  <option value="3rd Term">3rd Term</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label" for="term-start">Start date</label>
+                <input id="term-start" class="field-input" type="date">
+              </div>
+              <div>
+                <label class="field-label" for="term-end">End date</label>
+                <input id="term-end" class="field-input" type="date">
+              </div>
+              <button id="term-save-btn" class="bg-navy text-white px-6 py-2.5 font-medium hover:bg-navy-dark transition-colors">
+                Save term dates
+              </button>
+            </div>
+            <p id="term-status" class="hidden text-sm px-3 py-2 border mb-4"></p>
+            <div id="term-list" class="divide-y divide-navy/10 border-t border-navy/10">
+              <p class="py-4 text-navy/40 text-sm">No term dates set for this session yet.</p>
+            </div>
+          </div>
+
+          <!-- School closures: holidays, mid-term breaks, unplanned closures -->
+          <div class="bg-white border border-navy/10 p-6 sm:p-8 mb-6">
+            <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">School calendar &mdash; holidays &amp; breaks</p>
+            <p class="text-sm text-navy/50 mb-5">
+              Mark any stretch with no school &mdash; a public holiday, mid-term break, or unplanned closure. These dates are automatically
+              skipped in every class's attendance summary, for every teacher, so gaps don't look like unmarked absences.
+            </p>
+            <div class="grid sm:grid-cols-4 gap-5 items-end mb-5">
+              <div>
+                <label class="field-label" for="closure-start">Start date</label>
+                <input id="closure-start" class="field-input" type="date">
+              </div>
+              <div>
+                <label class="field-label" for="closure-end">End date</label>
+                <input id="closure-end" class="field-input" type="date">
+              </div>
+              <div>
+                <label class="field-label" for="closure-label">Reason</label>
+                <input id="closure-label" class="field-input" type="text" placeholder="e.g. Mid-term break">
+              </div>
+              <button id="closure-save-btn" class="bg-navy text-white px-6 py-2.5 font-medium hover:bg-navy-dark transition-colors">
+                Add to calendar
+              </button>
+            </div>
+            <p id="closure-status" class="hidden text-sm px-3 py-2 border mb-4"></p>
+            <div id="closure-list" class="divide-y divide-navy/10 border-t border-navy/10">
+              <p class="py-4 text-navy/40 text-sm">No holidays or breaks added yet.</p>
+            </div>
+          </div>
+
           <!-- Initialize default structure -->
           <div class="bg-white border border-navy/10 p-6 sm:p-8">
             <p class="text-xs uppercase tracking-wide text-sky font-medium mb-3">Default school structure</p>
@@ -1418,6 +1482,196 @@
       showStatus(statusEl, `Active session set to ${sessionLabel} — ${term}.`, false);
       await loadSchoolSettings();
       await loadReferenceData();
+    });
+
+    // =================================================================
+    // TERM DATES — start/end date per term of the active session.
+    // Attendance summaries read this to default "From" to term start.
+    // =================================================================
+    let termsCache = [];
+
+    async function loadTerms() {
+      const listEl = document.getElementById('term-list');
+      const activeSession = sessionsCache.find(s => s.is_active) || sessionsCache[0];
+      if (!activeSession) {
+        listEl.innerHTML = '<p class="py-4 text-navy/40 text-sm">Set an active academic session above first.</p>';
+        termsCache = [];
+        return;
+      }
+      const { data, error } = await supabaseClient
+        .from('terms')
+        .select('id, term, start_date, end_date')
+        .eq('session_id', activeSession.id)
+        .order('start_date');
+
+      if (error) {
+        listEl.innerHTML = '<p class="py-4 text-red-600 text-sm">Could not load term dates.</p>';
+        console.error(error);
+        return;
+      }
+
+      termsCache = data || [];
+      if (termsCache.length === 0) {
+        listEl.innerHTML = '<p class="py-4 text-navy/40 text-sm">No term dates set for this session yet.</p>';
+        return;
+      }
+
+      listEl.innerHTML = termsCache.map(t => `
+        <div class="py-3 flex items-center justify-between">
+          <div>
+            <p class="text-navy font-medium">${escapeHtml(t.term)}</p>
+            <p class="text-sm text-navy/50">${t.start_date} to ${t.end_date}</p>
+          </div>
+          <button data-term-id="${t.id}" class="term-delete-btn text-red-600 text-sm hover:underline">Remove</button>
+        </div>
+      `).join('');
+
+      listEl.querySelectorAll('.term-delete-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Remove these term dates?')) return;
+          await supabaseClient.from('terms').delete().eq('id', btn.dataset.termId);
+          await loadTerms();
+        });
+      });
+    }
+
+    document.getElementById('term-save-btn').addEventListener('click', async () => {
+      const statusEl = document.getElementById('term-status');
+      if (!requireSupabase(statusEl)) return;
+
+      const activeSession = sessionsCache.find(s => s.is_active) || sessionsCache[0];
+      if (!activeSession) {
+        showStatus(statusEl, 'Set an active academic session above first.', true);
+        return;
+      }
+
+      const term = document.getElementById('term-select').value;
+      const startDate = document.getElementById('term-start').value;
+      const endDate = document.getElementById('term-end').value;
+
+      if (!startDate || !endDate) {
+        showStatus(statusEl, 'Please pick both a start and end date.', true);
+        return;
+      }
+      if (startDate > endDate) {
+        showStatus(statusEl, 'The start date must be before the end date.', true);
+        return;
+      }
+
+      const btn = document.getElementById('term-save-btn');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+
+      const { error } = await supabaseClient
+        .from('terms')
+        .upsert(
+          { session_id: activeSession.id, term, start_date: startDate, end_date: endDate },
+          { onConflict: 'session_id,term' }
+        );
+
+      btn.disabled = false;
+      btn.textContent = 'Save term dates';
+
+      if (error) {
+        showStatus(statusEl, 'Could not save these term dates. Please try again.', true);
+        console.error(error);
+        return;
+      }
+
+      document.getElementById('term-start').value = '';
+      document.getElementById('term-end').value = '';
+      showStatus(statusEl, 'Term dates saved.', false);
+      await loadTerms();
+    });
+
+    // =================================================================
+    // SCHOOL CLOSURES — public holidays, mid-term breaks, unplanned
+    // closures. Applies to every class automatically; attendance
+    // summaries (teacher + admin) skip these dates when drawing columns.
+    // =================================================================
+    let closuresCache = [];
+
+    async function loadClosures() {
+      const listEl = document.getElementById('closure-list');
+      const { data, error } = await supabaseClient
+        .from('school_closures')
+        .select('id, start_date, end_date, label')
+        .order('start_date', { ascending: false });
+
+      if (error) {
+        listEl.innerHTML = '<p class="py-4 text-red-600 text-sm">Could not load the school calendar.</p>';
+        console.error(error);
+        return;
+      }
+
+      closuresCache = data || [];
+      if (closuresCache.length === 0) {
+        listEl.innerHTML = '<p class="py-4 text-navy/40 text-sm">No holidays or breaks added yet.</p>';
+        return;
+      }
+
+      listEl.innerHTML = closuresCache.map(c => `
+        <div class="py-3 flex items-center justify-between">
+          <div>
+            <p class="text-navy font-medium">${escapeHtml(c.label)}</p>
+            <p class="text-sm text-navy/50">${c.start_date}${c.end_date !== c.start_date ? ' to ' + c.end_date : ''}</p>
+          </div>
+          <button data-closure-id="${c.id}" class="closure-delete-btn text-red-600 text-sm hover:underline">Remove</button>
+        </div>
+      `).join('');
+
+      listEl.querySelectorAll('.closure-delete-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Remove this from the school calendar?')) return;
+          await supabaseClient.from('school_closures').delete().eq('id', btn.dataset.closureId);
+          await loadClosures();
+        });
+      });
+    }
+
+    document.getElementById('closure-save-btn').addEventListener('click', async () => {
+      const statusEl = document.getElementById('closure-status');
+      if (!requireSupabase(statusEl)) return;
+
+      const startDate = document.getElementById('closure-start').value;
+      const endDate = document.getElementById('closure-end').value;
+      const label = document.getElementById('closure-label').value.trim();
+
+      if (!startDate || !endDate) {
+        showStatus(statusEl, 'Please pick both a start and end date.', true);
+        return;
+      }
+      if (startDate > endDate) {
+        showStatus(statusEl, 'The start date must be before the end date.', true);
+        return;
+      }
+      if (!label) {
+        showStatus(statusEl, 'Please give this a short reason, e.g. "Mid-term break".', true);
+        return;
+      }
+
+      const btn = document.getElementById('closure-save-btn');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+
+      const { error } = await supabaseClient
+        .from('school_closures')
+        .insert({ start_date: startDate, end_date: endDate, label });
+
+      btn.disabled = false;
+      btn.textContent = 'Add to calendar';
+
+      if (error) {
+        showStatus(statusEl, 'Could not save this. Please try again.', true);
+        console.error(error);
+        return;
+      }
+
+      document.getElementById('closure-start').value = '';
+      document.getElementById('closure-end').value = '';
+      document.getElementById('closure-label').value = '';
+      showStatus(statusEl, 'Added to the school calendar.', false);
+      await loadClosures();
     });
 
     document.getElementById('cfg-init-btn').addEventListener('click', async () => {
@@ -3348,10 +3602,38 @@
         toEl.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       }
       if (!fromEl.value) {
-        const d = new Date();
-        d.setDate(1);
-        fromEl.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+        // Default to the active term's start date rather than an
+        // arbitrary calendar date, so the range always starts from
+        // when school actually resumed.
+        const activeTerm = termsCache.find(t => {
+          const s = schoolSettings?.active_term;
+          return s ? t.term === s : true;
+        }) || termsCache[0];
+        if (activeTerm) {
+          fromEl.value = activeTerm.start_date;
+        } else {
+          const d = new Date();
+          d.setDate(1);
+          fromEl.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+        }
       }
+    }
+
+    // Is this ISO date a Saturday or Sunday?
+    function isWeekendISO(iso) {
+      const [y, m, d] = iso.split('-').map(Number);
+      const day = new Date(y, m - 1, d).getDay();
+      return day === 0 || day === 6;
+    }
+
+    // Is this ISO date inside any school_closures range?
+    function isClosureISO(iso, closures) {
+      return closures.some(c => iso >= c.start_date && iso <= c.end_date);
+    }
+
+    function closureLabelForISO(iso, closures) {
+      const hit = closures.find(c => iso >= c.start_date && iso <= c.end_date);
+      return hit ? hit.label : null;
     }
 
     function adminDateRangeISO(fromISO, toISO) {
@@ -3396,13 +3678,25 @@
         return;
       }
 
-      const days = adminDateRangeISO(fromISO, toISO);
-      if (days.length > 62) {
-        showStatus(statusEl, 'Please choose a range of 62 days or less.', true);
+      const allDays = adminDateRangeISO(fromISO, toISO);
+      if (allDays.length > 120) {
+        showStatus(statusEl, 'Please choose a range of 120 days or less.', true);
         return;
       }
 
       wrap.innerHTML = '<p class="px-6 py-6 text-navy/40 text-sm">Loading attendance…</p>';
+
+      const { data: closures, error: closuresError } = await supabaseClient
+        .from('school_closures')
+        .select('start_date, end_date, label')
+        .lte('start_date', toISO)
+        .gte('end_date', fromISO);
+
+      if (closuresError) console.error(closuresError);
+      const closureList = closures || [];
+
+      // School days only: no weekends, no dates inside a closure range.
+      const days = allDays.filter(d => !isWeekendISO(d) && !isClosureISO(d, closureList));
 
       const { data: students, error: studentsError } = await supabaseClient
         .from('students')
@@ -4654,6 +4948,8 @@
       populateOverviewFilters();
       loadPaymentOverview();
       populateFeesFilters();
+      loadTerms();
+      loadClosures();
       loadFeesList();
       populateAdminMasterSheetFilters();
       populateAdminAttendanceFilters();
