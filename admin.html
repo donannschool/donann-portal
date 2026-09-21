@@ -853,8 +853,8 @@
               <textarea id="news-description" class="field-input" rows="4" required></textarea>
             </div>
             <div>
-              <label class="field-label" for="news-image">Photo</label>
-              <input id="news-image" class="field-input" type="file" accept="image/*" required>
+              <label class="field-label" for="news-image">Image URL (from Postimages or similar)</label>
+              <input id="news-image" class="field-input" type="url" placeholder="https://i.postimg.cc/..." required>
             </div>
             <div id="news-preview-wrap" class="hidden">
               <p class="text-xs text-navy/50 mb-2">Preview</p>
@@ -866,43 +866,6 @@
               Publish to homepage
             </button>
           </form>
-        </section>
-
-        <!-- ========================================================= -->
-        <!-- PANEL: PHOTO GALLERY                                       -->
-        <!-- ========================================================= -->
-        <section id="panel-gallery" class="panel">
-          <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Photo gallery</h1>
-          <p class="text-navy/60 mb-6">Upload photos of school activities. These appear in the public gallery on the homepage.</p>
-
-          <form id="gallery-form" class="bg-white border border-navy/10 p-6 sm:p-8 space-y-5 max-w-xl mb-10">
-            <div>
-              <label class="field-label" for="gallery-album-title">Album title</label>
-              <input id="gallery-album-title" class="field-input" type="text" placeholder="e.g. Kellogg's Visit to the Primary Section" required>
-            </div>
-            <div>
-              <label class="field-label" for="gallery-album-description">Description (optional)</label>
-              <textarea id="gallery-album-description" class="field-input" rows="3"></textarea>
-            </div>
-            <div>
-              <label class="field-label" for="gallery-files">Photos</label>
-              <input id="gallery-files" class="field-input" type="file" accept="image/*" multiple required>
-              <p class="text-xs text-navy/40 mt-1">You can select several photos at once for this album.</p>
-            </div>
-            <div id="gallery-preview-wrap" class="hidden grid grid-cols-3 gap-2"></div>
-            <p id="gallery-status" class="hidden text-sm px-3 py-2 border"></p>
-            <button type="submit" id="gallery-btn"
-                    class="w-full sm:w-auto bg-navy text-white px-8 py-3 font-medium hover:bg-navy-dark transition-colors">
-              Upload album
-            </button>
-          </form>
-
-          <div class="flex items-baseline justify-between mb-4 border-b border-navy/10 pb-2">
-            <h2 class="font-display text-lg text-navy">Uploaded albums</h2>
-          </div>
-          <div id="gallery-admin-grid" class="space-y-6">
-            <p class="text-navy/40 text-sm">Loading…</p>
-          </div>
         </section>
 
       </div>
@@ -1010,7 +973,6 @@
       { id: 'admissions',  label: 'Admissions & inquiries' },
       { id: 'attendance',  label: 'Staff Attendance Log' },
       { id: 'news',       label: 'Post news' },
-      { id: 'gallery',    label: 'Photo gallery' },
     ];
 
     function renderNav(containerId) {
@@ -1044,8 +1006,6 @@
         if (btn.dataset.panel === 'attendance') loadAttendanceLog();
         if (btn.dataset.panel === 'students') loadStudentFullList();
         if (btn.dataset.panel === 'current-staff') loadStaffList();
-        if (btn.dataset.panel === 'gallery') loadGalleryAdminGrid();
-        if (btn.dataset.panel === 'student-attendance') { /* already wired via its own selects */ }
       }
     });
     showPanel('overview');
@@ -3870,20 +3830,51 @@
       const timelineEl = document.getElementById('ledger-timeline');
       timelineEl.innerHTML = '<p class="text-navy/40">Loading history…</p>';
 
-      const [{ data: scores }, { data: payments }] = await Promise.all([
+      const [{ data: scores }, { data: payments }, { data: expectations }] = await Promise.all([
         supabaseClient.from('scores').select('subject_id, session_id, term, total_score, subjects(subject_name), academic_sessions(session_label)').eq('student_id', studentId),
-        supabaseClient.from('fee_payments').select('session_id, term, amount, paid_at, note, academic_sessions(session_label)').eq('student_id', studentId),
+        supabaseClient.from('fee_payments').select('id, session_id, term, amount, paid_at, note, academic_sessions(session_label)').eq('student_id', studentId).order('paid_at', { ascending: true }),
+        supabaseClient.from('fee_expectations').select('session_id, term, expected_amount, is_free_plan').eq('student_id', studentId),
       ]);
+
+      // Map expected amount by "session_id|term" for quick lookup.
+      const expectedByKey = {};
+      (expectations || []).forEach(e => {
+        expectedByKey[`${e.session_id}|${e.term}`] = e.is_free_plan ? 0 : (e.expected_amount || 0);
+      });
+
+      // Walk payments in date order, tracking a running total PER
+      // session+term, so a payment is only "Complete" once the sum of
+      // everything paid so far for that term reaches the expected amount —
+      // matching how the Fees tab itself defines "cleared".
+      const runningPaid = {};
+      const paymentEntries = (payments || []).map(p => {
+        const key = `${p.session_id}|${p.term}`;
+        runningPaid[key] = (runningPaid[key] || 0) + Number(p.amount || 0);
+        const expected = expectedByKey[key];
+        let statusLabel;
+        if (expected === undefined) {
+          // No expectation set for this term — can't judge complete vs
+          // partial, so say what we know without guessing.
+          statusLabel = 'Payment';
+        } else if (expected === 0) {
+          statusLabel = 'Free plan';
+        } else if (runningPaid[key] >= expected) {
+          statusLabel = 'Complete payment';
+        } else {
+          statusLabel = `Deposit (balance ${formatNaira(expected - runningPaid[key])})`;
+        }
+        return {
+          type: 'payment', session: p.academic_sessions?.session_label, term: p.term,
+          label: `${statusLabel} — ${formatNaira(p.amount)}${p.note ? ' · ' + p.note : ''}`,
+        };
+      });
 
       const entries = [
         ...(scores || []).map(s => ({
           type: 'score', session: s.academic_sessions?.session_label, term: s.term,
           label: `${s.subjects?.subject_name}: ${s.total_score ?? '—'}/100`,
         })),
-        ...(payments || []).map(p => ({
-          type: 'payment', session: p.academic_sessions?.session_label, term: p.term,
-          label: `Deposit — ${formatNaira(p.amount)}${p.note ? ' · ' + p.note : ''}`,
-        })),
+        ...paymentEntries,
       ].sort((a, b) => (a.session + a.term).localeCompare(b.session + b.term));
 
       if (entries.length === 0) {
@@ -3909,12 +3900,12 @@
     const newsStatus = document.getElementById('news-status');
     const newsBtn = document.getElementById('news-btn');
 
-    document.getElementById('news-image').addEventListener('change', (e) => {
-      const file = e.target.files?.[0];
+    document.getElementById('news-image').addEventListener('input', (e) => {
+      const url = e.target.value.trim();
       const wrap = document.getElementById('news-preview-wrap');
       const img = document.getElementById('news-preview');
-      if (!file) { wrap.classList.add('hidden'); return; }
-      img.src = URL.createObjectURL(file);
+      if (!url) { wrap.classList.add('hidden'); return; }
+      img.src = url;
       wrap.classList.remove('hidden');
     });
 
@@ -3925,33 +3916,10 @@
       newsBtn.disabled = true;
       newsBtn.textContent = 'Publishing…';
 
-      const file = document.getElementById('news-image').files?.[0];
-      if (!file) {
-        newsBtn.disabled = false;
-        newsBtn.textContent = 'Publish to homepage';
-        showStatus(newsStatus, 'Please choose a photo.', true);
-        return;
-      }
-
-      const path = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-      const { error: uploadError } = await supabaseClient.storage
-        .from('news-photos')
-        .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false });
-
-      if (uploadError) {
-        newsBtn.disabled = false;
-        newsBtn.textContent = 'Publish to homepage';
-        showStatus(newsStatus, 'Something went wrong uploading this photo. Please try again.', true);
-        console.error(uploadError);
-        return;
-      }
-
-      const { data: publicUrlData } = supabaseClient.storage.from('news-photos').getPublicUrl(path);
-
       const payload = {
         title: document.getElementById('news-title').value.trim(),
         description: document.getElementById('news-description').value.trim(),
-        image_url: publicUrlData?.publicUrl,
+        image_url: document.getElementById('news-image').value.trim(),
         is_published: true,
       };
 
@@ -3971,206 +3939,6 @@
       document.getElementById('news-preview-wrap').classList.add('hidden');
       loadStats();
     });
-
-    // =================================================================
-    // 7. PHOTO GALLERY — albums, each holding one or more photos.
-    // One album row + N photo rows, all uploaded together.
-    // =================================================================
-    const galleryForm = document.getElementById('gallery-form');
-    const galleryStatus = document.getElementById('gallery-status');
-    const galleryBtn = document.getElementById('gallery-btn');
-
-    document.getElementById('gallery-files').addEventListener('change', (e) => {
-      const files = Array.from(e.target.files || []);
-      const wrap = document.getElementById('gallery-preview-wrap');
-      if (files.length === 0) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
-      wrap.innerHTML = files.map(f => `
-        <img src="${URL.createObjectURL(f)}" class="w-full aspect-square object-cover border border-navy/10">
-      `).join('');
-      wrap.classList.remove('hidden');
-    });
-
-    galleryForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (!requireSupabase(galleryStatus)) return;
-
-      const files = Array.from(document.getElementById('gallery-files').files || []);
-      const title = document.getElementById('gallery-album-title').value.trim();
-      if (!title || files.length === 0) return;
-
-      galleryBtn.disabled = true;
-
-      // 1. Create the album row first, so photos can reference it.
-      const { data: album, error: albumError } = await supabaseClient
-        .from('gallery_albums')
-        .insert({
-          title,
-          description: document.getElementById('gallery-album-description').value.trim() || null,
-          is_published: true,
-        })
-        .select()
-        .single();
-
-      if (albumError || !album) {
-        galleryBtn.disabled = false;
-        galleryBtn.textContent = 'Upload album';
-        showStatus(galleryStatus, 'Something went wrong creating this album. Please try again.', true);
-        console.error(albumError);
-        return;
-      }
-
-      // 2. Upload each photo, one at a time, tracking progress.
-      let uploaded = 0;
-      for (const file of files) {
-        galleryBtn.textContent = `Uploading ${uploaded + 1} of ${files.length}…`;
-        const path = `${album.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-        const { error: uploadError } = await supabaseClient.storage
-          .from('gallery-photos')
-          .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false });
-
-        if (uploadError) {
-          console.error('Photo upload failed:', file.name, uploadError);
-          continue; // keep going with the rest rather than aborting the whole album
-        }
-
-        const { data: publicUrlData } = supabaseClient.storage.from('gallery-photos').getPublicUrl(path);
-        const { error: insertError } = await supabaseClient.from('gallery_photos').insert({
-          album_id: album.id,
-          image_url: publicUrlData?.publicUrl,
-          is_published: true,
-        });
-        if (insertError) {
-          console.error('Photo row insert failed:', file.name, insertError);
-          continue;
-        }
-        uploaded++;
-      }
-
-      galleryBtn.disabled = false;
-      galleryBtn.textContent = 'Upload album';
-
-      if (uploaded === 0) {
-        showStatus(galleryStatus, 'The album was created, but no photos uploaded successfully. Please try again.', true);
-        return;
-      }
-      showStatus(galleryStatus,
-        uploaded === files.length
-          ? `Uploaded — ${uploaded} photo${uploaded > 1 ? 's' : ''} added to "${title}".`
-          : `Uploaded ${uploaded} of ${files.length} photos to "${title}" — some photos failed, please check and re-add them if needed.`,
-        uploaded < files.length);
-      galleryForm.reset();
-      document.getElementById('gallery-preview-wrap').classList.add('hidden');
-      document.getElementById('gallery-preview-wrap').innerHTML = '';
-      loadGalleryAdminGrid();
-    });
-
-    async function loadGalleryAdminGrid() {
-      const grid = document.getElementById('gallery-admin-grid');
-      const { data: albums, error: albumsError } = await supabaseClient
-        .from('gallery_albums')
-        .select('id, title, description, created_at')
-        .order('created_at', { ascending: false });
-
-      if (albumsError) {
-        grid.innerHTML = '<p class="text-red-600 text-sm">Could not load gallery albums.</p>';
-        console.error(albumsError);
-        return;
-      }
-      if (!albums || albums.length === 0) {
-        grid.innerHTML = '<p class="text-navy/40 text-sm">No albums uploaded yet.</p>';
-        return;
-      }
-
-      const { data: photos, error: photosError } = await supabaseClient
-        .from('gallery_photos')
-        .select('id, album_id, image_url');
-      if (photosError) console.error(photosError);
-
-      const photosByAlbum = {};
-      (photos || []).forEach(p => {
-        (photosByAlbum[p.album_id] ||= []).push(p);
-      });
-
-      grid.innerHTML = albums.map(album => `
-        <div class="border border-navy/10 bg-white p-4">
-          <div class="flex items-start justify-between gap-4 mb-3">
-            <div>
-              <p class="font-medium text-navy">${escapeHtml(album.title)}</p>
-              <p class="text-xs text-navy/40">${(photosByAlbum[album.id] || []).length} photo${(photosByAlbum[album.id] || []).length === 1 ? '' : 's'}</p>
-            </div>
-            <div class="flex items-center gap-3 shrink-0">
-              <label class="text-sky text-xs font-medium hover:underline cursor-pointer">
-                Add photos
-                <input type="file" accept="image/*" multiple class="hidden" data-add-photos="${album.id}">
-              </label>
-              <button data-album-delete="${album.id}" class="text-red-600 text-xs font-medium hover:underline">Delete album</button>
-            </div>
-          </div>
-          <p data-add-status="${album.id}" class="hidden text-xs px-2 py-1 mb-2"></p>
-          <div class="grid grid-cols-4 sm:grid-cols-6 gap-2">
-            ${(photosByAlbum[album.id] || []).map(p => `
-              <div class="relative aspect-square bg-navy/5 border border-navy/10 group">
-                <img src="${escapeAttr(p.image_url)}" class="w-full h-full object-cover">
-                <button data-photo-delete="${p.id}"
-                        class="absolute top-1 right-1 bg-red-600 text-white text-[10px] px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `).join('');
-
-      grid.querySelectorAll('[data-add-photos]').forEach(input => {
-        input.addEventListener('change', async () => {
-          const albumId = input.dataset.addPhotos;
-          const files = Array.from(input.files || []);
-          if (files.length === 0) return;
-          const statusEl = grid.querySelector(`[data-add-status="${albumId}"]`);
-
-          let uploaded = 0;
-          for (const file of files) {
-            statusEl.classList.remove('hidden');
-            statusEl.textContent = `Uploading ${uploaded + 1} of ${files.length}…`;
-            const path = `${albumId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-            const { error: uploadError } = await supabaseClient.storage
-              .from('gallery-photos')
-              .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false });
-            if (uploadError) { console.error(uploadError); continue; }
-            const { data: publicUrlData } = supabaseClient.storage.from('gallery-photos').getPublicUrl(path);
-            const { error: insertError } = await supabaseClient.from('gallery_photos').insert({
-              album_id: albumId,
-              image_url: publicUrlData?.publicUrl,
-              is_published: true,
-            });
-            if (insertError) { console.error(insertError); continue; }
-            uploaded++;
-          }
-
-          statusEl.textContent = uploaded === files.length
-            ? `Added ${uploaded} photo${uploaded > 1 ? 's' : ''}.`
-            : `Added ${uploaded} of ${files.length} — some failed.`;
-          loadGalleryAdminGrid();
-        });
-      });
-
-      grid.querySelectorAll('[data-album-delete]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          if (!confirm('Delete this whole album and all its photos? This cannot be undone.')) return;
-          const id = btn.dataset.albumDelete;
-          const { error } = await supabaseClient.from('gallery_albums').delete().eq('id', id);
-          if (error) { alert('Could not delete this album. Please try again.'); console.error(error); return; }
-          loadGalleryAdminGrid();
-        });
-      });
-      grid.querySelectorAll('[data-photo-delete]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          if (!confirm('Delete this photo?')) return;
-          const id = btn.dataset.photoDelete;
-          const { error } = await supabaseClient.from('gallery_photos').delete().eq('id', id);
-          if (error) { alert('Could not delete this photo. Please try again.'); console.error(error); return; }
-          loadGalleryAdminGrid();
-        });
-      });
-    }
 
     // =================================================================
     // UTILITIES
