@@ -1276,15 +1276,24 @@
     // ('General Performance') is used for promotion/comment tracking.
     const CLASS_SUBJECT_MAP = {
       'CRECHE': ['General Performance'],
-      'KG 1': ['Number work', 'Letter work', 'Health habit', 'Social Habit', 'Poem', 'Fine Art', 'CRS', 'Science'],
-      'KG 2': ['Number work', 'Letter work', 'Health habit', 'Social Habit', 'Poem', 'Creative Art', 'CRS', 'Science', 'Quantitative', 'Verbal'],
-      'NURSERY 1': ['Mathematics', 'English', 'Writing', 'Social Habit', 'Health Habit', 'Spellings', 'Science', 'Creative Arts', 'CRK', 'Quantitative', 'Verbal'],
-      'NURSERY 2': ['Mathematics', 'English', 'Writing', 'Social Habit', 'Health Habit', 'Spellings', 'Science', 'Creative Arts', 'CRK', 'Quantitative', 'Verbal'],
-      'PRIMARY 1': ['Mathematics', 'English', 'PHE', 'Spelling', 'Social studies', 'Handwriting', 'Basic science', 'CCA', 'CRK', 'Quantitative', 'Verbal'],
-      'PRIMARY 2': ['Mathematics', 'English', 'PHE', 'Spelling', 'Social studies', 'Handwriting', 'Basic science', 'CCA', 'CRK', 'Civic Education', 'Home Economics', 'Computer', 'Quantitative', 'Verbal'],
-      'PRIMARY 3': ['Mathematics', 'English', 'PHE', 'Spelling', 'Social studies', 'Handwriting', 'Basic science', 'CCA', 'CRK', 'History', 'Civic Education', 'Home Economics', 'Computer', 'Quantitative', 'Verbal'],
-      'PRIMARY 4': ['Mathematics', 'English', 'PHE', 'Spelling', 'Social studies', 'Handwriting', 'Basic science', 'CCA', 'CRK', 'History', 'Civic Education', 'Agric', 'Home Economics', 'Computer', 'Quantitative', 'Verbal'],
-      'PRIMARY 5': ['Mathematics', 'English', 'PHE', 'Spelling', 'Social studies', 'Handwriting', 'Basic science', 'CCA', 'CRK', 'History', 'Civic Education', 'Home Economics', 'Computer', 'Quantitative', 'Verbal'],
+      'KG 1': ['Number work', 'Letter work', 'Health habit', 'Social Habit', 'Poem', 'Creative Arts', 'CRS', 'Science'],
+      'KG 2': ['Number work', 'Letter work', 'Health habit', 'Social Habit', 'Poem', 'Creative Arts', 'CRS', 'Science', 'Quantitative Reasoning', 'Verbal Reasoning'],
+      'NURSERY 1': ['Mathematics', 'English Language', 'Writing', 'Social Habit', 'Health habit', 'Spellings', 'Science', 'Creative Arts', 'CRS', 'Quantitative Reasoning', 'Verbal Reasoning'],
+      'NURSERY 2': ['English Language', 'Mathematics', 'Quantitative Reasoning', 'Verbal Reasoning', 'Writing', 'Spellings', 'CRS', 'Social Habit', 'Civic Education', 'Creative Arts'],
+      'PRIMARY 1': ['English Language', 'Mathematics', 'Quantitative Reasoning', 'Verbal Reasoning', 'Spellings', 'Handwriting', 'CRS', 'Creative Arts', 'History', 'Basic Science & Technology', 'National Values & Education'],
+      'PRIMARY 2': ['English Language', 'Mathematics', 'Basic Science & Technology', 'Writing', 'Quantitative Reasoning', 'Verbal Reasoning', 'Spellings', 'Basic Digital Literacy', 'Prevocational Studies', 'Social & Citizenship Studies', 'Security Education', 'Creative Arts', 'CRS', 'History'],
+      'PRIMARY 3': ['English Language', 'Mathematics', 'Basic Science & Technology', 'Writing', 'Quantitative Reasoning', 'Verbal Reasoning', 'Spellings', 'Basic Digital Literacy', 'Prevocational Studies', 'Social & Citizenship Studies', 'Security Education', 'Creative Arts', 'CRS', 'History'],
+      'PRIMARY 4': ['English Language', 'Mathematics', 'Quantitative Reasoning', 'Verbal Reasoning', 'Spellings', 'Writing', 'Creative Arts', 'CRS', 'PHE', 'Social & Citizenship Studies', 'Prevocational Studies', 'Basic Science & Technology', 'Basic Digital Literacy', 'History'],
+      'PRIMARY 5': ['English Language', 'Mathematics', 'Quantitative Reasoning', 'Verbal Reasoning', 'Spellings', 'Writing', 'Creative Arts', 'CRS', 'PHE', 'Social & Citizenship Studies', 'Prevocational Studies', 'Basic Science & Technology', 'Basic Digital Literacy', 'History'],
+      'JSS 1': ['Basic Science', 'Business Studies', 'Creative Arts', 'Computer', 'CRS', 'English Language', 'History', 'Mathematics', 'PHE', 'Social & Citizenship Studies'],
+      'JSS 2': ['Agricultural Science', 'Basic Science', 'Business Studies', 'Creative Arts', 'Civic Education', 'Computer', 'CRS', 'English Language', 'History', 'Mathematics', 'PHE', 'Social Studies'],
+      'JSS 3': ['Agricultural Science', 'Basic Science', 'Business Studies', 'Creative Arts', 'Civic Education', 'Computer', 'CRS', 'English Language', 'History', 'Mathematics', 'PHE', 'Social Studies'],
+      // SS tiers: Core + all Departmental Electives combined into one flat
+      // array. The backend/Supabase side handles per-department filtering;
+      // the frontend only needs the full set of valid SS subject names.
+      'SS 1': ['Citizenship & Heritage', 'Digital Technology', 'English Language', 'Mathematics', 'Agricultural Science', 'Biology', 'Chemistry', 'Physics', 'Commerce', 'Economics', 'Financial Accounting', 'Marketing', 'CRS', 'Government', 'History', 'Literature in English'],
+      'SS 2': ['Citizenship & Heritage', 'English Language', 'Mathematics', 'Agricultural Science', 'Biology', 'Chemistry', 'Physics', 'Commerce', 'Economics', 'Financial Accounting', 'Marketing', 'CRS', 'Government', 'History', 'Literature in English'],
+      'SS 3': ['Citizenship & Heritage', 'English Language', 'Mathematics', 'Agricultural Science', 'Biology', 'Chemistry', 'Physics', 'Commerce', 'Economics', 'Financial Accounting', 'Marketing', 'CRS', 'Government', 'History', 'Literature in English'],
     };
 
     // A single non-numeric marker so downstream reporting/gradebook code
@@ -1376,40 +1385,33 @@
     // =================================================================
     // ACADEMIC CONFIGURATION
     // =================================================================
-    // Predefined subject list per tier — this is the "subject list we
-    // designed earlier". Adjust freely; it only affects what gets
-    // attached to each class the FIRST time you initialize.
-    const SUBJECT_TIERS = {
-      CRECHE: ['Numbers', 'Letters', 'Colours & Shapes', 'Rhymes & Stories', 'Physical Play'],
-      PRE_PRIMARY: ['Numeracy', 'Literacy', 'Phonics', 'Creative Arts', 'Physical & Health Education'],
-      PRIMARY: ['Mathematics', 'English Studies', 'Basic Science', 'Social Studies', 'Verbal Reasoning',
-                'Quantitative Reasoning', 'Handwriting', 'Creative Arts', 'Physical & Health Education', 'Computer Studies'],
-      JUNIOR_SECONDARY: ['Mathematics', 'English Language', 'Basic Science', 'Basic Technology', 'Social Studies',
-                          'Civic Education', 'Business Studies', 'Agricultural Science', 'French', 'Computer Studies',
-                          'Christian Religious Studies', 'Physical & Health Education'],
-      SENIOR_SECONDARY: ['Mathematics', 'English Language', 'Civic Education', 'Biology', 'Physics', 'Chemistry',
-                          'Economics', 'Government', 'Literature in English', 'Geography', 'Financial Accounting',
-                          'Commerce', 'Christian Religious Studies'],
-    };
+    // Subject seeding now reads directly from CLASS_SUBJECT_MAP (defined
+    // above) instead of a separate tier-keyed SUBJECT_TIERS table. Primary
+    // 1 vs Primary 2/3 vs Primary 4/5, and JSS 1 vs JSS 2/3, now carry
+    // different subject lists within the same tier, so a single list per
+    // tier can no longer represent the verified per-class blueprint.
+    // CLASS_SUBJECT_MAP is the single source of truth for both the
+    // "ALL SUBJECTS" auto-mapping AND first-time initialization, so the
+    // two can never drift out of sync.
 
-    // Class definitions in display order: [class_name, level_order, tier, requires_portal_credentials, requires_department]
+    // Class definitions in display order: [class_name, level_order, class_subject_map_key, requires_portal_credentials, requires_department]
     const DEFAULT_CLASSES = [
-      ['Crèche',     1,  'CRECHE',            false, false],
-      ['KG 1',       2,  'PRE_PRIMARY',       false, false],
-      ['KG 2',       3,  'PRE_PRIMARY',       false, false],
-      ['Nursery 1',  4,  'PRE_PRIMARY',       false, false],
-      ['Nursery 2',  5,  'PRE_PRIMARY',       false, false],
-      ['Primary 1',  6,  'PRIMARY',           false, false],
-      ['Primary 2',  7,  'PRIMARY',           false, false],
-      ['Primary 3',  8,  'PRIMARY',           false, false],
-      ['Primary 4',  9,  'PRIMARY',           false, false],
-      ['Primary 5',  10, 'PRIMARY',           false, false],
-      ['JSS 1',      11, 'JUNIOR_SECONDARY',  true,  false],
-      ['JSS 2',      12, 'JUNIOR_SECONDARY',  true,  false],
-      ['JSS 3',      13, 'JUNIOR_SECONDARY',  true,  false],
-      ['SS 1',       14, 'SENIOR_SECONDARY',  true,  true],
-      ['SS 2',       15, 'SENIOR_SECONDARY',  true,  true],
-      ['SS 3',       16, 'SENIOR_SECONDARY',  true,  true],
+      ['Crèche',     1,  'CRECHE',      false, false],
+      ['KG 1',       2,  'KG 1',        false, false],
+      ['KG 2',       3,  'KG 2',        false, false],
+      ['Nursery 1',  4,  'NURSERY 1',   false, false],
+      ['Nursery 2',  5,  'NURSERY 2',   false, false],
+      ['Primary 1',  6,  'PRIMARY 1',   false, false],
+      ['Primary 2',  7,  'PRIMARY 2',   false, false],
+      ['Primary 3',  8,  'PRIMARY 3',   false, false],
+      ['Primary 4',  9,  'PRIMARY 4',   false, false],
+      ['Primary 5',  10, 'PRIMARY 5',   false, false],
+      ['JSS 1',      11, 'JSS 1',       true,  false],
+      ['JSS 2',      12, 'JSS 2',       true,  false],
+      ['JSS 3',      13, 'JSS 3',       true,  false],
+      ['SS 1',       14, 'SS 1',        true,  true],
+      ['SS 2',       15, 'SS 2',        true,  true],
+      ['SS 3',       16, 'SS 3',        true,  true],
     ];
 
     let schoolSettings = null; // { id, active_session_label, active_term }
@@ -1697,8 +1699,8 @@
           if (error) throw error;
         }
 
-        // 2. Subjects — collect the unique set across all tiers, insert any missing.
-        const allSubjectNames = [...new Set(Object.values(SUBJECT_TIERS).flat())];
+        // 2. Subjects — collect the unique set across all classes, insert any missing.
+        const allSubjectNames = [...new Set(Object.values(CLASS_SUBJECT_MAP).flat())];
         const { data: existingSubjects } = await supabaseClient.from('subjects').select('id, subject_name');
         const existingSubjectNames = new Set((existingSubjects || []).map(s => s.subject_name));
         const subjectsToInsert = allSubjectNames
@@ -1716,16 +1718,17 @@
         const classByName = Object.fromEntries((allClasses || []).map(c => [c.class_name, c.id]));
         const subjectByName = Object.fromEntries((allSubjects || []).map(s => [s.subject_name, s.id]));
 
-        // 4. Class ↔ subject links — attach each tier's subject list to
-        // its classes in class_subjects, skipping links that already exist.
+        // 4. Class ↔ subject links — attach each class's own subject list
+        // (from CLASS_SUBJECT_MAP) in class_subjects, skipping links that
+        // already exist.
         const { data: existingLinks } = await supabaseClient.from('class_subjects').select('class_id, subject_id');
         const existingLinkKeys = new Set((existingLinks || []).map(l => `${l.class_id}:${l.subject_id}`));
 
         const linksToInsert = [];
-        for (const [className, , tier] of DEFAULT_CLASSES) {
+        for (const [className, , mapKey] of DEFAULT_CLASSES) {
           const classId = classByName[className];
           if (!classId) continue;
-          for (const subjectName of (SUBJECT_TIERS[tier] || [])) {
+          for (const subjectName of (CLASS_SUBJECT_MAP[mapKey] || [])) {
             const subjectId = subjectByName[subjectName];
             if (!subjectId) continue;
             const key = `${classId}:${subjectId}`;
