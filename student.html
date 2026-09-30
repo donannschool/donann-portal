@@ -115,6 +115,7 @@
     <nav class="no-print flex gap-1 border-b border-navy/15 mb-8" id="student-tab-nav">
       <button data-stab="report" class="stab-btn active border-b-2 border-navy text-navy px-4 py-3 text-sm font-medium">Report card</button>
       <button data-stab="quizzes" class="stab-btn border-b-2 border-transparent text-navy/50 px-4 py-3 text-sm font-medium">Quizzes</button>
+      <button data-stab="materials" class="stab-btn border-b-2 border-transparent text-navy/50 px-4 py-3 text-sm font-medium">Study materials</button>
     </nav>
 
 
@@ -259,7 +260,20 @@
     </div>
     <!-- ===== END report-card-content ===== -->
 
-    <!-- ===== QUIZZES SECTION ===== -->
+        <!-- ===== STUDY MATERIALS SECTION ===== -->
+    <div id="student-materials-section" class="no-print hidden">
+      <p class="text-sky font-medium text-sm uppercase tracking-wide mb-1">Notes &amp; images from your teachers</p>
+      <h1 class="font-display text-3xl text-navy mb-6">Study materials</h1>
+      <div id="sm-list" class="grid sm:grid-cols-2 gap-4"><p class="text-navy/40 text-sm">Loading…</p></div>
+    </div>
+
+    <!-- Image viewer -->
+    <div id="sm-lightbox" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+      <button id="sm-lightbox-close" class="absolute top-4 right-5 text-white text-3xl leading-none" aria-label="Close">&times;</button>
+      <img id="sm-lightbox-img" src="" alt="" class="max-w-full max-h-full object-contain">
+    </div>
+
+<!-- ===== QUIZZES SECTION ===== -->
     <div id="student-quizzes-section" class="no-print hidden">
 
       <!-- List of available quizzes -->
@@ -777,6 +791,7 @@
       const btn = e.target.closest('.stab-btn');
       if (!btn) return;
       const goingToQuizzes = btn.dataset.stab === 'quizzes';
+      const goingToMaterials = btn.dataset.stab === 'materials';
 
       // Don't let a student wander off mid-quiz by accident.
       if (!goingToQuizzes && sqActive && !confirm('Leave this quiz? Your timer keeps running.')) return;
@@ -791,9 +806,11 @@
       });
 
       // Everything that belongs to the report card view.
-      const reportEls = document.querySelectorAll('#state-dashboard > .no-print:not(#student-tab-nav):not(#student-quizzes-section), #print-sheet');
-      reportEls.forEach(el => el.classList.toggle('hidden', goingToQuizzes));
+      const reportEls = document.querySelectorAll('#state-dashboard > .no-print:not(#student-tab-nav):not(#student-quizzes-section):not(#student-materials-section):not(#sm-lightbox), #print-sheet');
+      reportEls.forEach(el => el.classList.toggle('hidden', goingToQuizzes || goingToMaterials));
       document.getElementById('student-quizzes-section').classList.toggle('hidden', !goingToQuizzes);
+      document.getElementById('student-materials-section').classList.toggle('hidden', !goingToMaterials);
+      if (goingToMaterials) smLoadList();
 
       if (goingToQuizzes && !sqActive) { sqShowView('list'); sqLoadList(); }
     });
@@ -1049,6 +1066,66 @@
     });
 
     init();
+  
+    // =================================================================
+    // STUDY MATERIALS — list what teachers uploaded for this class
+    // (RLS returns only rows for the student's own class)
+    // =================================================================
+    function smIcon(type) {
+      if (type.includes('pdf')) return '&#128196;';
+      if (type.includes('word') || type.includes('document')) return '&#128221;';
+      if (type.includes('presentation') || type.includes('powerpoint')) return '&#128202;';
+      return '&#128193;';
+    }
+
+    async function smLoadList() {
+      const listEl = document.getElementById('sm-list');
+      listEl.innerHTML = '<p class="text-navy/40 text-sm">Loading…</p>';
+      const { data, error } = await supabaseClient
+        .from('study_materials')
+        .select('id, title, description, subject_name, file_url, file_type, created_at')
+        .order('created_at', { ascending: false });
+      if (error) {
+        listEl.innerHTML = '<p class="text-red-600 text-sm">Could not load study materials. Please refresh and try again.</p>';
+        console.error(error);
+        return;
+      }
+      if (!data || !data.length) {
+        listEl.innerHTML = '<div class="sm:col-span-2 bg-white border border-navy/10 p-8 text-center text-navy/50 text-sm">No study materials have been shared with your class yet.</div>';
+        return;
+      }
+      listEl.innerHTML = data.map(m => {
+        const isImg = (m.file_type || '').startsWith('image/');
+        const preview = isImg
+          ? `<img src="${escapeHtml(m.file_url)}" alt="" loading="lazy" class="w-full h-40 object-cover border-b border-navy/10">`
+          : `<div class="w-full h-40 bg-navy/5 flex items-center justify-center text-5xl border-b border-navy/10">${smIcon(m.file_type || '')}</div>`;
+        return `
+          <div class="bg-white border border-navy/10 flex flex-col">
+            <button type="button" class="sm-open text-left" data-url="${escapeHtml(m.file_url)}" data-img="${isImg ? '1' : ''}">${preview}</button>
+            <div class="p-4 flex-1 flex flex-col">
+              <p class="text-xs uppercase tracking-wide text-sky font-medium">${escapeHtml(m.subject_name)}</p>
+              <p class="font-medium text-navy">${escapeHtml(m.title)}</p>
+              ${m.description ? `<p class="text-sm text-navy/70 mt-1">${escapeHtml(m.description)}</p>` : ''}
+              <p class="text-xs text-navy/40 mt-2">${new Date(m.created_at).toLocaleDateString()}</p>
+              <button type="button" class="sm-open mt-3 self-start text-sm text-white bg-navy px-4 py-1.5 hover:bg-navy-dark" data-url="${escapeHtml(m.file_url)}" data-img="${isImg ? '1' : ''}">${isImg ? 'View image' : 'Open document'}</button>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    document.getElementById('sm-list').addEventListener('click', (e) => {
+      const b = e.target.closest('.sm-open');
+      if (!b) return;
+      if (b.dataset.img) {
+        document.getElementById('sm-lightbox-img').src = b.dataset.url;
+        document.getElementById('sm-lightbox').classList.remove('hidden');
+      } else {
+        window.open(b.dataset.url, '_blank', 'noopener');
+      }
+    });
+    document.getElementById('sm-lightbox').addEventListener('click', () => {
+      document.getElementById('sm-lightbox').classList.add('hidden');
+    });
   </script>
 </body>
 </html>

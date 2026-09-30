@@ -113,6 +113,7 @@
         <button data-tab="attendance" class="tab-btn hidden border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">Attendance</button>
         <button data-tab="signature" class="tab-btn hidden border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">My Signature</button>
         <button data-tab="quizzes" class="tab-btn hidden border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">Quizzes</button>
+        <button data-tab="materials" class="tab-btn border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">Study Materials</button>
       </nav>
     </header>
 
@@ -281,6 +282,42 @@
           <button id="signature-upload-btn" class="bg-navy text-white px-6 py-2.5 font-medium hover:bg-navy-dark transition-colors">Save signature</button>
           <p id="signature-status" class="hidden text-sm px-3 py-2 border"></p>
         </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB: STUDY MATERIALS (upload notes / images for a class)   -->
+      <!-- ========================================================= -->
+      <section id="tab-materials" class="panel">
+        <h1 class="font-display text-2xl text-navy mb-1">Study materials</h1>
+        <p class="text-navy/60 mb-6">Upload notes or images. Students in the class you choose will see them in their portal.</p>
+
+        <div class="bg-white border border-navy/10 p-6 mb-8">
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div class="sm:col-span-2">
+              <label class="field-label" for="sm-title">Title</label>
+              <input id="sm-title" class="field-input" type="text" maxlength="120" placeholder="e.g. Photosynthesis — Week 4 notes">
+            </div>
+            <div class="sm:col-span-2">
+              <label class="field-label" for="sm-assignment">Class &amp; subject</label>
+              <select id="sm-assignment" class="field-input"></select>
+            </div>
+            <div class="sm:col-span-2">
+              <label class="field-label" for="sm-desc">Description</label>
+              <textarea id="sm-desc" class="field-input" rows="3" maxlength="500" placeholder="Short note for students (optional)"></textarea>
+            </div>
+            <div class="sm:col-span-2">
+              <label class="field-label" for="sm-file">File (image, PDF, Word, PowerPoint or text — max 10 MB)</label>
+              <input id="sm-file" type="file" class="field-input" accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt">
+            </div>
+          </div>
+          <div class="flex items-center gap-4 mt-5">
+            <button id="sm-submit" class="bg-navy text-white px-5 py-2.5 font-medium hover:bg-navy-dark transition-colors">Submit</button>
+            <p id="sm-status" class="text-sm"></p>
+          </div>
+        </div>
+
+        <p class="text-xs uppercase tracking-wide text-navy/50 mb-3">Your uploads</p>
+        <div id="sm-list" class="space-y-3"><p class="text-navy/40 text-sm">Loading…</p></div>
       </section>
 
       <!-- ========================================================= -->
@@ -1963,6 +2000,127 @@
         });
       });
     }
+  
+    // =================================================================
+    // STUDY MATERIALS — upload notes/images to Supabase Storage
+    // Bucket: study-materials   Table: study_materials
+    // =================================================================
+    const SM_BUCKET = 'study-materials';
+    const SM_MAX_BYTES = 10 * 1024 * 1024;
+
+    document.querySelector('[data-tab="materials"]').addEventListener('click', () => {
+      smFillAssignments();
+      smLoadList();
+    });
+
+    function smFillAssignments() {
+      const sel = document.getElementById('sm-assignment');
+      if (!currentAssignments.length) {
+        sel.innerHTML = '<option value="">No classes assigned to you yet</option>';
+        return;
+      }
+      const prev = sel.value;
+      sel.innerHTML = currentAssignments.map((a, i) =>
+        `<option value="${i}">${escapeHtml(a.className)} — ${escapeHtml(a.subjectName)}</option>`).join('');
+      if (prev) sel.value = prev;
+    }
+
+    async function smLoadList() {
+      const listEl = document.getElementById('sm-list');
+      const { data, error } = await supabaseClient
+        .from('study_materials')
+        .select('id, title, description, class_name, subject_name, file_url, file_path, file_type, created_at')
+        .eq('created_by', String(currentStaff.id))
+        .order('created_at', { ascending: false });
+      if (error) {
+        listEl.innerHTML = '<p class="text-red-600 text-sm">Could not load your uploads. Please refresh.</p>';
+        console.error(error);
+        return;
+      }
+      if (!data.length) {
+        listEl.innerHTML = '<div class="bg-white border border-navy/10 p-6 text-center text-navy/50 text-sm">You have not uploaded anything yet.</div>';
+        return;
+      }
+      listEl.innerHTML = data.map(m => `
+        <div class="bg-white border border-navy/10 p-4 flex items-start justify-between gap-3 flex-wrap">
+          <div class="min-w-0">
+            <p class="font-medium text-navy">${escapeHtml(m.title)}</p>
+            <p class="text-xs text-navy/50">${escapeHtml(m.class_name)} · ${escapeHtml(m.subject_name)} · ${new Date(m.created_at).toLocaleDateString()}</p>
+            ${m.description ? `<p class="text-sm text-navy/70 mt-1">${escapeHtml(m.description)}</p>` : ''}
+          </div>
+          <div class="flex gap-2 shrink-0">
+            <a href="${encodeURI(m.file_url)}" target="_blank" rel="noopener" class="text-sm text-sky font-medium border border-sky/40 px-3 py-1.5 hover:bg-sky/5">Open</a>
+            <button data-del="${m.id}" data-path="${escapeHtml(m.file_path)}" class="sm-del text-sm text-red-600 border border-red-200 px-3 py-1.5 hover:bg-red-50">Delete</button>
+          </div>
+        </div>`).join('');
+      listEl.querySelectorAll('.sm-del').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('Delete this material? Students will no longer see it.')) return;
+        await supabaseClient.storage.from(SM_BUCKET).remove([b.dataset.path]);
+        const { error: delErr } = await supabaseClient.from('study_materials').delete().eq('id', b.dataset.del);
+        if (delErr) { showToast('Could not delete. Try again.'); console.error(delErr); return; }
+        showToast('Deleted.');
+        smLoadList();
+      }));
+    }
+
+    document.getElementById('sm-submit').addEventListener('click', async () => {
+      const statusEl = document.getElementById('sm-status');
+      const btn = document.getElementById('sm-submit');
+      const title = document.getElementById('sm-title').value.trim();
+      const desc = document.getElementById('sm-desc').value.trim();
+      const a = currentAssignments[Number(document.getElementById('sm-assignment').value)];
+      const file = document.getElementById('sm-file').files[0];
+
+      if (!supabaseClient) return showStatus(statusEl, 'Not connected to Supabase.', true);
+      if (!title) return showStatus(statusEl, 'Please enter a title.', true);
+      if (!a) return showStatus(statusEl, 'Please choose a class and subject.', true);
+      if (!file) return showStatus(statusEl, 'Please choose a file.', true);
+      if (file.size > SM_MAX_BYTES) return showStatus(statusEl, 'File is too large (max 10 MB).', true);
+
+      btn.disabled = true; btn.textContent = 'Uploading…';
+      showStatus(statusEl, '', false);
+
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const filePath = `${a.classId}/${Date.now()}_${safeName}`;
+
+      const { error: upErr } = await supabaseClient.storage
+        .from(SM_BUCKET).upload(filePath, file, { cacheControl: '3600', upsert: false });
+      if (upErr) {
+        btn.disabled = false; btn.textContent = 'Submit';
+        showStatus(statusEl, 'Upload failed. Please try again.', true);
+        console.error(upErr);
+        return;
+      }
+
+      const { data: pub } = supabaseClient.storage.from(SM_BUCKET).getPublicUrl(filePath);
+
+      const { error: dbErr } = await supabaseClient.from('study_materials').insert({
+        title,
+        description: desc || null,
+        class_id: String(a.classId),
+        class_name: a.className,
+        subject_id: String(a.subjectId),
+        subject_name: a.subjectName,
+        file_path: filePath,
+        file_url: pub.publicUrl,
+        file_type: file.type || 'application/octet-stream',
+        created_by: String(currentStaff.id),
+      });
+
+      btn.disabled = false; btn.textContent = 'Submit';
+      if (dbErr) {
+        await supabaseClient.storage.from(SM_BUCKET).remove([filePath]); // don't leave orphan file
+        showStatus(statusEl, 'Saved the file but could not record it. Please try again.', true);
+        console.error(dbErr);
+        return;
+      }
+
+      document.getElementById('sm-title').value = '';
+      document.getElementById('sm-desc').value = '';
+      document.getElementById('sm-file').value = '';
+      showStatus(statusEl, 'Uploaded. Students in ' + a.className + ' can now see it.', false);
+      smLoadList();
+    });
   </script>
 </body>
 </html>
