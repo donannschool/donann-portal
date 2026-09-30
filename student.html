@@ -517,13 +517,14 @@
         if (!student) {
           const { data: studentRow, error: studentError } = await supabaseClient
             .from('students')
-            .select('id, full_name, username, current_class_id, photo_url, classes(class_name)')
+            .select('*, classes(class_name)')
             .eq('auth_user_id', user.id)
             .single();
 
           if (studentError || !studentRow) {
             throw new Error('Could not find your student record.');
           }
+          if (!studentRow.full_name) studentRow.full_name = [studentRow.first_name, studentRow.middle_name, studentRow.surname].filter(Boolean).join(' ') || 'Student';
           studentRow.class_name = studentRow.classes?.class_name || '—';
           student = studentRow;
           currentStudent = studentRow;
@@ -695,7 +696,7 @@
       document.getElementById('sheet-term').textContent = activeTerm;
       document.getElementById('stat-name').textContent = student.full_name;
       document.getElementById('stat-class').textContent = student.class_name;
-      document.getElementById('stat-username').textContent = student.username;
+      document.getElementById('stat-username').textContent = student.username || '—';
 
       // This function only ever runs after the paywall guard in
       // loadStudentData has already confirmed isCleared === true for the
@@ -1156,7 +1157,7 @@
         if (session && session.user) {
           const { data: me, error: meErr } = await supabaseClient
             .from('students')
-            .select('id, full_name, username, current_class_id')
+            .select('*')
             .eq('auth_user_id', session.user.id)
             .maybeSingle();
           if (meErr) console.error(meErr);
@@ -1267,7 +1268,7 @@
       const row = {
         project_id: pid,
         student_id: String(currentStudent.id),
-        student_name: currentStudent.full_name,
+        student_name: currentStudent.full_name || [currentStudent.first_name, currentStudent.middle_name, currentStudent.surname].filter(Boolean).join(' ') || 'Student',
         answer_text: text || null,
         file_url: fileUrl,
         file_type: fileType,
