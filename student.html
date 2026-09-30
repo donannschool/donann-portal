@@ -1150,7 +1150,20 @@
     async function pjLoadList() {
       const listEl = document.getElementById('pj-list');
       listEl.innerHTML = '<p class="text-navy/40 text-sm">Loading…</p>';
-      if (!currentStudent) { listEl.innerHTML = '<p class="text-red-600 text-sm">Could not find your student record.</p>'; return; }
+      if (!currentStudent) {
+        // The report-card loader hasn't filled this in yet, so look the student up directly.
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session && session.user) {
+          const { data: me, error: meErr } = await supabaseClient
+            .from('students')
+            .select('id, full_name, username, current_class_id')
+            .eq('auth_user_id', session.user.id)
+            .maybeSingle();
+          if (meErr) console.error(meErr);
+          if (me) currentStudent = me;
+        }
+      }
+      if (!currentStudent) { listEl.innerHTML = '<p class="text-red-600 text-sm">Could not find your student record. Please sign out and sign in again.</p>'; return; }
 
       const { data: projects, error } = await supabaseClient
         .from('projects')
