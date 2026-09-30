@@ -114,6 +114,7 @@
         <button data-tab="signature" class="tab-btn hidden border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">My Signature</button>
         <button data-tab="quizzes" class="tab-btn hidden border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">Quizzes</button>
         <button data-tab="materials" class="tab-btn border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">Study Materials</button>
+        <button data-tab="projects" class="tab-btn border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">Projects</button>
       </nav>
     </header>
 
@@ -318,6 +319,42 @@
 
         <p class="text-xs uppercase tracking-wide text-navy/50 mb-3">Your uploads</p>
         <div id="sm-list" class="space-y-3"><p class="text-navy/40 text-sm">Loading…</p></div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB: PROJECTS (open-ended tasks students reply to)         -->
+      <!-- ========================================================= -->
+      <section id="tab-projects" class="panel">
+        <h1 class="font-display text-2xl text-navy mb-1">Projects</h1>
+        <p class="text-navy/60 mb-6">Post a project with instructions. Students reply with typed text, a file, or both.</p>
+
+        <div class="bg-white border border-navy/10 p-6 mb-8">
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div class="sm:col-span-2">
+              <label class="field-label" for="pj-title">Project title</label>
+              <input id="pj-title" class="field-input" type="text" maxlength="120" placeholder="e.g. Build a model of the water cycle">
+            </div>
+            <div class="sm:col-span-2">
+              <label class="field-label" for="pj-assignment">Class &amp; subject</label>
+              <select id="pj-assignment" class="field-input"></select>
+            </div>
+            <div class="sm:col-span-2">
+              <label class="field-label" for="pj-instructions">Instructions</label>
+              <textarea id="pj-instructions" class="field-input" rows="6" maxlength="5000" placeholder="Explain what students must do, what to include, and how to submit."></textarea>
+            </div>
+            <div>
+              <label class="field-label" for="pj-due">Due date &amp; time <span class="text-navy/40">(optional)</span></label>
+              <input id="pj-due" class="field-input" type="datetime-local">
+            </div>
+          </div>
+          <div class="flex items-center gap-4 mt-5">
+            <button id="pj-submit" class="bg-navy text-white px-5 py-2.5 font-medium hover:bg-navy-dark transition-colors">Post project</button>
+            <p id="pj-status" class="text-sm"></p>
+          </div>
+        </div>
+
+        <p class="text-xs uppercase tracking-wide text-navy/50 mb-3">Your projects</p>
+        <div id="pj-list" class="space-y-3"><p class="text-navy/40 text-sm">Loading…</p></div>
       </section>
 
       <!-- ========================================================= -->
@@ -2120,6 +2157,140 @@
       document.getElementById('sm-file').value = '';
       showStatus(statusEl, 'Uploaded. Students in ' + a.className + ' can now see it.', false);
       smLoadList();
+    });
+  
+    // =================================================================
+    // PROJECTS — teacher posts projects and reads student submissions
+    // Tables: projects, project_submissions   Bucket: project-files
+    // =================================================================
+    document.querySelector('[data-tab="projects"]').addEventListener('click', () => {
+      pjFillAssignments();
+      pjLoadList();
+    });
+
+    function pjFillAssignments() {
+      const sel = document.getElementById('pj-assignment');
+      if (!currentAssignments.length) {
+        sel.innerHTML = '<option value="">No classes assigned to you yet</option>';
+        return;
+      }
+      const prev = sel.value;
+      sel.innerHTML = currentAssignments.map((a, i) =>
+        `<option value="${i}">${escapeHtml(a.className)} — ${escapeHtml(a.subjectName)}</option>`).join('');
+      if (prev) sel.value = prev;
+    }
+
+    async function pjLoadList() {
+      const listEl = document.getElementById('pj-list');
+      const { data, error } = await supabaseClient
+        .from('projects')
+        .select('id, title, instructions, class_name, subject_name, created_at, due_date')
+        .eq('created_by', String(currentStaff.id))
+        .order('created_at', { ascending: false });
+      if (error) {
+        listEl.innerHTML = '<p class="text-red-600 text-sm">Could not load your projects. Please refresh.</p>';
+        console.error(error);
+        return;
+      }
+      if (!data.length) {
+        listEl.innerHTML = '<div class="bg-white border border-navy/10 p-6 text-center text-navy/50 text-sm">You have not posted any projects yet.</div>';
+        return;
+      }
+      listEl.innerHTML = data.map(p => `
+        <div class="bg-white border border-navy/10 p-4" data-pid="${p.id}">
+          <div class="flex items-start justify-between gap-3 flex-wrap">
+            <div class="min-w-0">
+              <p class="font-medium text-navy">${escapeHtml(p.title)}</p>
+              <p class="text-xs text-navy/50">${escapeHtml(p.class_name)} · ${escapeHtml(p.subject_name)} · ${new Date(p.created_at).toLocaleDateString()}${p.due_date ? ' · Due ' + new Date(p.due_date).toLocaleString() : ' · No due date'}</p>
+              <p class="text-sm text-navy/70 mt-2 whitespace-pre-wrap">${escapeHtml(p.instructions)}</p>
+            </div>
+            <div class="flex gap-2 shrink-0">
+              <button class="pj-view text-sm text-sky font-medium border border-sky/40 px-3 py-1.5 hover:bg-sky/5">View submissions</button>
+              <button class="pj-del text-sm text-red-600 border border-red-200 px-3 py-1.5 hover:bg-red-50">Delete</button>
+            </div>
+          </div>
+          <div class="pj-subs hidden mt-4 border-t border-navy/10 pt-4"></div>
+        </div>`).join('');
+    }
+
+    document.getElementById('pj-list').addEventListener('click', async (e) => {
+      const card = e.target.closest('[data-pid]');
+      if (!card) return;
+      const pid = card.dataset.pid;
+
+      if (e.target.closest('.pj-del')) {
+        if (!confirm('Delete this project and all student submissions to it?')) return;
+        const { data: subs } = await supabaseClient.from('project_submissions').select('file_path').eq('project_id', pid);
+        const paths = (subs || []).map(s => s.file_path).filter(Boolean);
+        if (paths.length) await supabaseClient.storage.from('project-files').remove(paths);
+        const { error } = await supabaseClient.from('projects').delete().eq('id', pid);
+        if (error) { showToast('Could not delete. Try again.'); console.error(error); return; }
+        showToast('Project deleted.');
+        pjLoadList();
+        return;
+      }
+
+      if (e.target.closest('.pj-view')) {
+        const box = card.querySelector('.pj-subs');
+        if (!box.classList.contains('hidden')) { box.classList.add('hidden'); return; }
+        box.classList.remove('hidden');
+        box.innerHTML = '<p class="text-navy/40 text-sm">Loading submissions…</p>';
+        const { data, error } = await supabaseClient
+          .from('project_submissions')
+          .select('student_name, answer_text, file_url, file_type, submitted_at')
+          .eq('project_id', pid)
+          .order('submitted_at', { ascending: false });
+        if (error) { box.innerHTML = '<p class="text-red-600 text-sm">Could not load submissions.</p>'; console.error(error); return; }
+        if (!data.length) { box.innerHTML = '<p class="text-navy/50 text-sm">No submissions yet.</p>'; return; }
+        box.innerHTML = `<p class="text-xs uppercase tracking-wide text-navy/50 mb-3">${data.length} submission${data.length === 1 ? '' : 's'}</p>` +
+          data.map(s => `
+            <div class="border border-navy/10 p-3 mb-2">
+              <div class="flex justify-between gap-3 flex-wrap">
+                <p class="font-medium text-navy text-sm">${escapeHtml(s.student_name || 'Student')}</p>
+                <p class="text-xs text-navy/40">${new Date(s.submitted_at).toLocaleString()}</p>
+              </div>
+              ${s.answer_text ? `<p class="text-sm text-navy/80 mt-2 whitespace-pre-wrap">${escapeHtml(s.answer_text)}</p>` : ''}
+              ${s.file_url ? `<a href="${encodeURI(s.file_url)}" target="_blank" rel="noopener" class="inline-block mt-2 text-sm text-sky font-medium hover:underline">Open attached file</a>` : ''}
+            </div>`).join('');
+      }
+    });
+
+    document.getElementById('pj-submit').addEventListener('click', async () => {
+      const statusEl = document.getElementById('pj-status');
+      const btn = document.getElementById('pj-submit');
+      const title = document.getElementById('pj-title').value.trim();
+      const instructions = document.getElementById('pj-instructions').value.trim();
+      const a = currentAssignments[Number(document.getElementById('pj-assignment').value)];
+      const dueVal = document.getElementById('pj-due').value;
+
+      if (!supabaseClient) return showStatus(statusEl, 'Not connected to Supabase.', true);
+      if (!title) return showStatus(statusEl, 'Please enter a title.', true);
+      if (!instructions) return showStatus(statusEl, 'Please enter instructions.', true);
+      if (!a) return showStatus(statusEl, 'Please choose a class and subject.', true);
+
+      btn.disabled = true; btn.textContent = 'Posting…';
+      const { error } = await supabaseClient.from('projects').insert({
+        title,
+        instructions,
+        class_id: String(a.classId),
+        class_name: a.className,
+        subject_id: String(a.subjectId),
+        subject_name: a.subjectName,
+        due_date: dueVal ? new Date(dueVal).toISOString() : null,
+        created_by: String(currentStaff.id),
+      });
+      btn.disabled = false; btn.textContent = 'Post project';
+
+      if (error) {
+        showStatus(statusEl, 'Could not post the project. Please try again.', true);
+        console.error(error);
+        return;
+      }
+      document.getElementById('pj-title').value = '';
+      document.getElementById('pj-instructions').value = '';
+      document.getElementById('pj-due').value = '';
+      showStatus(statusEl, 'Posted. Students in ' + a.className + ' can now see it.', false);
+      pjLoadList();
     });
   </script>
 </body>
