@@ -1620,6 +1620,40 @@
     // ------------------------------------------------------------------
     // LIST VIEW
     // ------------------------------------------------------------------
+    // ------------------------------------------------------------------
+    // Class -> Subject -> Items folders (same logic used on the student side)
+    // Shared by Quizzes, Study materials and Projects.
+    // ------------------------------------------------------------------
+    const tfOpen = new Map();
+    document.addEventListener('toggle', (e) => {
+      const k = e.target.dataset && e.target.dataset.fk;
+      if (k) tfOpen.set(k, e.target.open);
+    }, true);
+    function tfFolders(key, items, getClass, getSubject, renderItem) {
+      const attr = (t) => escapeHtml(t).replace(/"/g, '&quot;');
+      const isOpen = (k) => tfOpen.has(k) ? tfOpen.get(k) : true;
+      const tree = {};
+      items.forEach(it => {
+        const c = getClass(it) || 'Class', sj = getSubject(it) || 'General';
+        ((tree[c] = tree[c] || {})[sj] = tree[c][sj] || []).push(it);
+      });
+      const count = (o) => Object.values(o).reduce((n, a) => n + a.length, 0);
+      return Object.keys(tree).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).map(c => {
+        const ck = key + '|' + c;
+        return `<details data-fk="${attr(ck)}" ${isOpen(ck) ? 'open' : ''} class="bg-white border border-navy/10 mb-3">
+          <summary class="cursor-pointer select-none px-5 py-3 flex items-center font-display text-lg text-navy">&#128193;&nbsp;${escapeHtml(c)}<span class="ml-auto text-xs text-navy/40 font-sans">${count(tree[c])} item${count(tree[c]) === 1 ? '' : 's'}</span></summary>
+          <div class="border-t border-navy/10 p-3 space-y-3">
+            ${Object.keys(tree[c]).sort((a, b) => a.localeCompare(b)).map(sj => {
+              const sk = ck + '|' + sj;
+              return `<details data-fk="${attr(sk)}" ${isOpen(sk) ? 'open' : ''} class="border border-navy/10">
+                <summary class="cursor-pointer select-none px-4 py-2.5 flex items-center font-medium text-navy bg-navy/[0.03]">&#128194;&nbsp;${escapeHtml(sj)}<span class="ml-auto text-xs text-navy/40">${tree[c][sj].length}</span></summary>
+                <div class="space-y-3 p-3">${tree[c][sj].map(renderItem).join('')}</div>
+              </details>`;
+            }).join('')}
+          </div></details>`;
+      }).join('');
+    }
+
     async function qzLoadList() {
       const listEl = document.getElementById('qz-list');
       listEl.innerHTML = '<p class="text-navy/40 text-sm">Loading your quizzes…</p>';
@@ -1648,7 +1682,7 @@
       const submittedCount = {};
       (subs || []).forEach(s => { if (s.submitted_at) submittedCount[s.quiz_id] = (submittedCount[s.quiz_id] || 0) + 1; });
 
-      listEl.innerHTML = quizzes.map(q => {
+      listEl.innerHTML = tfFolders('qz', quizzes, q => q.class_level, q => q.subjects?.subject_name, q => {
         const due = new Date(q.due_date);
         const isClosed = due < new Date();
         return `
@@ -1670,7 +1704,7 @@
               <button data-qz-delete="${q.id}" class="border border-red-200 text-red-600 px-4 py-2 text-sm hover:bg-red-50 transition-colors">Delete</button>
             </div>
           </div>`;
-      }).join('');
+      });
 
       listEl.querySelectorAll('[data-qz-results]').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -2078,7 +2112,7 @@
         listEl.innerHTML = '<div class="bg-white border border-navy/10 p-6 text-center text-navy/50 text-sm">You have not uploaded anything yet.</div>';
         return;
       }
-      listEl.innerHTML = data.map(m => `
+      listEl.innerHTML = tfFolders('sm', data, m => m.class_name, m => m.subject_name, m => `
         <div class="bg-white border border-navy/10 p-4 flex items-start justify-between gap-3 flex-wrap">
           <div class="min-w-0">
             <p class="font-medium text-navy">${escapeHtml(m.title)}</p>
@@ -2089,7 +2123,7 @@
             <a href="${encodeURI(m.file_url)}" target="_blank" rel="noopener" class="text-sm text-sky font-medium border border-sky/40 px-3 py-1.5 hover:bg-sky/5">Open</a>
             <button data-del="${m.id}" data-path="${escapeHtml(m.file_path)}" class="sm-del text-sm text-red-600 border border-red-200 px-3 py-1.5 hover:bg-red-50">Delete</button>
           </div>
-        </div>`).join('');
+        </div>`);
       listEl.querySelectorAll('.sm-del').forEach(b => b.addEventListener('click', async () => {
         if (!confirm('Delete this material? Students will no longer see it.')) return;
         await supabaseClient.storage.from(SM_BUCKET).remove([b.dataset.path]);
@@ -2142,6 +2176,7 @@
         file_url: pub.publicUrl,
         file_type: file.type || 'application/octet-stream',
         created_by: String(currentStaff.id),
+        teacher_name: currentStaff.full_name || null,
       });
 
       btn.disabled = false; btn.textContent = 'Submit';
@@ -2196,7 +2231,7 @@
         listEl.innerHTML = '<div class="bg-white border border-navy/10 p-6 text-center text-navy/50 text-sm">You have not posted any projects yet.</div>';
         return;
       }
-      listEl.innerHTML = data.map(p => `
+      listEl.innerHTML = tfFolders('pj', data, p => p.class_name, p => p.subject_name, p => `
         <div class="bg-white border border-navy/10 p-4" data-pid="${p.id}">
           <div class="flex items-start justify-between gap-3 flex-wrap">
             <div class="min-w-0">
@@ -2210,7 +2245,7 @@
             </div>
           </div>
           <div class="pj-subs hidden mt-4 border-t border-navy/10 pt-4"></div>
-        </div>`).join('');
+        </div>`);
     }
 
     document.getElementById('pj-list').addEventListener('click', async (e) => {
@@ -2278,6 +2313,7 @@
         subject_name: a.subjectName,
         due_date: dueVal ? new Date(dueVal).toISOString() : null,
         created_by: String(currentStaff.id),
+        teacher_name: currentStaff.full_name || null,
       });
       btn.disabled = false; btn.textContent = 'Post project';
 

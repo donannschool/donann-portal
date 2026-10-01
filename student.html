@@ -40,6 +40,10 @@
 
   .signature-cursive { font-family: 'Dancing Script', cursive; }
   .stab-btn.active { border-color:#1B3A6B; color:#1B3A6B; }
+  /* Report-card pieces vanish on every other tab (set by stApplyTab via body[data-stab]) */
+  body:not([data-stab="report"]) .report-only { display:none !important; }
+  details > summary { list-style:none; } details > summary::-webkit-details-marker { display:none; }
+  details[open] > summary .chev { transform:rotate(90deg); } .chev { display:inline-block; transition:transform .15s; }
 
   @media (prefers-reduced-motion: no-preference) {
     .fade-in { animation: fadeIn 0.5s ease-out both; }
@@ -112,12 +116,21 @@
   <main id="state-dashboard" class="hidden max-w-4xl mx-auto px-6 py-10">
 
     <!-- ===== SECTION TABS (Report card | Quizzes) ===== -->
-    <nav class="no-print flex gap-1 border-b border-navy/15 mb-8" id="student-tab-nav">
-      <button data-stab="report" class="stab-btn active border-b-2 border-navy text-navy px-4 py-3 text-sm font-medium">Report card</button>
-      <button data-stab="quizzes" class="stab-btn border-b-2 border-transparent text-navy/50 px-4 py-3 text-sm font-medium">Quizzes</button>
-      <button data-stab="materials" class="stab-btn border-b-2 border-transparent text-navy/50 px-4 py-3 text-sm font-medium">Study materials</button>
-      <button data-stab="projects" class="stab-btn border-b-2 border-transparent text-navy/50 px-4 py-3 text-sm font-medium">Projects</button>
+    <nav class="no-print flex gap-1 border-b border-navy/15 mb-8 overflow-x-auto" id="student-tab-nav">
+      <button data-stab="subjects" class="stab-btn active border-b-2 border-navy text-navy px-4 py-3 text-sm font-medium whitespace-nowrap">My subjects</button>
+      <button data-stab="quizzes" class="stab-btn  border-b-2 border-transparent text-navy/50 px-4 py-3 text-sm font-medium whitespace-nowrap">Quizzes<span id="badge-quizzes"></span></button>
+      <button data-stab="materials" class="stab-btn  border-b-2 border-transparent text-navy/50 px-4 py-3 text-sm font-medium whitespace-nowrap">Study materials</button>
+      <button data-stab="projects" class="stab-btn  border-b-2 border-transparent text-navy/50 px-4 py-3 text-sm font-medium whitespace-nowrap">Projects<span id="badge-projects"></span></button>
+      <button data-stab="report" class="stab-btn  border-b-2 border-transparent text-navy/50 px-4 py-3 text-sm font-medium whitespace-nowrap">Report card</button>
     </nav>
+
+    <!-- ===== MY SUBJECTS (default landing view) ===== -->
+    <div id="student-subjects-section" class="no-print">
+      <p class="text-sky font-medium text-sm uppercase tracking-wide mb-1">Your class dashboard</p>
+      <h1 class="font-display text-3xl text-navy mb-6">My subjects</h1>
+      <div id="st-alerts" class="mb-8"></div>
+      <div id="st-subjects"><p class="text-navy/40 text-sm">Loading…</p></div>
+    </div>
 
 
     <div class="no-print flex items-start justify-between gap-4 flex-wrap mb-8">
@@ -265,7 +278,7 @@
     <div id="student-materials-section" class="no-print hidden">
       <p class="text-sky font-medium text-sm uppercase tracking-wide mb-1">Notes &amp; images from your teachers</p>
       <h1 class="font-display text-3xl text-navy mb-6">Study materials</h1>
-      <div id="sm-list" class="grid sm:grid-cols-2 gap-4"><p class="text-navy/40 text-sm">Loading…</p></div>
+      <div id="sm-list" class="space-y-4"><p class="text-navy/40 text-sm">Loading…</p></div>
     </div>
 
     <!-- Image viewer -->
@@ -278,7 +291,7 @@
     <div id="student-projects-section" class="no-print hidden">
       <p class="text-sky font-medium text-sm uppercase tracking-wide mb-1">Tasks from your teachers</p>
       <h1 class="font-display text-3xl text-navy mb-6">Your projects</h1>
-      <div id="pj-list" class="space-y-5"><p class="text-navy/40 text-sm">Loading…</p></div>
+      <div id="pj-list" class="space-y-4"><p class="text-navy/40 text-sm">Loading…</p></div>
     </div>
 
 <!-- ===== QUIZZES SECTION ===== -->
@@ -373,6 +386,7 @@
     function showOnly(el) {
       [stateGuest, stateLoading, stateDashboard].forEach(s => s.classList.add('hidden'));
       el.classList.remove('hidden');
+      if (el === stateDashboard && typeof stApplyTab === 'function') { stApplyTab(); stEnsure(false); }
     }
 
     // ---------------------------------------------------------------
@@ -795,106 +809,205 @@
         document.getElementById(`sq-${v}-view`).classList.toggle('hidden', v !== name));
     }
 
-    // ---- section tabs: Report card | Quizzes ----
-    document.getElementById('student-tab-nav').addEventListener('click', (e) => {
-      const btn = e.target.closest('.stab-btn');
-      if (!btn) return;
-      const goingToQuizzes = btn.dataset.stab === 'quizzes';
-      const goingToMaterials = btn.dataset.stab === 'materials';
-      const goingToProjects = btn.dataset.stab === 'projects';
+    // =================================================================
+    // SHARED STUDENT DATA + CLASS -> SUBJECT -> ITEMS FOLDERS
+    // One fetch feeds: My subjects tab, alerts, badges, Quizzes, Study
+    // materials and Projects (all three use the same stFolders renderer).
+    // =================================================================
+    const ST = { quizzes: [], materials: [], projects: [], qSubs: {}, pSubs: {}, loaded: false, error: false };
+    let stCurrentTab = 'subjects';          // default tab on login
+    let stFetchedAt = 0, stFetching = null;
+    const stOpenState = new Map();          // folder key -> open?
+    document.addEventListener('toggle', (e) => {
+      const k = e.target.dataset && e.target.dataset.fk;
+      if (k) stOpenState.set(k, e.target.open);
+    }, true);
 
-      // Don't let a student wander off mid-quiz by accident.
-      if (!goingToQuizzes && sqActive && !confirm('Leave this quiz? Your timer keeps running.')) return;
+    const escAttr = (s) => escapeHtml(s).replace(/"/g, '&quot;');
+    const stIsOpen = (k, def) => stOpenState.has(k) ? stOpenState.get(k) : def;
+    const stClassName = () => (currentStudent && currentStudent.class_name) || 'My class';
+    const stSubjName = (o) => (o.subjects && o.subjects.subject_name) || o.subject_name || 'General';
+    const stTeacher = (o) => o.teacher_name || o.posted_by_name || o.created_by_name || '';
+    const stQuizPending = (q) => !(ST.qSubs[q.id] && ST.qSubs[q.id].submitted_at) && new Date(q.due_date) >= new Date();
+    const stProjPending = (p) => !ST.pSubs[p.id] && !(p.due_date && new Date(p.due_date) < new Date());
+    const stBadge = (n) => n ? `<span class="inline-flex items-center justify-center min-w-[1.35rem] h-[1.35rem] px-1.5 ml-2 rounded-full bg-red-600 text-white text-xs font-bold" title="${n} task${n === 1 ? '' : 's'} to do">${n}</span>` : '';
+    const stDays = (d) => { const a = new Date(d); a.setHours(0,0,0,0); const t = new Date(); t.setHours(0,0,0,0); return Math.round((t - a) / 864e5); };
+    const stAgo = (d) => { const n = stDays(d); return n <= 0 ? 'today' : n === 1 ? 'yesterday' : n + ' days ago'; };
+    const stFmtDue = (d) => new Date(d).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-      document.querySelectorAll('.stab-btn').forEach(b => {
-        const on = b === btn;
-        b.classList.toggle('active', on);
-        b.classList.toggle('border-navy', on);
-        b.classList.toggle('text-navy', on);
-        b.classList.toggle('border-transparent', !on);
-        b.classList.toggle('text-navy/50', !on);
-      });
+    // Class -> Subject -> Items. IDENTICAL for quizzes, materials, projects.
+    function stFolders(key, items, renderItem, isPending, listClass) {
+      const tree = {};
+      items.forEach(it => { const s = stSubjName(it); (tree[s] = tree[s] || []).push(it); });
+      const pend = (arr) => isPending ? arr.filter(isPending).length : 0;
+      const ck = key + '|class';
+      return `<details data-fk="${ck}" ${stIsOpen(ck, true) ? 'open' : ''} class="bg-white border border-navy/10">
+        <summary class="cursor-pointer select-none px-5 py-3 flex items-center font-display text-lg text-navy"><span class="chev mr-2 text-sm">&#9656;</span>&#128193; ${escapeHtml(stClassName())}${stBadge(pend(items))}<span class="ml-auto text-xs text-navy/40 font-sans">${items.length} item${items.length === 1 ? '' : 's'}</span></summary>
+        <div class="border-t border-navy/10 p-3 space-y-3">
+          ${Object.keys(tree).sort((x, y) => x.localeCompare(y)).map(s => {
+            const sk = key + '|s|' + s, n = pend(tree[s]);
+            return `<details data-fk="${escAttr(sk)}" ${stIsOpen(sk, n > 0) ? 'open' : ''} class="border border-navy/10">
+              <summary class="cursor-pointer select-none px-4 py-2.5 flex items-center font-medium text-navy bg-navy/[0.03]"><span class="chev mr-2 text-xs">&#9656;</span>&#128194; ${escapeHtml(s)}${stBadge(n)}<span class="ml-auto text-xs text-navy/40">${tree[s].length}</span></summary>
+              <div class="${listClass} p-3">${tree[s].map(renderItem).join('')}</div>
+            </details>`;
+          }).join('')}
+        </div></details>`;
+    }
 
-      // Everything that belongs to the report card view.
-      const reportEls = document.querySelectorAll('#state-dashboard > .no-print:not(#student-tab-nav):not(#student-quizzes-section):not(#student-materials-section):not(#student-projects-section):not(#sm-lightbox), #print-sheet');
-      reportEls.forEach(el => el.classList.toggle('hidden', goingToQuizzes || goingToMaterials || goingToProjects));
-      document.getElementById('student-quizzes-section').classList.toggle('hidden', !goingToQuizzes);
-      document.getElementById('student-materials-section').classList.toggle('hidden', !goingToMaterials);
-      document.getElementById('student-projects-section').classList.toggle('hidden', !goingToProjects);
-      if (goingToMaterials) smLoadList();
-      if (goingToProjects) pjLoadList();
+    async function stEnsureStudent() {
+      if (currentStudent) return;
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session && session.user) {
+        const { data: me, error } = await supabaseClient.from('students')
+          .select('*, classes(class_name)').eq('auth_user_id', session.user.id).maybeSingle();
+        if (error) console.error(error);
+        if (me) { me.class_name = me.classes?.class_name || '—'; currentStudent = me; }
+      }
+    }
 
-      if (goingToQuizzes && !sqActive) { sqShowView('list'); sqLoadList(); }
-    });
+    async function stFetchAll() {
+      await stEnsureStudent();
+      if (!currentStudent) { ST.error = true; return; }
+      const [q, m, p] = await Promise.all([
+        supabaseClient.from('quizzes').select('id, title, duration_minutes, due_date, created_at, subjects(subject_name)').order('due_date', { ascending: true }),
+        supabaseClient.from('study_materials').select('*').order('created_at', { ascending: false }),
+        supabaseClient.from('projects').select('*').order('created_at', { ascending: false }),
+      ]);
+      ST.error = !!(q.error || m.error || p.error);
+      if (ST.error) console.error(q.error || m.error || p.error);
+      ST.quizzes = q.data || []; ST.materials = m.data || []; ST.projects = p.data || [];
 
-    // ---- list ----
-    async function sqLoadList() {
+      ST.qSubs = {};
+      if (ST.quizzes.length) {
+        const { data } = await supabaseClient.from('quiz_submissions')
+          .select('quiz_id, score_percentage, submitted_at, started_at').in('quiz_id', ST.quizzes.map(x => x.id));
+        (data || []).forEach(s => { ST.qSubs[s.quiz_id] = s; });
+      }
+      ST.pSubs = {};
+      const { data: ps } = await supabaseClient.from('project_submissions')
+        .select('project_id, answer_text, file_url, file_type, submitted_at').eq('student_id', String(currentStudent.id));
+      (ps || []).forEach(x => { ST.pSubs[x.project_id] = x; });
+      pjSubs = ST.pSubs; pjData = ST.projects;
+      ST.loaded = true; stFetchedAt = Date.now();
+    }
+
+    function stEnsure(force) {
+      if (!force && ST.loaded && Date.now() - stFetchedAt < 60000) return Promise.resolve();
+      if (stFetching) return stFetching;
+      stFetching = (async () => { try { await stFetchAll(); } finally { stFetching = null; } stRenderAll(); })();
+      return stFetching;
+    }
+
+    // ---- Alerts + My subjects ----
+    function stRenderSubjectsTab() {
+      const alertsEl = document.getElementById('st-alerts'), subjEl = document.getElementById('st-subjects');
+      if (ST.error) { alertsEl.innerHTML = ''; subjEl.innerHTML = '<p class="text-red-600 text-sm">Could not load your subjects. Please refresh and try again.</p>'; return; }
+
+      const kindLabel = { quiz: 'quiz', material: 'study material', project: 'project' };
+      const all = [
+        ...ST.quizzes.map(o => ({ kind: 'quiz', o, at: o.created_at, due: o.due_date, pending: stQuizPending(o) })),
+        ...ST.materials.map(o => ({ kind: 'material', o, at: o.created_at, pending: false })),
+        ...ST.projects.map(o => ({ kind: 'project', o, at: o.created_at, due: o.due_date, pending: stProjPending(o) })),
+      ];
+      const line = (x) => `<b>${escapeHtml(stSubjName(x.o))}</b> ${kindLabel[x.kind]} “${escapeHtml(x.o.title)}”`;
+      const due = all.filter(x => x.pending && x.due).sort((a, b) => new Date(a.due) - new Date(b.due)).slice(0, 8);
+      const fresh = all.filter(x => x.at && stDays(x.at) <= 7).sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, 8);
+      const li = (html) => `<li>${html}</li>`;
+
+      alertsEl.innerHTML = `
+        <div class="bg-white border border-navy/10 border-l-4 border-l-red-500 p-5 space-y-4">
+          <div><p class="font-medium text-navy mb-1">What's due</p>
+            ${due.length ? `<ul class="list-disc pl-5 text-sm text-navy/80 space-y-1">${due.map(x => li(`${line(x)} — due ${stFmtDue(x.due)}`)).join('')}</ul>`
+                         : '<p class="text-sm text-navy/50">Nothing is waiting for you. 🎉</p>'}</div>
+          <div><p class="font-medium text-navy mb-1">New updates</p>
+            ${fresh.length ? `<ul class="list-disc pl-5 text-sm text-navy/80 space-y-1">${fresh.map(x => li(`${line(x)} posted ${stAgo(x.at)}${stTeacher(x.o) ? ' by ' + escapeHtml(stTeacher(x.o)) : ''}`)).join('')}</ul>`
+                          : '<p class="text-sm text-navy/50">No new posts in the last 7 days.</p>'}</div>
+        </div>`;
+
+      const subs = {};
+      const slot = (n) => subs[n] = subs[n] || { q: 0, m: 0, p: 0, todo: 0 };
+      ST.quizzes.forEach(o => { const s = slot(stSubjName(o)); s.q++; if (stQuizPending(o)) s.todo++; });
+      ST.materials.forEach(o => { slot(stSubjName(o)).m++; });
+      ST.projects.forEach(o => { const s = slot(stSubjName(o)); s.p++; if (stProjPending(o)) s.todo++; });
+      const names = Object.keys(subs).sort((a, b) => subs[b].todo - subs[a].todo || a.localeCompare(b));
+      const chip = (tab, n, label) => n ? `<button type="button" data-goto="${tab}" class="text-xs border border-navy/20 px-2 py-1 text-navy hover:bg-navy hover:text-white transition-colors">${n} ${label}</button>` : '';
+      subjEl.innerHTML = !names.length
+        ? '<div class="bg-white border border-navy/10 p-8 text-center text-navy/50 text-sm">Nothing has been posted for your class yet.</div>'
+        : `<p class="text-xs uppercase tracking-wide text-navy/50 mb-3">&#128193; ${escapeHtml(stClassName())}</p>
+           <div class="grid sm:grid-cols-2 gap-4">${names.map(n => { const s = subs[n]; return `
+             <div class="bg-white border ${s.todo ? 'border-red-300' : 'border-navy/10'} p-4">
+               <p class="font-display text-lg text-navy flex items-center">${escapeHtml(n)}${stBadge(s.todo)}</p>
+               <p class="text-xs mt-1 ${s.todo ? 'text-red-600 font-medium' : 'text-navy/40'}">${s.todo ? s.todo + ' task' + (s.todo === 1 ? '' : 's') + ' to do' : 'All caught up'}</p>
+               <div class="flex flex-wrap gap-2 mt-3">${chip('quizzes', s.q, s.q === 1 ? 'quiz' : 'quizzes')}${chip('materials', s.m, s.m === 1 ? 'material' : 'materials')}${chip('projects', s.p, s.p === 1 ? 'project' : 'projects')}</div>
+             </div>`; }).join('')}</div>`;
+    }
+
+    function stRenderBadges() {
+      const nq = ST.quizzes.filter(stQuizPending).length, np = ST.projects.filter(stProjPending).length;
+      document.getElementById('badge-quizzes').innerHTML = stBadge(nq);
+      document.getElementById('badge-projects').innerHTML = stBadge(np);
+    }
+
+    function stRenderQuizzes() {
       const listEl = document.getElementById('sq-list');
-      listEl.innerHTML = '<p class="text-navy/40 text-sm">Loading quizzes…</p>';
-
-      // RLS returns only quizzes for this student's class + department,
-      // and only while their fees are cleared — no client-side filtering
-      // is needed for security, only for display.
-      const { data: quizzes, error } = await supabaseClient
-        .from('quizzes')
-        .select('id, title, duration_minutes, due_date, subjects(subject_name)')
-        .order('due_date', { ascending: true });
-
-      if (error) {
-        listEl.innerHTML = '<p class="text-red-600 text-sm">Could not load your quizzes. Please refresh and try again.</p>';
-        console.error(error);
-        return;
-      }
-      if (!quizzes || quizzes.length === 0) {
-        listEl.innerHTML = '<div class="bg-white border border-navy/10 p-8 text-center text-navy/50 text-sm">There are no quizzes for your class right now.</div>';
-        return;
-      }
-
-      const { data: subs } = await supabaseClient
-        .from('quiz_submissions')
-        .select('quiz_id, score_percentage, submitted_at, started_at')
-        .in('quiz_id', quizzes.map(q => q.id));
-      const subByQuiz = {};
-      (subs || []).forEach(s => { subByQuiz[s.quiz_id] = s; });
-
+      if (ST.error) { listEl.innerHTML = '<p class="text-red-600 text-sm">Could not load your quizzes. Please refresh and try again.</p>'; return; }
+      if (!ST.quizzes.length) { listEl.innerHTML = '<div class="bg-white border border-navy/10 p-8 text-center text-navy/50 text-sm">There are no quizzes for your class right now.</div>'; return; }
       const now = new Date();
-      listEl.innerHTML = quizzes.map(q => {
-        const sub = subByQuiz[q.id];
-        const due = new Date(q.due_date);
-        const overdue = due < now;
-        const done = sub && sub.submitted_at;
-        const inProgress = sub && !sub.submitted_at && sub.started_at;
-
+      listEl.innerHTML = stFolders('quizzes', ST.quizzes, (q) => {
+        const sub = ST.qSubs[q.id], due = new Date(q.due_date), overdue = due < now;
+        const done = sub && sub.submitted_at, inProgress = sub && !sub.submitted_at && sub.started_at;
         let badge, button = '';
-        if (done) {
-          badge = `<span class="text-emerald-700 font-medium">Completed · ${sub.score_percentage}%</span>`;
-        } else if (overdue) {
-          badge = '<span class="text-red-600 font-medium">Closed</span>';
-        } else {
-          badge = inProgress
-            ? '<span class="text-amber-700 font-medium">In progress</span>'
-            : '<span class="text-sky font-medium">Open</span>';
+        if (done) badge = `<span class="text-emerald-700 font-medium">Completed · ${sub.score_percentage}%</span>`;
+        else if (overdue) badge = '<span class="text-red-600 font-medium">Closed</span>';
+        else {
+          badge = inProgress ? '<span class="text-amber-700 font-medium">In progress</span>' : '<span class="text-sky font-medium">Open</span>';
           button = `<button data-sq-start="${q.id}" class="bg-navy text-white px-5 py-2 text-sm font-medium hover:bg-navy-dark transition-colors">${inProgress ? 'Continue' : 'Start quiz'}</button>`;
         }
-
-        return `
-          <div class="bg-white border border-navy/10 p-5 flex items-center justify-between gap-4 flex-wrap">
-            <div class="min-w-0">
-              <p class="font-medium text-navy">${escapeHtml(q.title)}</p>
-              <p class="text-sm text-navy/50">${escapeHtml(q.subjects?.subject_name || 'Subject')} · ${q.duration_minutes} minutes</p>
-              <p class="text-xs text-navy/40 mt-1">Due ${due.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-            </div>
-            <div class="flex items-center gap-4 shrink-0">
-              <span class="text-sm">${badge}</span>
-              ${button}
-            </div>
-          </div>`;
-      }).join('');
-
-      listEl.querySelectorAll('[data-sq-start]').forEach(btn => {
-        btn.addEventListener('click', () => sqStart(btn.dataset.sqStart, btn));
-      });
+        return `<div class="bg-white border border-navy/10 p-4 flex items-center justify-between gap-4 flex-wrap">
+          <div class="min-w-0"><p class="font-medium text-navy">${escapeHtml(q.title)}</p>
+            <p class="text-sm text-navy/50">${q.duration_minutes} minutes</p>
+            <p class="text-xs text-navy/40 mt-1">Due ${due.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p></div>
+          <div class="flex items-center gap-4 shrink-0"><span class="text-sm">${badge}</span>${button}</div></div>`;
+      }, stQuizPending, 'space-y-3');
+      listEl.querySelectorAll('[data-sq-start]').forEach(btn => btn.addEventListener('click', () => sqStart(btn.dataset.sqStart, btn)));
     }
+
+    function stRenderAll() {
+      stRenderSubjectsTab(); stRenderBadges(); stRenderQuizzes(); smRender(); pjRender();
+    }
+
+    // ---- tab switching (state lives in stCurrentTab so the loader can't un-hide the wrong panel) ----
+    function stApplyTab() {
+      const t = stCurrentTab;
+      document.body.dataset.stab = t;
+      document.querySelectorAll('.stab-btn').forEach(b => {
+        const on = b.dataset.stab === t;
+        b.classList.toggle('active', on); b.classList.toggle('border-navy', on); b.classList.toggle('text-navy', on);
+        b.classList.toggle('border-transparent', !on); b.classList.toggle('text-navy/50', !on);
+      });
+      ['subjects', 'quizzes', 'materials', 'projects'].forEach(k =>
+        document.getElementById('student-' + k + '-section').classList.toggle('hidden', k !== t));
+    }
+    function stSwitchTab(t) {
+      if (t !== 'quizzes' && sqActive && !confirm('Leave this quiz? Your timer keeps running.')) return;
+      stCurrentTab = t; stApplyTab();
+      if (t === 'quizzes' && !sqActive) sqShowView('list');
+      if (t !== 'report') stEnsure(false);
+      window.scrollTo({ top: 0 });
+    }
+    // Tag every report-card element once, so CSS hides them off the report tab
+    document.querySelectorAll('#state-dashboard > .no-print:not(#student-tab-nav):not([id$="-section"]):not(#sm-lightbox), #report-card-content, #print-sheet')
+      .forEach(el => el.classList.add('report-only'));
+    document.getElementById('student-tab-nav').addEventListener('click', (e) => {
+      const btn = e.target.closest('.stab-btn'); if (btn) stSwitchTab(btn.dataset.stab);
+    });
+    document.getElementById('st-subjects').addEventListener('click', (e) => {
+      const g = e.target.closest('[data-goto]'); if (g) stSwitchTab(g.dataset.goto);
+    });
+    stApplyTab();
+
+    // Called after submit / back-to-list: force a fresh fetch
+    async function sqLoadList() { await stEnsure(true); }
 
     // ---- start (calls the start_quiz RPC — the only way to read questions) ----
     async function sqStart(quizId, btn) {
@@ -1090,39 +1203,26 @@
       return '&#128193;';
     }
 
-    async function smLoadList() {
+    async function smLoadList() { await stEnsure(true); }
+    function smRender() {
       const listEl = document.getElementById('sm-list');
-      listEl.innerHTML = '<p class="text-navy/40 text-sm">Loading…</p>';
-      const { data, error } = await supabaseClient
-        .from('study_materials')
-        .select('id, title, description, subject_name, file_url, file_type, created_at')
-        .order('created_at', { ascending: false });
-      if (error) {
-        listEl.innerHTML = '<p class="text-red-600 text-sm">Could not load study materials. Please refresh and try again.</p>';
-        console.error(error);
-        return;
-      }
-      if (!data || !data.length) {
-        listEl.innerHTML = '<div class="sm:col-span-2 bg-white border border-navy/10 p-8 text-center text-navy/50 text-sm">No study materials have been shared with your class yet.</div>';
-        return;
-      }
-      listEl.innerHTML = data.map(m => {
+      listEl.className = 'space-y-4';
+      if (ST.error) { listEl.innerHTML = '<p class="text-red-600 text-sm">Could not load study materials. Please refresh and try again.</p>'; return; }
+      if (!ST.materials.length) { listEl.innerHTML = '<div class="bg-white border border-navy/10 p-8 text-center text-navy/50 text-sm">No study materials have been shared with your class yet.</div>'; return; }
+      listEl.innerHTML = stFolders('materials', ST.materials, (m) => {
         const isImg = (m.file_type || '').startsWith('image/');
         const preview = isImg
           ? `<img src="${escapeHtml(m.file_url)}" alt="" loading="lazy" class="w-full h-40 object-cover border-b border-navy/10">`
           : `<div class="w-full h-40 bg-navy/5 flex items-center justify-center text-5xl border-b border-navy/10">${smIcon(m.file_type || '')}</div>`;
-        return `
-          <div class="bg-white border border-navy/10 flex flex-col">
-            <button type="button" class="sm-open text-left" data-url="${escapeHtml(m.file_url)}" data-img="${isImg ? '1' : ''}">${preview}</button>
-            <div class="p-4 flex-1 flex flex-col">
-              <p class="text-xs uppercase tracking-wide text-sky font-medium">${escapeHtml(m.subject_name)}</p>
-              <p class="font-medium text-navy">${escapeHtml(m.title)}</p>
-              ${m.description ? `<p class="text-sm text-navy/70 mt-1">${escapeHtml(m.description)}</p>` : ''}
-              <p class="text-xs text-navy/40 mt-2">${new Date(m.created_at).toLocaleDateString()}</p>
-              <button type="button" class="sm-open mt-3 self-start text-sm text-white bg-navy px-4 py-1.5 hover:bg-navy-dark" data-url="${escapeHtml(m.file_url)}" data-img="${isImg ? '1' : ''}">${isImg ? 'View image' : 'Open document'}</button>
-            </div>
-          </div>`;
-      }).join('');
+        return `<div class="bg-white border border-navy/10 flex flex-col">
+          <button type="button" class="sm-open text-left" data-url="${escAttr(m.file_url)}" data-img="${isImg ? '1' : ''}">${preview}</button>
+          <div class="p-4 flex-1 flex flex-col">
+            <p class="font-medium text-navy">${escapeHtml(m.title)}</p>
+            ${m.description ? `<p class="text-sm text-navy/70 mt-1">${escapeHtml(m.description)}</p>` : ''}
+            <p class="text-xs text-navy/40 mt-2">${new Date(m.created_at).toLocaleDateString()}${stTeacher(m) ? ' · ' + escapeHtml(stTeacher(m)) : ''}</p>
+            <button type="button" class="sm-open mt-3 self-start text-sm text-white bg-navy px-4 py-1.5 hover:bg-navy-dark" data-url="${escAttr(m.file_url)}" data-img="${isImg ? '1' : ''}">${isImg ? 'View image' : 'Open document'}</button>
+          </div></div>`;
+      }, null, 'grid sm:grid-cols-2 gap-4');
     }
 
     document.getElementById('sm-list').addEventListener('click', (e) => {
@@ -1148,53 +1248,18 @@
     let pjData = [];      // projects
     let pjSubs = {};      // project_id -> this student's submission
 
-    async function pjLoadList() {
+    async function pjLoadList() { await stEnsure(true); }
+    function pjRender() {
       const listEl = document.getElementById('pj-list');
-      listEl.innerHTML = '<p class="text-navy/40 text-sm">Loading…</p>';
-      if (!currentStudent) {
-        // The report-card loader hasn't filled this in yet, so look the student up directly.
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (session && session.user) {
-          const { data: me, error: meErr } = await supabaseClient
-            .from('students')
-            .select('*')
-            .eq('auth_user_id', session.user.id)
-            .maybeSingle();
-          if (meErr) console.error(meErr);
-          if (me) currentStudent = me;
-        }
-      }
-      if (!currentStudent) { listEl.innerHTML = '<p class="text-red-600 text-sm">Could not find your student record. Please sign out and sign in again.</p>'; return; }
-
-      const { data: projects, error } = await supabaseClient
-        .from('projects')
-        .select('id, title, instructions, subject_name, created_at, due_date')
-        .order('created_at', { ascending: false });
-      if (error) {
-        listEl.innerHTML = '<p class="text-red-600 text-sm">Could not load projects. Please refresh and try again.</p>';
-        console.error(error);
-        return;
-      }
-      if (!projects.length) {
-        listEl.innerHTML = '<div class="bg-white border border-navy/10 p-8 text-center text-navy/50 text-sm">There are no projects for your class right now.</div>';
-        return;
-      }
-      const { data: subs } = await supabaseClient
-        .from('project_submissions')
-        .select('project_id, answer_text, file_url, file_type, submitted_at')
-        .eq('student_id', String(currentStudent.id));
-      pjSubs = {};
-      (subs || []).forEach(x => { pjSubs[x.project_id] = x; });
-      pjData = projects;
-
-      listEl.innerHTML = projects.map(p => {
+      if (ST.error) { listEl.innerHTML = '<p class="text-red-600 text-sm">Could not load projects. Please refresh and try again.</p>'; return; }
+      if (!ST.projects.length) { listEl.innerHTML = '<div class="bg-white border border-navy/10 p-8 text-center text-navy/50 text-sm">There are no projects for your class right now.</div>'; return; }
+      listEl.innerHTML = stFolders('projects', ST.projects, (p) => {
         const sub = pjSubs[p.id];
         const closed = p.due_date && new Date(p.due_date) < new Date();
         return `
         <div class="bg-white border border-navy/10 p-5" data-pid="${p.id}">
           <div class="flex items-start justify-between gap-3 flex-wrap">
             <div>
-              <p class="text-xs uppercase tracking-wide text-sky font-medium">${escapeHtml(p.subject_name)}</p>
               <p class="font-display text-xl text-navy">${escapeHtml(p.title)}</p>
             </div>
             <span class="text-xs px-2 py-1 ${sub ? 'bg-green-100 text-green-800' : 'bg-brown/10 text-brown'}">${sub ? 'Submitted ' + new Date(sub.submitted_at).toLocaleDateString() : 'Not submitted'}</span>
@@ -1216,9 +1281,7 @@
             </div>
           </div>
         </div>`;
-      }).join('');
-
-      // Pre-fill previous typed answers (set via JS so special characters stay safe)
+      }, stProjPending, 'space-y-4');
       listEl.querySelectorAll('[data-pid]').forEach(card => {
         const sub = pjSubs[card.dataset.pid];
         if (sub && sub.answer_text) card.querySelector('.pj-text').value = sub.answer_text;
