@@ -1153,6 +1153,10 @@
         }
 
         // Projects for this subject + class, with graded submissions only.
+        // project_submissions.student_id is stored as a string, so compare
+        // against stringified ids here (quizzes store it as-is, so that
+        // query is left alone).
+        const studentIdsStr = studentIds.map(String);
         const { data: projects } = await supabaseClient
           .from('projects').select('id')
           .eq('subject_id', ccaAssignment.subjectId).eq('class_id', ccaAssignment.classId);
@@ -1160,7 +1164,7 @@
         let projSubs = [];
         if (projIds.length) {
           const { data } = await supabaseClient.from('project_submissions')
-            .select('student_id, grade_percentage').in('project_id', projIds).in('student_id', studentIds).not('grade_percentage', 'is', null);
+            .select('student_id, grade_percentage').in('project_id', projIds).in('student_id', studentIdsStr).not('grade_percentage', 'is', null);
           projSubs = data || [];
         }
         const hasGradedProjects = projSubs.length > 0;
@@ -1174,7 +1178,7 @@
         (existingScores || []).forEach(s => { ptMap[s.student_id] = s.physical_test_score; });
 
         const avgFor = (rows, sid, key) => {
-          const mine = rows.filter(r => r.student_id === sid).map(r => Number(r[key]));
+          const mine = rows.filter(r => String(r.student_id) === String(sid)).map(r => Number(r[key]));
           return mine.length ? mine.reduce((a, b) => a + b, 0) / mine.length : null;
         };
 
