@@ -2578,11 +2578,19 @@
         const statusEl = row.querySelector('.pj-grade-status');
         const val = input.value === '' ? null : Math.max(0, Math.min(100, Number(input.value)));
         input.value = val ?? '';
-        const { error } = await supabaseClient.from('project_submissions')
-          .update({ grade_percentage: val }).eq('project_id', pid).eq('student_id', row.dataset.subStudent);
-        statusEl.textContent = error ? 'Could not save.' : 'Saved.';
-        statusEl.className = 'pj-grade-status text-xs ' + (error ? 'text-red-600' : 'text-emerald-700');
-        if (error) console.error(error);
+        // .select() after update() forces Supabase to return the rows it
+        // actually touched, so a filter mismatch (0 rows) is visible here
+        // instead of silently reporting success.
+        const { data, error } = await supabaseClient.from('project_submissions')
+          .update({ grade_percentage: val }).eq('project_id', pid).eq('student_id', row.dataset.subStudent).select();
+        if (error) {
+          statusEl.textContent = 'Could not save.'; statusEl.className = 'pj-grade-status text-xs text-red-600'; console.error(error);
+        } else if (!data || data.length === 0) {
+          statusEl.textContent = 'No matching submission — not saved.'; statusEl.className = 'pj-grade-status text-xs text-red-600';
+          console.error('Grade update matched 0 rows', { project_id: pid, student_id: row.dataset.subStudent });
+        } else {
+          statusEl.textContent = 'Saved.'; statusEl.className = 'pj-grade-status text-xs text-emerald-700';
+        }
       }
     });
 
