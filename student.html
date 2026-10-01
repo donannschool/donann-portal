@@ -835,23 +835,31 @@
     const stAgo = (d) => { const n = stDays(d); return n <= 0 ? 'today' : n === 1 ? 'yesterday' : n + ' days ago'; };
     const stFmtDue = (d) => new Date(d).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-    // Class -> Subject -> Items. IDENTICAL for quizzes, materials, projects.
-    function stFolders(key, items, renderItem, isPending, listClass) {
+    // Subject -> Items, split into Active / Completed. Students are only
+    // ever in one class, so no class-level folder is shown — just the
+    // subject folders, collapsed by default until clicked.
+    // isDone(item) marks an item as finished (submitted); when omitted,
+    // everything is treated as active (e.g. study materials).
+    function stFolders(key, items, renderItem, isPending, listClass, isDone) {
       const tree = {};
       items.forEach(it => { const s = stSubjName(it); (tree[s] = tree[s] || []).push(it); });
       const pend = (arr) => isPending ? arr.filter(isPending).length : 0;
-      const ck = key + '|class';
-      return `<details data-fk="${ck}" ${stIsOpen(ck, true) ? 'open' : ''} class="bg-white border border-navy/10">
-        <summary class="cursor-pointer select-none px-5 py-3 flex items-center font-display text-lg text-navy"><span class="chev mr-2 text-sm">&#9656;</span>&#128193; ${escapeHtml(stClassName())}${stBadge(pend(items))}<span class="ml-auto text-xs text-navy/40 font-sans">${items.length} item${items.length === 1 ? '' : 's'}</span></summary>
-        <div class="border-t border-navy/10 p-3 space-y-3">
-          ${Object.keys(tree).sort((x, y) => x.localeCompare(y)).map(s => {
-            const sk = key + '|s|' + s, n = pend(tree[s]);
-            return `<details data-fk="${escAttr(sk)}" ${stIsOpen(sk, n > 0) ? 'open' : ''} class="border border-navy/10">
-              <summary class="cursor-pointer select-none px-4 py-2.5 flex items-center font-medium text-navy bg-navy/[0.03]"><span class="chev mr-2 text-xs">&#9656;</span>&#128194; ${escapeHtml(s)}${stBadge(n)}<span class="ml-auto text-xs text-navy/40">${tree[s].length}</span></summary>
-              <div class="${listClass} p-3">${tree[s].map(renderItem).join('')}</div>
-            </details>`;
-          }).join('')}
-        </div></details>`;
+      return Object.keys(tree).sort((x, y) => x.localeCompare(y)).map(s => {
+        const sk = key + '|s|' + s, n = pend(tree[s]);
+        const items = tree[s];
+        const activeItems = isDone ? items.filter(it => !isDone(it)) : items;
+        const doneItems = isDone ? items.filter(isDone) : [];
+        const ctk = sk + '|done';
+        return `<details data-fk="${escAttr(sk)}" ${stIsOpen(sk, false) ? 'open' : ''} class="bg-white border border-navy/10 mb-3">
+          <summary class="cursor-pointer select-none px-4 py-3 flex items-center font-display text-lg text-navy"><span class="chev mr-2 text-sm">&#9656;</span>&#128194; ${escapeHtml(s)}${stBadge(n)}<span class="ml-auto text-xs text-navy/40 font-sans">${items.length} item${items.length === 1 ? '' : 's'}</span></summary>
+          <div class="border-t border-navy/10 p-3 space-y-3">
+            <div class="${listClass}">${activeItems.length ? activeItems.map(renderItem).join('') : '<p class="text-sm text-navy/40 px-1">Nothing active right now.</p>'}</div>
+            ${isDone ? `<details data-fk="${escAttr(ctk)}" ${stIsOpen(ctk, false) ? 'open' : ''} class="border border-navy/10 bg-navy/[0.02]">
+              <summary class="cursor-pointer select-none px-3 py-2 flex items-center text-sm font-medium text-navy/60"><span class="chev mr-2 text-xs">&#9656;</span>&#9989; Completed tasks<span class="ml-auto text-xs text-navy/40">${doneItems.length}</span></summary>
+              <div class="${listClass} p-3">${doneItems.length ? doneItems.map(renderItem).join('') : '<p class="text-sm text-navy/40 px-1">No completed tasks yet.</p>'}</div>
+            </details>` : ''}
+          </div></details>`;
+      }).join('');
     }
 
     async function stEnsureStudent() {
@@ -968,7 +976,7 @@
             <p class="text-sm text-navy/50">${q.duration_minutes} minutes</p>
             <p class="text-xs text-navy/40 mt-1">Due ${due.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p></div>
           <div class="flex items-center gap-4 shrink-0"><span class="text-sm">${badge}</span>${button}</div></div>`;
-      }, stQuizPending, 'space-y-3');
+      }, stQuizPending, 'space-y-3', (q) => !!(ST.qSubs[q.id] && ST.qSubs[q.id].submitted_at));
       listEl.querySelectorAll('[data-sq-start]').forEach(btn => btn.addEventListener('click', () => sqStart(btn.dataset.sqStart, btn)));
     }
 
@@ -1222,7 +1230,7 @@
             <p class="text-xs text-navy/40 mt-2">${new Date(m.created_at).toLocaleDateString()}${stTeacher(m) ? ' · ' + escapeHtml(stTeacher(m)) : ''}</p>
             <button type="button" class="sm-open mt-3 self-start text-sm text-white bg-navy px-4 py-1.5 hover:bg-navy-dark" data-url="${escAttr(m.file_url)}" data-img="${isImg ? '1' : ''}">${isImg ? 'View image' : 'Open document'}</button>
           </div></div>`;
-      }, null, 'grid sm:grid-cols-2 gap-4');
+      }, null, 'grid sm:grid-cols-2 gap-4', null);
     }
 
     document.getElementById('sm-list').addEventListener('click', (e) => {
@@ -1281,7 +1289,7 @@
             </div>
           </div>
         </div>`;
-      }, stProjPending, 'space-y-4');
+      }, stProjPending, 'space-y-4', (p) => !!pjSubs[p.id]);
       listEl.querySelectorAll('[data-pid]').forEach(card => {
         const sub = pjSubs[card.dataset.pid];
         if (sub && sub.answer_text) card.querySelector('.pj-text').value = sub.answer_text;

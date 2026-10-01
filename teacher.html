@@ -115,6 +115,7 @@
         <button data-tab="quizzes" class="tab-btn hidden border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">Quizzes</button>
         <button data-tab="materials" class="tab-btn border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">Study Materials</button>
         <button data-tab="projects" class="tab-btn border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">Projects</button>
+        <button data-tab="compileca" class="tab-btn border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">Compile CA Scores</button>
       </nav>
     </header>
 
@@ -460,6 +461,58 @@
             </table>
           </div>
           <p id="qz-results-status" class="hidden text-sm px-3 py-2 border mt-4"></p>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB: COMPILE CA SCORES                                     -->
+      <!-- ========================================================= -->
+      <section id="tab-compileca" class="panel">
+        <h1 class="font-display text-2xl text-navy mb-1">Compile CA Scores</h1>
+        <p class="text-navy/60 mb-6">Enter each student's physical class test out of 20, then calculate and sync the final CA for the term — nothing is calculated automatically until you press the button.</p>
+
+        <div id="cca-assignment-wrap">
+          <div id="cca-assignment-list" class="grid sm:grid-cols-2 gap-3 mb-8">
+            <p class="text-navy/40 text-sm">Loading your assignments…</p>
+          </div>
+        </div>
+
+        <button id="cca-back-btn" class="hidden items-center gap-2 text-sm text-sky font-medium mb-4 hover:underline">
+          &larr; Change subject
+        </button>
+
+        <div id="cca-panel" class="hidden bg-white border border-navy/10">
+          <div class="px-6 py-4 border-b border-navy/10 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p id="cca-title" class="font-display text-lg text-navy"></p>
+              <p class="text-sm text-navy/50">Physical Test is out of 20. CA = (avg quiz % ÷10) + (avg project % ÷10, or quizzes ÷20 alone if no projects) + Physical Test, rounded to a whole number.</p>
+            </div>
+            <div class="flex gap-2">
+              <select id="cca-session" class="field-input text-sm"></select>
+              <select id="cca-term" class="field-input text-sm">
+                <option>1st Term</option><option>2nd Term</option><option>3rd Term</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="px-6 py-3 border-b border-navy/10 bg-navy/[0.02] flex items-center justify-between flex-wrap gap-3">
+            <p id="cca-status" class="hidden text-sm px-3 py-2 border"></p>
+            <button id="cca-calc-btn" class="bg-brown text-white px-6 py-2.5 font-medium hover:bg-brown/90 transition-colors ml-auto">
+              Calculate &amp; Sync CA
+            </button>
+          </div>
+
+          <div class="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-6 py-2 text-xs uppercase tracking-wide text-navy/40 border-b border-navy/10">
+            <span>Student</span><span>Quiz avg</span><span>Project avg</span><span>Physical test</span>
+          </div>
+          <div id="cca-rows" class="divide-y divide-navy/10"></div>
+
+          <div class="px-6 py-4 border-t border-navy/10 flex items-center justify-between">
+            <p id="cca-save-status" class="hidden text-sm px-3 py-2 border"></p>
+            <button id="cca-save-btn" class="bg-navy text-white px-6 py-2.5 font-medium hover:bg-navy-dark transition-colors ml-auto">
+              Save physical test scores
+            </button>
+          </div>
         </div>
       </section>
 
@@ -948,6 +1001,225 @@
         return;
       }
       showStatus(statusEl, 'Scores saved.', false);
+    });
+
+    // =================================================================
+    // COMPILE CA SCORES — manual physical test entry + one-click calc/sync
+    // =================================================================
+    let ccaAssignment = null;
+    let ccaRoster = [];   // [{id, full_name}]
+
+    function ccaRenderAssignments() {
+      const wrap = document.getElementById('cca-assignment-list');
+      if (!currentAssignments.length) {
+        wrap.innerHTML = '<p class="text-navy/40 text-sm">No subjects have been assigned to you yet.</p>';
+        return;
+      }
+      wrap.innerHTML = currentAssignments.map((a, i) => `
+        <button data-index="${i}" class="cca-card text-left bg-white border border-navy/10 p-4 hover:border-sky transition-colors">
+          <p class="font-medium text-navy">${escapeHtml(a.subjectName)}</p>
+          <p class="text-sm text-navy/50">${escapeHtml(a.className)}</p>
+        </button>`).join('');
+      wrap.querySelectorAll('.cca-card').forEach(btn => {
+        btn.addEventListener('click', () => ccaOpen(currentAssignments[Number(btn.dataset.index)]));
+      });
+    }
+
+    async function ccaOpen(assignment) {
+      ccaAssignment = assignment;
+      document.getElementById('cca-assignment-wrap').classList.add('hidden');
+      const backBtn = document.getElementById('cca-back-btn');
+      backBtn.classList.remove('hidden'); backBtn.classList.add('flex');
+      document.getElementById('cca-panel').classList.remove('hidden');
+      document.getElementById('cca-title').textContent = `${assignment.subjectName} — ${assignment.className}`;
+      await ccaLoadRoster();
+    }
+
+    document.getElementById('cca-back-btn').addEventListener('click', () => {
+      ccaAssignment = null;
+      document.getElementById('cca-panel').classList.add('hidden');
+      document.getElementById('cca-back-btn').classList.add('hidden');
+      document.getElementById('cca-back-btn').classList.remove('flex');
+      document.getElementById('cca-assignment-wrap').classList.remove('hidden');
+    });
+
+    document.getElementById('cca-session').addEventListener('change', ccaLoadRoster);
+    document.getElementById('cca-term').addEventListener('change', ccaLoadRoster);
+
+    async function ccaLoadRoster() {
+      if (!ccaAssignment) return;
+      const rowsEl = document.getElementById('cca-rows');
+      rowsEl.innerHTML = '<p class="px-6 py-6 text-navy/40 text-sm">Loading students…</p>';
+
+      const sessionId = document.getElementById('cca-session').value;
+      const term = document.getElementById('cca-term').value;
+
+      const { data: students } = await supabaseClient
+        .from('students').select('id, full_name')
+        .eq('current_class_id', ccaAssignment.classId).eq('is_active', true).order('full_name');
+
+      if (!students || students.length === 0) {
+        rowsEl.innerHTML = '<p class="px-6 py-6 text-navy/40 text-sm">No active students in this class.</p>';
+        return;
+      }
+      ccaRoster = students;
+
+      const { data: existing } = await supabaseClient
+        .from('scores').select('student_id, physical_test_score')
+        .eq('subject_id', ccaAssignment.subjectId).eq('session_id', sessionId).eq('term', term)
+        .in('student_id', students.map(s => s.id));
+      const ptMap = {};
+      (existing || []).forEach(s => { ptMap[s.student_id] = s.physical_test_score; });
+
+      rowsEl.innerHTML = students.map(s => `
+        <div class="grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 px-6 py-4" data-student-id="${s.id}">
+          <p class="text-navy font-medium truncate">${escapeHtml(s.full_name)}</p>
+          <span class="cca-quiz-avg text-sm text-navy/40">—</span>
+          <span class="cca-proj-avg text-sm text-navy/40">—</span>
+          <div class="flex items-center gap-1">
+            <input type="number" min="0" max="20" placeholder="Test"
+                   value="${ptMap[s.id] ?? ''}" class="score-input cca-pt-input w-16" data-max="20">
+            <span class="text-navy/30 text-xs">/20</span>
+          </div>
+        </div>`).join('');
+
+      rowsEl.querySelectorAll('.cca-pt-input').forEach(inp => {
+        inp.addEventListener('input', () => {
+          const max = Number(inp.dataset.max);
+          if (inp.value !== '' && Number(inp.value) > max) inp.value = max;
+          if (inp.value !== '' && Number(inp.value) < 0) inp.value = 0;
+        });
+      });
+      document.getElementById('cca-status').classList.add('hidden');
+    }
+
+    document.getElementById('cca-save-btn').addEventListener('click', async () => {
+      const statusEl = document.getElementById('cca-save-status');
+      if (!ccaAssignment) return;
+      const sessionId = document.getElementById('cca-session').value;
+      const term = document.getElementById('cca-term').value;
+      if (!sessionId) { showStatus(statusEl, 'Select an academic session first.', true); return; }
+
+      const rows = document.querySelectorAll('#cca-rows > div[data-student-id]');
+      const payload = Array.from(rows).map(row => {
+        const pt = row.querySelector('.cca-pt-input').value;
+        return {
+          student_id: row.dataset.studentId, subject_id: ccaAssignment.subjectId,
+          class_id: ccaAssignment.classId, session_id: sessionId, term: term,
+          physical_test_score: pt === '' ? null : Number(pt), entered_by: currentStaff.id,
+        };
+      }).filter(r => r.physical_test_score !== null);
+
+      if (!payload.length) { showStatus(statusEl, 'Enter at least one physical test score before saving.', true); return; }
+
+      const btn = document.getElementById('cca-save-btn');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      const { error } = await supabaseClient.from('scores').upsert(payload, { onConflict: 'student_id,subject_id,session_id,term' });
+      btn.disabled = false; btn.textContent = 'Save physical test scores';
+
+      if (error) { showStatus(statusEl, 'Could not save. Please try again.', true); console.error(error); return; }
+      showStatus(statusEl, 'Physical test scores saved.', false);
+    });
+
+    // ---- Calculate & Sync CA ----
+    // Step A: avg quiz % /10. Step B: avg GRADED project % /10 (if any
+    // graded projects exist for this subject this term; otherwise quizzes
+    // alone are scaled /20 and projects contribute 0). Step C: + physical
+    // test. Step D: Math.round() to a whole number, synced into ca_score.
+    // Nothing here runs automatically — only on button click.
+    document.getElementById('cca-calc-btn').addEventListener('click', async () => {
+      const statusEl = document.getElementById('cca-status');
+      if (!ccaAssignment || !ccaRoster.length) return;
+      const sessionId = document.getElementById('cca-session').value;
+      const term = document.getElementById('cca-term').term === undefined ? document.getElementById('cca-term').value : document.getElementById('cca-term').value;
+      if (!sessionId) { showStatus(statusEl, 'Select an academic session first.', true); return; }
+
+      const btn = document.getElementById('cca-calc-btn');
+      btn.disabled = true; btn.textContent = 'Calculating…';
+
+      try {
+        const studentIds = ccaRoster.map(s => s.id);
+
+        // Quizzes for this subject + this term's class, submitted by these students.
+        const { data: quizzes } = await supabaseClient
+          .from('quizzes').select('id')
+          .eq('subject_id', ccaAssignment.subjectId).eq('class_level', ccaAssignment.className);
+        const quizIds = (quizzes || []).map(q => q.id);
+        let quizSubs = [];
+        if (quizIds.length) {
+          const { data } = await supabaseClient.from('quiz_submissions')
+            .select('student_id, score_percentage').in('quiz_id', quizIds).in('student_id', studentIds).not('submitted_at', 'is', null);
+          quizSubs = data || [];
+        }
+
+        // Projects for this subject + class, with graded submissions only.
+        const { data: projects } = await supabaseClient
+          .from('projects').select('id')
+          .eq('subject_id', ccaAssignment.subjectId).eq('class_id', ccaAssignment.classId);
+        const projIds = (projects || []).map(p => p.id);
+        let projSubs = [];
+        if (projIds.length) {
+          const { data } = await supabaseClient.from('project_submissions')
+            .select('student_id, grade_percentage').in('project_id', projIds).in('student_id', studentIds).not('grade_percentage', 'is', null);
+          projSubs = data || [];
+        }
+        const hasGradedProjects = projSubs.length > 0;
+
+        // Existing physical test scores for this subject/session/term.
+        const { data: existingScores } = await supabaseClient
+          .from('scores').select('student_id, physical_test_score')
+          .eq('subject_id', ccaAssignment.subjectId).eq('session_id', sessionId).eq('term', term)
+          .in('student_id', studentIds);
+        const ptMap = {};
+        (existingScores || []).forEach(s => { ptMap[s.student_id] = s.physical_test_score; });
+
+        const avgFor = (rows, sid, key) => {
+          const mine = rows.filter(r => r.student_id === sid).map(r => Number(r[key]));
+          return mine.length ? mine.reduce((a, b) => a + b, 0) / mine.length : null;
+        };
+
+        const payload = [];
+        const rowsEl = document.getElementById('cca-rows');
+        ccaRoster.forEach(s => {
+          const quizAvgPct = avgFor(quizSubs, s.id, 'score_percentage');
+          const projAvgPct = avgFor(projSubs, s.id, 'grade_percentage');
+          const pt = Number(ptMap[s.id] ?? 0);
+
+          let stepA, stepB;
+          if (hasGradedProjects) {
+            stepA = quizAvgPct === null ? 0 : (quizAvgPct / 100) * 10;
+            stepB = projAvgPct === null ? 0 : (projAvgPct / 100) * 10;
+          } else {
+            stepA = quizAvgPct === null ? 0 : (quizAvgPct / 100) * 20;
+            stepB = 0;
+          }
+          const finalCA = Math.round(stepA + stepB + pt);
+
+          const row = rowsEl.querySelector(`[data-student-id="${s.id}"]`);
+          if (row) {
+            row.querySelector('.cca-quiz-avg').textContent = quizAvgPct === null ? '— no quizzes' : quizAvgPct.toFixed(0) + '%';
+            row.querySelector('.cca-proj-avg').textContent = hasGradedProjects ? (projAvgPct === null ? '— not graded' : projAvgPct.toFixed(0) + '%') : 'n/a (quiz x2)';
+          }
+
+          payload.push({
+            student_id: s.id, subject_id: ccaAssignment.subjectId, class_id: ccaAssignment.classId,
+            session_id: sessionId, term: term, ca_score: finalCA, entered_by: currentStaff.id,
+          });
+        });
+
+        const { error } = await supabaseClient.from('scores').upsert(payload, { onConflict: 'student_id,subject_id,session_id,term' });
+        if (error) { showStatus(statusEl, 'Could not sync CA scores. Please try again.', true); console.error(error); return; }
+        showStatus(statusEl, `CA synced for ${payload.length} student${payload.length === 1 ? '' : 's'}. Check "My subjects" to see it in the CA box.`, false);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Calculate & Sync CA';
+      }
+    });
+
+    document.querySelector('[data-tab="compileca"]').addEventListener('click', () => {
+      if (!document.getElementById('cca-session').options.length) {
+        document.getElementById('cca-session').innerHTML = document.getElementById('scoring-session').innerHTML;
+      }
+      ccaRenderAssignments();
     });
 
     // =================================================================
@@ -1631,7 +1903,7 @@
     }, true);
     function tfFolders(key, items, getClass, getSubject, renderItem) {
       const attr = (t) => escapeHtml(t).replace(/"/g, '&quot;');
-      const isOpen = (k) => tfOpen.has(k) ? tfOpen.get(k) : true;
+      const isOpen = (k) => tfOpen.has(k) ? tfOpen.get(k) : false; // collapsed by default on login
       const tree = {};
       items.forEach(it => {
         const c = getClass(it) || 'Class', sj = getSubject(it) || 'General';
@@ -2272,21 +2544,41 @@
         box.innerHTML = '<p class="text-navy/40 text-sm">Loading submissions…</p>';
         const { data, error } = await supabaseClient
           .from('project_submissions')
-          .select('student_name, answer_text, file_url, file_type, submitted_at')
+          .select('student_id, student_name, answer_text, file_url, file_type, submitted_at, grade_percentage')
           .eq('project_id', pid)
           .order('submitted_at', { ascending: false });
         if (error) { box.innerHTML = '<p class="text-red-600 text-sm">Could not load submissions.</p>'; console.error(error); return; }
         if (!data.length) { box.innerHTML = '<p class="text-navy/50 text-sm">No submissions yet.</p>'; return; }
         box.innerHTML = `<p class="text-xs uppercase tracking-wide text-navy/50 mb-3">${data.length} submission${data.length === 1 ? '' : 's'}</p>` +
           data.map(s => `
-            <div class="border border-navy/10 p-3 mb-2">
+            <div class="border border-navy/10 p-3 mb-2" data-sub-student="${s.student_id}">
               <div class="flex justify-between gap-3 flex-wrap">
                 <p class="font-medium text-navy text-sm">${escapeHtml(s.student_name || 'Student')}</p>
                 <p class="text-xs text-navy/40">${new Date(s.submitted_at).toLocaleString()}</p>
               </div>
               ${s.answer_text ? `<p class="text-sm text-navy/80 mt-2 whitespace-pre-wrap">${escapeHtml(s.answer_text)}</p>` : ''}
               ${s.file_url ? `<a href="${encodeURI(s.file_url)}" target="_blank" rel="noopener" class="inline-block mt-2 text-sm text-sky font-medium hover:underline">Open attached file</a>` : ''}
+              <div class="flex items-center gap-2 mt-3 pt-3 border-t border-navy/10">
+                <label class="text-xs text-navy/50">Grade</label>
+                <input type="number" min="0" max="100" value="${s.grade_percentage ?? ''}" placeholder="%" class="pj-grade-input w-16 border border-navy/20 px-2 py-1 text-sm">
+                <span class="text-navy/30 text-xs">%</span>
+                <button class="pj-grade-save text-xs text-white bg-navy px-3 py-1.5 hover:bg-navy-dark">Save grade</button>
+                <span class="pj-grade-status text-xs"></span>
+              </div>
             </div>`).join('');
+      }
+
+      if (e.target.closest('.pj-grade-save')) {
+        const row = e.target.closest('[data-sub-student]');
+        const input = row.querySelector('.pj-grade-input');
+        const statusEl = row.querySelector('.pj-grade-status');
+        const val = input.value === '' ? null : Math.max(0, Math.min(100, Number(input.value)));
+        input.value = val ?? '';
+        const { error } = await supabaseClient.from('project_submissions')
+          .update({ grade_percentage: val }).eq('project_id', pid).eq('student_id', row.dataset.subStudent);
+        statusEl.textContent = error ? 'Could not save.' : 'Saved.';
+        statusEl.className = 'pj-grade-status text-xs ' + (error ? 'text-red-600' : 'text-emerald-700');
+        if (error) console.error(error);
       }
     });
 
