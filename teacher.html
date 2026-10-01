@@ -326,36 +326,47 @@
       <!-- TAB: PROJECTS (open-ended tasks students reply to)         -->
       <!-- ========================================================= -->
       <section id="tab-projects" class="panel">
-        <h1 class="font-display text-2xl text-navy mb-1">Projects</h1>
-        <p class="text-navy/60 mb-6">Post a project with instructions. Students reply with typed text, a file, or both.</p>
-
-        <div class="bg-white border border-navy/10 p-6 mb-8">
-          <div class="grid sm:grid-cols-2 gap-4">
-            <div class="sm:col-span-2">
-              <label class="field-label" for="pj-title">Project title</label>
-              <input id="pj-title" class="field-input" type="text" maxlength="120" placeholder="e.g. Build a model of the water cycle">
-            </div>
-            <div class="sm:col-span-2">
-              <label class="field-label" for="pj-assignment">Class &amp; subject</label>
-              <select id="pj-assignment" class="field-input"></select>
-            </div>
-            <div class="sm:col-span-2">
-              <label class="field-label" for="pj-instructions">Instructions</label>
-              <textarea id="pj-instructions" class="field-input" rows="6" maxlength="5000" placeholder="Explain what students must do, what to include, and how to submit."></textarea>
-            </div>
+        <div id="pj-list-view">
+          <div class="flex items-start justify-between gap-3 flex-wrap mb-6">
             <div>
-              <label class="field-label" for="pj-due">Due date &amp; time <span class="text-navy/40">(optional)</span></label>
-              <input id="pj-due" class="field-input" type="datetime-local">
+              <h1 class="font-display text-2xl text-navy mb-1">Projects</h1>
+              <p class="text-navy/60">Post a project with instructions. Students reply with typed text, a file, or both.</p>
             </div>
+            <button id="pj-new-btn" class="bg-navy text-white px-5 py-2.5 font-medium hover:bg-navy-dark transition-colors">+ New project</button>
           </div>
-          <div class="flex items-center gap-4 mt-5">
-            <button id="pj-submit" class="bg-navy text-white px-5 py-2.5 font-medium hover:bg-navy-dark transition-colors">Post project</button>
-            <p id="pj-status" class="text-sm"></p>
-          </div>
+          <div id="pj-list" class="space-y-3"><p class="text-navy/40 text-sm">Loading…</p></div>
         </div>
 
-        <p class="text-xs uppercase tracking-wide text-navy/50 mb-3">Your projects</p>
-        <div id="pj-list" class="space-y-3"><p class="text-navy/40 text-sm">Loading…</p></div>
+        <!-- ---------- CREATE VIEW ---------- -->
+        <div id="pj-create-view" class="hidden">
+          <button id="pj-create-back" class="text-sm text-sky font-medium mb-4 hover:underline">&larr; Back to my projects</button>
+          <h1 class="font-display text-2xl text-navy mb-6">New project</h1>
+
+          <div class="bg-white border border-navy/10 p-6">
+            <div class="grid sm:grid-cols-2 gap-4">
+              <div class="sm:col-span-2">
+                <label class="field-label" for="pj-title">Project title</label>
+                <input id="pj-title" class="field-input" type="text" maxlength="120" placeholder="e.g. Build a model of the water cycle">
+              </div>
+              <div class="sm:col-span-2">
+                <label class="field-label" for="pj-assignment">Class &amp; subject</label>
+                <select id="pj-assignment" class="field-input"></select>
+              </div>
+              <div class="sm:col-span-2">
+                <label class="field-label" for="pj-instructions">Instructions</label>
+                <textarea id="pj-instructions" class="field-input" rows="6" maxlength="5000" placeholder="Explain what students must do, what to include, and how to submit."></textarea>
+              </div>
+              <div>
+                <label class="field-label" for="pj-due">Due date &amp; time <span class="text-navy/40">(optional)</span></label>
+                <input id="pj-due" class="field-input" type="datetime-local">
+              </div>
+            </div>
+            <div class="flex items-center gap-4 mt-5">
+              <button id="pj-submit" class="bg-navy text-white px-5 py-2.5 font-medium hover:bg-navy-dark transition-colors">Post project</button>
+              <p id="pj-status" class="text-sm"></p>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- ========================================================= -->
@@ -2475,8 +2486,25 @@
     // Tables: projects, project_submissions   Bucket: project-files
     // =================================================================
     document.querySelector('[data-tab="projects"]').addEventListener('click', () => {
+      pjShowView('list');
       pjFillAssignments();
       pjLoadList();
+    });
+
+    function pjShowView(name) {
+      document.getElementById('pj-list-view').classList.toggle('hidden', name !== 'list');
+      document.getElementById('pj-create-view').classList.toggle('hidden', name !== 'create');
+    }
+    document.getElementById('pj-new-btn').addEventListener('click', () => {
+      document.getElementById('pj-title').value = '';
+      document.getElementById('pj-instructions').value = '';
+      document.getElementById('pj-due').value = '';
+      document.getElementById('pj-status').textContent = '';
+      pjFillAssignments();
+      pjShowView('create');
+    });
+    document.getElementById('pj-create-back').addEventListener('click', () => {
+      pjShowView('list');
     });
 
     function pjFillAssignments() {
@@ -2631,6 +2659,7 @@
       document.getElementById('pj-due').value = '';
       showStatus(statusEl, 'Posted. Students in ' + a.className + ' can now see it.', false);
       pjLoadList();
+      pjShowView('list');
     });
   </script>
 </body>
