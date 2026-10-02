@@ -290,36 +290,47 @@
       <!-- TAB: STUDY MATERIALS (upload notes / images for a class)   -->
       <!-- ========================================================= -->
       <section id="tab-materials" class="panel">
-        <h1 class="font-display text-2xl text-navy mb-1">Study materials</h1>
-        <p class="text-navy/60 mb-6">Upload notes or images. Students in the class you choose will see them in their portal.</p>
-
-        <div class="bg-white border border-navy/10 p-6 mb-8">
-          <div class="grid sm:grid-cols-2 gap-4">
-            <div class="sm:col-span-2">
-              <label class="field-label" for="sm-title">Title</label>
-              <input id="sm-title" class="field-input" type="text" maxlength="120" placeholder="e.g. Photosynthesis — Week 4 notes">
+        <div id="sm-list-view">
+          <div class="flex items-start justify-between gap-3 flex-wrap mb-6">
+            <div>
+              <h1 class="font-display text-2xl text-navy mb-1">Study materials</h1>
+              <p class="text-navy/60">Upload notes or images. Students in the class you choose will see them in their portal.</p>
             </div>
-            <div class="sm:col-span-2">
-              <label class="field-label" for="sm-assignment">Class &amp; subject</label>
-              <select id="sm-assignment" class="field-input"></select>
-            </div>
-            <div class="sm:col-span-2">
-              <label class="field-label" for="sm-desc">Description</label>
-              <textarea id="sm-desc" class="field-input" rows="3" maxlength="500" placeholder="Short note for students (optional)"></textarea>
-            </div>
-            <div class="sm:col-span-2">
-              <label class="field-label" for="sm-file">File (image, PDF, Word, PowerPoint or text — max 10 MB)</label>
-              <input id="sm-file" type="file" class="field-input" accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt">
-            </div>
+            <button id="sm-new-btn" class="bg-navy text-white px-5 py-2.5 font-medium hover:bg-navy-dark transition-colors">+ New material</button>
           </div>
-          <div class="flex items-center gap-4 mt-5">
-            <button id="sm-submit" class="bg-navy text-white px-5 py-2.5 font-medium hover:bg-navy-dark transition-colors">Submit</button>
-            <p id="sm-status" class="text-sm"></p>
-          </div>
+          <div id="sm-list" class="space-y-3"><p class="text-navy/40 text-sm">Loading…</p></div>
         </div>
 
-        <p class="text-xs uppercase tracking-wide text-navy/50 mb-3">Your uploads</p>
-        <div id="sm-list" class="space-y-3"><p class="text-navy/40 text-sm">Loading…</p></div>
+        <!-- ---------- CREATE VIEW ---------- -->
+        <div id="sm-create-view" class="hidden">
+          <button id="sm-create-back" class="text-sm text-sky font-medium mb-4 hover:underline">&larr; Back to my uploads</button>
+          <h1 class="font-display text-2xl text-navy mb-6">New study material</h1>
+
+          <div class="bg-white border border-navy/10 p-6">
+            <div class="grid sm:grid-cols-2 gap-4">
+              <div class="sm:col-span-2">
+                <label class="field-label" for="sm-title">Title</label>
+                <input id="sm-title" class="field-input" type="text" maxlength="120" placeholder="e.g. Photosynthesis — Week 4 notes">
+              </div>
+              <div class="sm:col-span-2">
+                <label class="field-label" for="sm-assignment">Class &amp; subject</label>
+                <select id="sm-assignment" class="field-input"></select>
+              </div>
+              <div class="sm:col-span-2">
+                <label class="field-label" for="sm-desc">Description</label>
+                <textarea id="sm-desc" class="field-input" rows="3" maxlength="500" placeholder="Short note for students (optional)"></textarea>
+              </div>
+              <div class="sm:col-span-2">
+                <label class="field-label" for="sm-file">File (image, PDF, Word, PowerPoint or text — max 10 MB)</label>
+                <input id="sm-file" type="file" class="field-input" accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt">
+              </div>
+            </div>
+            <div class="flex items-center gap-4 mt-5">
+              <button id="sm-submit" class="bg-navy text-white px-5 py-2.5 font-medium hover:bg-navy-dark transition-colors">Submit</button>
+              <p id="sm-status" class="text-sm"></p>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- ========================================================= -->
@@ -2367,8 +2378,25 @@
     const SM_MAX_BYTES = 10 * 1024 * 1024;
 
     document.querySelector('[data-tab="materials"]').addEventListener('click', () => {
+      smShowView('list');
       smFillAssignments();
       smLoadList();
+    });
+
+    function smShowView(name) {
+      document.getElementById('sm-list-view').classList.toggle('hidden', name !== 'list');
+      document.getElementById('sm-create-view').classList.toggle('hidden', name !== 'create');
+    }
+    document.getElementById('sm-new-btn').addEventListener('click', () => {
+      document.getElementById('sm-title').value = '';
+      document.getElementById('sm-desc').value = '';
+      document.getElementById('sm-file').value = '';
+      document.getElementById('sm-status').textContent = '';
+      smFillAssignments();
+      smShowView('create');
+    });
+    document.getElementById('sm-create-back').addEventListener('click', () => {
+      smShowView('list');
     });
 
     function smFillAssignments() {
@@ -2479,6 +2507,7 @@
       document.getElementById('sm-file').value = '';
       showStatus(statusEl, 'Uploaded. Students in ' + a.className + ' can now see it.', false);
       smLoadList();
+      smShowView('list');
     });
   
     // =================================================================
