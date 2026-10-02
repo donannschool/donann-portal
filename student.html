@@ -331,8 +331,7 @@
           <p id="sq-result-detail" class="text-navy/60"></p>
           <p id="sq-result-note" class="hidden text-sm text-amber-700 mt-3"></p>
         </div>
-        <p class="text-xs uppercase tracking-wide text-navy/50 mb-3">Review your answers</p>
-        <div id="sq-review" class="space-y-4 mb-8"></div>
+
         <button id="sq-result-back" class="border border-navy text-navy px-6 py-3 font-medium hover:bg-navy hover:text-white transition-colors">Back to quizzes</button>
       </div>
     </div>
@@ -1157,32 +1156,15 @@
       }
     }
 
-    // ---- result + review (correct answers are revealed only now) ----
+    // ---- result only: score and correct-count, no answer key or per-
+    // question review, so a student who finishes first can't pass the
+    // correct answers to classmates who haven't taken it yet.
     function sqShowResult(r) {
       document.getElementById('sq-result-score').textContent = `${r.score}%`;
       document.getElementById('sq-result-detail').textContent = `${r.correctCount} of ${r.total} correct`;
       const noteEl = document.getElementById('sq-result-note');
       noteEl.classList.toggle('hidden', !r.timedOut);
       if (r.timedOut) noteEl.textContent = 'Your time ran out, so this quiz was submitted automatically.';
-
-      document.getElementById('sq-review').innerHTML = r.review.map((q, i) => {
-        const gotIt = q.your_answer === q.correct_option;
-        return `
-          <div class="bg-white border ${gotIt ? 'border-emerald-300' : 'border-red-300'} p-5">
-            <p class="font-medium text-navy mb-3"><span class="text-navy/40 mr-1">${i + 1}.</span> ${escapeHtml(q.question_text)}</p>
-            <div class="space-y-1.5 text-sm">
-              ${['A', 'B', 'C', 'D'].map(l => {
-                const isCorrect = l === q.correct_option;
-                const isYours = l === q.your_answer;
-                let cls = 'text-navy/70', tag = '';
-                if (isCorrect) { cls = 'text-emerald-800 bg-emerald-50 font-medium'; tag = ' ✓ Correct answer'; }
-                else if (isYours) { cls = 'text-red-800 bg-red-50'; tag = ' ✗ Your answer'; }
-                return `<p class="px-3 py-2 ${cls}">${l}. ${escapeHtml(q['option_' + l.toLowerCase()])}${tag}</p>`;
-              }).join('')}
-            </div>
-            ${q.your_answer === null ? '<p class="text-xs text-amber-700 mt-2">You did not answer this question.</p>' : ''}
-          </div>`;
-      }).join('');
 
       sqShowView('result');
       window.scrollTo({ top: 0 });
