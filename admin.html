@@ -1292,7 +1292,7 @@
       'KG 1': ['Number work', 'Letter work', 'Health Habit', 'Social Habit', 'Poem', 'Creative Arts', 'CRS', 'Science'].map(g),
       'KG 2': ['Number work', 'Letter work', 'Health Habit', 'Social Habit', 'Poem', 'Creative Arts', 'CRS', 'Science', 'Quantitative Reasoning', 'Verbal Reasoning'].map(g),
       'NURSERY 1': ['Mathematics', 'English Language', 'Writing', 'Social Habit', 'Health Habit', 'Spellings', 'Science', 'Creative Arts', 'CRK', 'Quantitative Reasoning', 'Verbal Reasoning'].map(g),
-      'NURSERY 2': ['English Language', 'Mathematics', 'Quantitative Reasoning', 'Verbal Reasoning', 'Writing', 'Spellings', 'CRS', 'Social Habit', 'Health Habit', 'Civic Education', 'Creativity'].map(g),
+      'NURSERY 2': ['English Language', 'Mathematics', 'Quantitative Reasoning', 'Verbal Reasoning', 'Writing', 'Spellings', 'CRS', 'Social Habit', 'Health Habit', 'Civic Education', 'Creative Arts'].map(g),
 
       'PRIMARY 1': ['English Language', 'Mathematics', 'Quantitative Reasoning', 'Verbal Reasoning', 'Spellings', 'Writing', 'CRS', 'CCA', 'Nigerian History', 'Basic Science & Technology', 'National Values & Education'].map(g),
       'PRIMARY 2': ['English Language', 'Mathematics', 'Basic Science & Technology', 'Writing', 'Quantitative Reasoning', 'Verbal Reasoning', 'Spellings', 'Basic Digital Literacy', 'Prevocational Studies', 'Social & Citizenship Studies', 'Security Education', 'CCA', 'CRS', 'Nigerian History'].map(g),
@@ -1460,23 +1460,26 @@
     // two can never drift out of sync.
 
     // Class definitions in display order: [class_name, level_order, class_subject_map_key, requires_portal_credentials, requires_department]
+    // 6th element is "category", matching the DB's class_category enum
+    // (creche, kg, nursery, primary, jss, ss) — required (NOT NULL, no
+    // default) by the classes table, so every inserted row must supply it.
     const DEFAULT_CLASSES = [
-      ['Crèche',     1,  'CRECHE',      false, false],
-      ['KG 1',       2,  'KG 1',        false, false],
-      ['KG 2',       3,  'KG 2',        false, false],
-      ['Nursery 1',  4,  'NURSERY 1',   false, false],
-      ['Nursery 2',  5,  'NURSERY 2',   false, false],
-      ['Primary 1',  6,  'PRIMARY 1',   false, false],
-      ['Primary 2',  7,  'PRIMARY 2',   false, false],
-      ['Primary 3',  8,  'PRIMARY 3',   false, false],
-      ['Primary 4',  9,  'PRIMARY 4',   false, false],
-      ['Primary 5',  10, 'PRIMARY 5',   false, false],
-      ['JSS 1',      11, 'JSS 1',       true,  false],
-      ['JSS 2',      12, 'JSS 2',       true,  false],
-      ['JSS 3',      13, 'JSS 3',       true,  false],
-      ['SS 1',       14, 'SS 1',        true,  true],
-      ['SS 2',       15, 'SS 2',        true,  true],
-      ['SS 3',       16, 'SS 3',        true,  true],
+      ['Crèche',     1,  'CRECHE',      false, false, 'creche'],
+      ['KG 1',       2,  'KG 1',        false, false, 'kg'],
+      ['KG 2',       3,  'KG 2',        false, false, 'kg'],
+      ['Nursery 1',  4,  'NURSERY 1',   false, false, 'nursery'],
+      ['Nursery 2',  5,  'NURSERY 2',   false, false, 'nursery'],
+      ['Primary 1',  6,  'PRIMARY 1',   false, false, 'primary'],
+      ['Primary 2',  7,  'PRIMARY 2',   false, false, 'primary'],
+      ['Primary 3',  8,  'PRIMARY 3',   false, false, 'primary'],
+      ['Primary 4',  9,  'PRIMARY 4',   false, false, 'primary'],
+      ['Primary 5',  10, 'PRIMARY 5',   false, false, 'primary'],
+      ['JSS 1',      11, 'JSS 1',       true,  false, 'jss'],
+      ['JSS 2',      12, 'JSS 2',       true,  false, 'jss'],
+      ['JSS 3',      13, 'JSS 3',       true,  false, 'jss'],
+      ['SS 1',       14, 'SS 1',        true,  true,  'ss'],
+      ['SS 2',       15, 'SS 2',        true,  true,  'ss'],
+      ['SS 3',       16, 'SS 3',        true,  true,  'ss'],
     ];
 
     let schoolSettings = null; // { id, active_session_label, active_term }
@@ -1756,8 +1759,8 @@
         const existingNames = new Set((existingClasses || []).map(c => c.class_name));
         const classesToInsert = DEFAULT_CLASSES
           .filter(([name]) => !existingNames.has(name))
-          .map(([class_name, level_order, , requires_portal_credentials, requires_department]) => ({
-            class_name, level_order, requires_portal_credentials, requires_department,
+          .map(([class_name, level_order, , requires_portal_credentials, requires_department, category]) => ({
+            class_name, level_order, requires_portal_credentials, requires_department, category,
             syllabus: syllabusForClass(class_name),
           }));
 
