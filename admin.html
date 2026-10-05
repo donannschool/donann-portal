@@ -3252,7 +3252,12 @@
       const secondaryRows = [];
 
       for (const r of rows) {
-        if (classTier(r.className) === 'secondary') {
+        const t = classTier(r.className);
+        // classTier() now returns 'jss' or 'ss' for secondary classes
+        // (previously a single 'secondary' value) — both must route to
+        // the explicit per-subject summary, not the early/primary
+        // "(All Subjects)" catch-all.
+        if (t === 'jss' || t === 'ss' || t === 'secondary') {
           secondaryRows.push(r);
         } else {
           earlyPrimaryClasses.add(r.className);
