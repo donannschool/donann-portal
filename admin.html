@@ -1463,17 +1463,23 @@
     // 6th element is "category", matching the DB's class_category enum
     // (creche, kg, nursery, primary, jss, ss) — required (NOT NULL, no
     // default) by the classes table, so every inserted row must supply it.
+    // class_name here MUST exactly match the class_name already sitting in
+    // the database for classes that already have real students in them
+    // (Crèche through Primary 5 are ALL-CAPS in the DB) — otherwise
+    // Initialize creates a second, empty duplicate class instead of
+    // reusing the real one. JSS/SS were already ALL-CAPS/number-spaced
+    // consistently, so those are unaffected.
     const DEFAULT_CLASSES = [
-      ['Crèche',     1,  'CRECHE',      false, false, 'creche'],
+      ['CRECHE',     1,  'CRECHE',      false, false, 'creche'],
       ['KG 1',       2,  'KG 1',        false, false, 'kg'],
       ['KG 2',       3,  'KG 2',        false, false, 'kg'],
-      ['Nursery 1',  4,  'NURSERY 1',   false, false, 'nursery'],
-      ['Nursery 2',  5,  'NURSERY 2',   false, false, 'nursery'],
-      ['Primary 1',  6,  'PRIMARY 1',   false, false, 'primary'],
-      ['Primary 2',  7,  'PRIMARY 2',   false, false, 'primary'],
-      ['Primary 3',  8,  'PRIMARY 3',   false, false, 'primary'],
-      ['Primary 4',  9,  'PRIMARY 4',   false, false, 'primary'],
-      ['Primary 5',  10, 'PRIMARY 5',   false, false, 'primary'],
+      ['NURSERY 1',  4,  'NURSERY 1',   false, false, 'nursery'],
+      ['NURSERY 2',  5,  'NURSERY 2',   false, false, 'nursery'],
+      ['PRIMARY 1',  6,  'PRIMARY 1',   false, false, 'primary'],
+      ['PRIMARY 2',  7,  'PRIMARY 2',   false, false, 'primary'],
+      ['PRIMARY 3',  8,  'PRIMARY 3',   false, false, 'primary'],
+      ['PRIMARY 4',  9,  'PRIMARY 4',   false, false, 'primary'],
+      ['PRIMARY 5',  10, 'PRIMARY 5',   false, false, 'primary'],
       ['JSS 1',      11, 'JSS 1',       true,  false, 'jss'],
       ['JSS 2',      12, 'JSS 2',       true,  false, 'jss'],
       ['JSS 3',      13, 'JSS 3',       true,  false, 'jss'],
