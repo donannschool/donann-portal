@@ -1265,6 +1265,13 @@
     // "Pre-Kindergarten" / "PRE-KINDERGARTEN".
     const EARLY_YEARS_TIERS = ['CRECHE', 'TODDLER', 'PRE-KINDERGARTEN', 'PRE KINDERGARTEN', 'NURSERY 1', 'NURSERY 2', 'KG 1', 'KG 2'];
     const PRIMARY_TIERS = ['PRIMARY 1', 'PRIMARY 2', 'PRIMARY 3', 'PRIMARY 4', 'PRIMARY 5'];
+    const JSS_TIERS = ['JSS 1', 'JSS 2', 'JSS 3'];
+    const SS_TIERS = ['SS 1', 'SS 2', 'SS 3'];
+
+    // Shorthand: wraps a plain subject name as a { name, department } pair
+    // with department defaulted to 'General' (used for every non-SS-elective
+    // subject, and for SS core subjects everyone takes regardless of dept).
+    function g(name) { return { name, department: 'General' }; }
 
     // Strict per-class curriculum blueprint. "ALL SUBJECTS" now maps to
     // the exact list for the SPECIFIC class the row targets, instead of
@@ -1274,26 +1281,68 @@
     //
     // Crèche has no real subjects — a single non-numeric placeholder
     // ('General Performance') is used for promotion/comment tracking.
+    //
+    // JSS 1 and SS 1 carry the NEW government syllabus (this session's
+    // intake). JSS 2/3 and SS 2/3 are still on the OLD syllabus, since
+    // those cohorts had already started before the change. As each
+    // cohort is promoted, update CLASS_SYLLABUS below (not this map) —
+    // e.g. next session JSS 1 -> JSS 2, so JSS 2 becomes 'new' too.
     const CLASS_SUBJECT_MAP = {
-      'CRECHE': ['General Performance'],
-      'KG 1': ['Number work', 'Letter work', 'Health habit', 'Social Habit', 'Poem', 'Creative Arts', 'CRS', 'Science'],
-      'KG 2': ['Number work', 'Letter work', 'Health habit', 'Social Habit', 'Poem', 'Creative Arts', 'CRS', 'Science', 'Quantitative Reasoning', 'Verbal Reasoning'],
-      'NURSERY 1': ['Mathematics', 'English Language', 'Writing', 'Social Habit', 'Health habit', 'Spellings', 'Science', 'Creative Arts', 'CRS', 'Quantitative Reasoning', 'Verbal Reasoning'],
-      'NURSERY 2': ['English Language', 'Mathematics', 'Quantitative Reasoning', 'Verbal Reasoning', 'Writing', 'Spellings', 'CRS', 'Social Habit', 'Civic Education', 'Creative Arts'],
-      'PRIMARY 1': ['English Language', 'Mathematics', 'Quantitative Reasoning', 'Verbal Reasoning', 'Spellings', 'Handwriting', 'CRS', 'Creative Arts', 'History', 'Basic Science & Technology', 'National Values & Education'],
-      'PRIMARY 2': ['English Language', 'Mathematics', 'Basic Science & Technology', 'Writing', 'Quantitative Reasoning', 'Verbal Reasoning', 'Spellings', 'Basic Digital Literacy', 'Prevocational Studies', 'Social & Citizenship Studies', 'Security Education', 'Creative Arts', 'CRS', 'History'],
-      'PRIMARY 3': ['English Language', 'Mathematics', 'Basic Science & Technology', 'Writing', 'Quantitative Reasoning', 'Verbal Reasoning', 'Spellings', 'Basic Digital Literacy', 'Prevocational Studies', 'Social & Citizenship Studies', 'Security Education', 'Creative Arts', 'CRS', 'History'],
-      'PRIMARY 4': ['English Language', 'Mathematics', 'Quantitative Reasoning', 'Verbal Reasoning', 'Spellings', 'Writing', 'Creative Arts', 'CRS', 'PHE', 'Social & Citizenship Studies', 'Prevocational Studies', 'Basic Science & Technology', 'Basic Digital Literacy', 'History'],
-      'PRIMARY 5': ['English Language', 'Mathematics', 'Quantitative Reasoning', 'Verbal Reasoning', 'Spellings', 'Writing', 'Creative Arts', 'CRS', 'PHE', 'Social & Citizenship Studies', 'Prevocational Studies', 'Basic Science & Technology', 'Basic Digital Literacy', 'History'],
-      'JSS 1': ['Basic Science', 'Business Studies', 'Creative Arts', 'Computer', 'CRS', 'English Language', 'History', 'Mathematics', 'PHE', 'Social & Citizenship Studies'],
-      'JSS 2': ['Agricultural Science', 'Basic Science', 'Business Studies', 'Creative Arts', 'Civic Education', 'Computer', 'CRS', 'English Language', 'History', 'Mathematics', 'PHE', 'Social Studies'],
-      'JSS 3': ['Agricultural Science', 'Basic Science', 'Business Studies', 'Creative Arts', 'Civic Education', 'Computer', 'CRS', 'English Language', 'History', 'Mathematics', 'PHE', 'Social Studies'],
-      // SS tiers: Core + all Departmental Electives combined into one flat
-      // array. The backend/Supabase side handles per-department filtering;
-      // the frontend only needs the full set of valid SS subject names.
-      'SS 1': ['Citizenship & Heritage', 'Digital Technology', 'English Language', 'Mathematics', 'Agricultural Science', 'Biology', 'Chemistry', 'Physics', 'Commerce', 'Economics', 'Financial Accounting', 'Marketing', 'CRS', 'Government', 'History', 'Literature in English'],
-      'SS 2': ['Citizenship & Heritage', 'English Language', 'Mathematics', 'Agricultural Science', 'Biology', 'Chemistry', 'Physics', 'Commerce', 'Economics', 'Financial Accounting', 'Marketing', 'CRS', 'Government', 'History', 'Literature in English'],
-      'SS 3': ['Citizenship & Heritage', 'English Language', 'Mathematics', 'Agricultural Science', 'Biology', 'Chemistry', 'Physics', 'Commerce', 'Economics', 'Financial Accounting', 'Marketing', 'CRS', 'Government', 'History', 'Literature in English'],
+      'CRECHE': [g('General Performance')],
+      'KG 1': ['Number work', 'Letter work', 'Health Habit', 'Social Habit', 'Poem', 'Creative Arts', 'CRS', 'Science'].map(g),
+      'KG 2': ['Number work', 'Letter work', 'Health Habit', 'Social Habit', 'Poem', 'Creative Arts', 'CRS', 'Science', 'Quantitative Reasoning', 'Verbal Reasoning'].map(g),
+      'NURSERY 1': ['Mathematics', 'English Language', 'Writing', 'Social Habit', 'Health Habit', 'Spellings', 'Science', 'Creative Arts', 'CRK', 'Quantitative Reasoning', 'Verbal Reasoning'].map(g),
+      'NURSERY 2': ['English Language', 'Mathematics', 'Quantitative Reasoning', 'Verbal Reasoning', 'Writing', 'Spellings', 'CRS', 'Social Habit', 'Health Habit', 'Civic Education', 'Creativity'].map(g),
+
+      'PRIMARY 1': ['English Language', 'Mathematics', 'Quantitative Reasoning', 'Verbal Reasoning', 'Spellings', 'Writing', 'CRS', 'CCA', 'Nigerian History', 'Basic Science & Technology', 'National Values & Education'].map(g),
+      'PRIMARY 2': ['English Language', 'Mathematics', 'Basic Science & Technology', 'Writing', 'Quantitative Reasoning', 'Verbal Reasoning', 'Spellings', 'Basic Digital Literacy', 'Prevocational Studies', 'Social & Citizenship Studies', 'Security Education', 'CCA', 'CRS', 'Nigerian History'].map(g),
+      'PRIMARY 3': ['English Language', 'Mathematics', 'Basic Science & Technology', 'Writing', 'Quantitative Reasoning', 'Verbal Reasoning', 'Spellings', 'Basic Digital Literacy', 'Prevocational Studies', 'Social & Citizenship Studies', 'Security Education', 'CCA', 'CRS', 'Nigerian History'].map(g),
+      'PRIMARY 4': ['English Language', 'Mathematics', 'Quantitative Reasoning', 'Verbal Reasoning', 'Spellings', 'Writing', 'CCA', 'CRS', 'PHE', 'Social & Citizenship Studies', 'Prevocational Studies', 'Basic Science & Technology', 'Basic Digital Literacy', 'Nigerian History'].map(g),
+      'PRIMARY 5': ['English Language', 'Mathematics', 'Quantitative Reasoning', 'Verbal Reasoning', 'Spellings', 'Writing', 'CCA', 'CRS', 'PHE', 'Social & Citizenship Studies', 'Prevocational Studies', 'Basic Science & Technology', 'Basic Digital Literacy', 'Nigerian History'].map(g),
+
+      // JSS 1 — NEW syllabus
+      'JSS 1': ['Mathematics', 'English Language', 'Basic Science & Technology', 'Computer', 'Social & Citizenship Studies', 'PHE', 'CRS', 'CCA', 'Business Studies', 'Nigerian History'].map(g),
+      // JSS 2 / JSS 3 — OLD syllabus
+      'JSS 2': ['Mathematics', 'English Language', 'Basic Science & Technology', 'Computer', 'Social Studies', 'Civic Education', 'Agricultural Science', 'PHE', 'CRS', 'CCA', 'Business Studies'].map(g),
+      'JSS 3': ['Mathematics', 'English Language', 'Basic Science & Technology', 'Computer', 'Social Studies', 'Civic Education', 'Agricultural Science', 'PHE', 'CRS', 'CCA', 'Business Studies'].map(g),
+
+      // SS 1 — NEW syllabus (core has 4 subjects, incl. Digital Technology)
+      'SS 1': [
+        ...['English Language', 'Mathematics', 'Digital Technology', 'Citizenship & Heritage'].map(g),
+        ...['Biology', 'Physics', 'Chemistry', 'Agricultural Science'].map(n => ({ name: n, department: 'Science' })),
+        ...['Economics', 'Marketing', 'Financial Accounting', 'Commerce'].map(n => ({ name: n, department: 'Commercial' })),
+        ...['Government', 'Nigerian History', 'Literature in English', 'CRS'].map(n => ({ name: n, department: 'Art' })),
+      ],
+      // SS 2 / SS 3 — OLD syllabus (core has 3 subjects, no Digital Technology)
+      'SS 2': [
+        ...['English Language', 'Mathematics', 'Citizenship & Heritage'].map(g),
+        ...['Biology', 'Physics', 'Chemistry', 'Agricultural Science'].map(n => ({ name: n, department: 'Science' })),
+        ...['Economics', 'Marketing', 'Financial Accounting', 'Commerce'].map(n => ({ name: n, department: 'Commercial' })),
+        ...['Government', 'Nigerian History', 'Literature in English', 'CRS'].map(n => ({ name: n, department: 'Art' })),
+      ],
+      'SS 3': [
+        ...['English Language', 'Mathematics', 'Citizenship & Heritage'].map(g),
+        ...['Biology', 'Physics', 'Chemistry', 'Agricultural Science'].map(n => ({ name: n, department: 'Science' })),
+        ...['Economics', 'Marketing', 'Financial Accounting', 'Commerce'].map(n => ({ name: n, department: 'Commercial' })),
+        ...['Government', 'Nigerian History', 'Literature in English', 'CRS'].map(n => ({ name: n, department: 'Art' })),
+      ],
+    };
+
+    // Which syllabus each JSS/SS class is currently following this
+    // session. Primary/Nursery/Crèche get null — the old/new syllabus
+    // concept does not apply to them at all.
+    //
+    // >>> UPDATE THIS EVERY SESSION AS COHORTS GET PROMOTED. <<<
+    // This session: JSS1 + SS1 are 'new' (just started under it).
+    // Next session: last year's JSS1 becomes JSS2 and KEEPS 'new',
+    //               this year's JSS2 becomes JSS3 and KEEPS 'old',
+    //               the new incoming JSS1 is 'new'.
+    //               So next session set: JSS1:'new', JSS2:'new', JSS3:'old'.
+    // Session after that: everyone 'new', old syllabus fully retired —
+    //               you can leave all six as 'new' from then on.
+    const CLASS_SYLLABUS = {
+      'JSS 1': 'new',  'JSS 2': 'old',  'JSS 3': 'old',
+      'SS 1': 'new',   'SS 2': 'old',   'SS 3': 'old',
     };
 
     // A single non-numeric marker so downstream reporting/gradebook code
@@ -1305,30 +1354,46 @@
       const upper = (className || '').toUpperCase().trim();
       if (EARLY_YEARS_TIERS.includes(upper)) return 'early-years';
       if (PRIMARY_TIERS.includes(upper)) return 'primary';
+      if (JSS_TIERS.includes(upper)) return 'jss';
+      if (SS_TIERS.includes(upper)) return 'ss';
       return 'secondary';
     }
 
-    // Returns the exact subject list for one specific class name (used by
-    // ALL SUBJECTS mapping). Falls back to an empty list — logged via
-    // console.warn — if a class isn't in the blueprint yet, rather than
-    // silently borrowing another class's subjects.
-    function subjectsForClass(className) {
+    // Returns 'new' | 'old' | null for a given class name, from
+    // CLASS_SYLLABUS above. null means the syllabus concept doesn't
+    // apply (Primary/Nursery/Crèche).
+    function syllabusForClass(className) {
+      return CLASS_SYLLABUS[(className || '').toUpperCase().trim()] || null;
+    }
+
+    // Returns the exact subject list — as [{name, department}] — for one
+    // specific class name (used by ALL SUBJECTS mapping). Falls back to
+    // an empty list — logged via console.warn — if a class isn't in the
+    // blueprint yet, rather than silently borrowing another class's
+    // subjects. For SS classes, pass department to get only that
+    // department's electives plus the shared General core subjects;
+    // non-SS classes ignore the department argument entirely.
+    function subjectsForClass(className, department) {
       const upper = (className || '').toUpperCase().trim();
       const list = CLASS_SUBJECT_MAP[upper];
       if (!list) {
         console.warn(`No curriculum blueprint entry for class "${className}" — ALL SUBJECTS mapping skipped for this class.`);
         return [];
       }
-      return list;
+      if (classTier(className) !== 'ss') return list;
+      return list.filter(s => s.department === 'General' || s.department === department);
     }
 
     async function loadReferenceData() {
       if (!supabaseClient) return;
 
-      const { data: classes } = await supabaseClient.from('classes').select('id, class_name, requires_portal_credentials, requires_department').order('level_order');
+      const { data: classes } = await supabaseClient.from('classes').select('id, class_name, requires_portal_credentials, requires_department, syllabus').order('level_order');
       classesCache = classes || [];
 
-      const { data: subjects } = await supabaseClient.from('subjects').select('id, subject_name').order('subject_name');
+      const { data: subjects } = await supabaseClient
+        .from('subjects')
+        .select('id, subject_name, class_level, tier, department, syllabus')
+        .order('class_level').order('subject_name');
       subjectsCache = subjects || [];
 
       const { data: sessions } = await supabaseClient.from('academic_sessions').select('id, session_label, is_active').order('session_label', { ascending: false });
@@ -1685,13 +1750,15 @@
       btn.textContent = 'Initializing…';
 
       try {
-        // 1. Classes — insert any that don't already exist (by class_name).
+        // 1. Classes — insert any that don't already exist (by class_name),
+        // stamping each with its current syllabus from CLASS_SYLLABUS.
         const { data: existingClasses } = await supabaseClient.from('classes').select('id, class_name');
         const existingNames = new Set((existingClasses || []).map(c => c.class_name));
         const classesToInsert = DEFAULT_CLASSES
           .filter(([name]) => !existingNames.has(name))
           .map(([class_name, level_order, , requires_portal_credentials, requires_department]) => ({
             class_name, level_order, requires_portal_credentials, requires_department,
+            syllabus: syllabusForClass(class_name),
           }));
 
         if (classesToInsert.length) {
@@ -1699,13 +1766,41 @@
           if (error) throw error;
         }
 
-        // 2. Subjects — collect the unique set across all classes, insert any missing.
-        const allSubjectNames = [...new Set(Object.values(CLASS_SUBJECT_MAP).flat())];
-        const { data: existingSubjects } = await supabaseClient.from('subjects').select('id, subject_name');
-        const existingSubjectNames = new Set((existingSubjects || []).map(s => s.subject_name));
-        const subjectsToInsert = allSubjectNames
-          .filter(name => !existingSubjectNames.has(name))
-          .map(subject_name => ({ subject_name }));
+        // Keep syllabus in sync even for classes that already existed —
+        // this is the line that matters each new session as cohorts move
+        // up (edit CLASS_SYLLABUS above, then re-run Initialize).
+        for (const [className] of DEFAULT_CLASSES) {
+          const syllabus = syllabusForClass(className);
+          await supabaseClient.from('classes').update({ syllabus }).eq('class_name', className);
+        }
+
+        // 2. Subjects — now keyed by (subject_name, class_level, department,
+        // syllabus), not just subject_name. This is what stops e.g. "JSS 1
+        // Mathematics (new syllabus)" and "JSS 2 Mathematics (old syllabus)"
+        // from ever collapsing into one shared row.
+        const { data: existingSubjects } = await supabaseClient
+          .from('subjects').select('id, subject_name, class_level, department, syllabus');
+        const existingKey = new Set(
+          (existingSubjects || []).map(s => `${s.subject_name}::${s.class_level}::${s.department}::${s.syllabus}`)
+        );
+
+        const subjectsToInsert = [];
+        for (const [className, , mapKey] of DEFAULT_CLASSES) {
+          const tier = classTier(className);
+          const syllabus = syllabusForClass(className); // null for Primary/Nursery
+          for (const { name, department } of (CLASS_SUBJECT_MAP[mapKey] || [])) {
+            const key = `${name}::${className}::${department}::${syllabus}`;
+            if (existingKey.has(key)) continue;
+            existingKey.add(key);
+            subjectsToInsert.push({
+              subject_name: name,
+              class_level: className,   // exact class, e.g. "JSS 1", "SS 2"
+              tier,                      // 'early-years' | 'primary' | 'jss' | 'ss'
+              department,                // 'General' | 'Science' | 'Commercial' | 'Art'
+              syllabus,                  // 'new' | 'old' | null
+            });
+          }
+        }
 
         if (subjectsToInsert.length) {
           const { error } = await supabaseClient.from('subjects').insert(subjectsToInsert);
@@ -1713,14 +1808,21 @@
         }
 
         // 3. Re-fetch full class + subject lists now that inserts landed.
-        const { data: allClasses } = await supabaseClient.from('classes').select('id, class_name');
-        const { data: allSubjects } = await supabaseClient.from('subjects').select('id, subject_name');
+        const { data: allClasses } = await supabaseClient.from('classes').select('id, class_name, syllabus');
+        const { data: allSubjects } = await supabaseClient
+          .from('subjects').select('id, subject_name, class_level, department, syllabus');
         const classByName = Object.fromEntries((allClasses || []).map(c => [c.class_name, c.id]));
-        const subjectByName = Object.fromEntries((allSubjects || []).map(s => [s.subject_name, s.id]));
+        // Keyed by name + class_level + department + syllabus — replaces
+        // the old name-only lookup that caused cross-tier duplicate collapse.
+        const subjectByKey = Object.fromEntries(
+          (allSubjects || []).map(s => [`${s.subject_name}::${s.class_level}::${s.department}::${s.syllabus}`, s.id])
+        );
 
         // 4. Class ↔ subject links — attach each class's own subject list
         // (from CLASS_SUBJECT_MAP) in class_subjects, skipping links that
-        // already exist.
+        // already exist. Each class links ONLY to subject rows scoped to
+        // its exact class_level/department/syllabus — no more cross-tier
+        // or cross-syllabus bleed.
         const { data: existingLinks } = await supabaseClient.from('class_subjects').select('class_id, subject_id');
         const existingLinkKeys = new Set((existingLinks || []).map(l => `${l.class_id}:${l.subject_id}`));
 
@@ -1728,8 +1830,9 @@
         for (const [className, , mapKey] of DEFAULT_CLASSES) {
           const classId = classByName[className];
           if (!classId) continue;
-          for (const subjectName of (CLASS_SUBJECT_MAP[mapKey] || [])) {
-            const subjectId = subjectByName[subjectName];
+          const syllabus = syllabusForClass(className);
+          for (const { name, department } of (CLASS_SUBJECT_MAP[mapKey] || [])) {
+            const subjectId = subjectByKey[`${name}::${className}::${department}::${syllabus}`];
             if (!subjectId) continue;
             const key = `${classId}:${subjectId}`;
             if (existingLinkKeys.has(key)) continue;
@@ -2342,9 +2445,39 @@
     let rowSeq = 0;
 
     function addAssignmentRow() {
-      const row = { id: ++rowSeq, selectedClassIds: new Set(), allSubjects: false, subjectId: '' };
+      const row = { id: ++rowSeq, selectedClassIds: new Set(), allSubjects: false, subjectId: '', department: 'General' };
       assignmentRows.push(row);
       renderAllAssignmentRows();
+    }
+
+    // Does this row include any SS class? If so it needs a department
+    // picker, since SS subjects are split into General + one elective set.
+    function rowNeedsDepartment(row) {
+      return Array.from(row.selectedClassIds).some(id => {
+        const cls = classesCache.find(c => c.id === id);
+        return cls && classTier(cls.class_name) === 'ss';
+      });
+    }
+
+    // Subjects valid for this row's current selections: matched by exact
+    // class_level, by department for SS rows (General + the chosen dept),
+    // and by syllabus where the class has one set (so JSS1's 'new'
+    // syllabus subjects and JSS2's 'old' syllabus subjects never both
+    // show up for a row that only targets one of them).
+    function subjectsForRow(row) {
+      const classNames = Array.from(row.selectedClassIds)
+        .map(id => classesCache.find(c => c.id === id)?.class_name)
+        .filter(Boolean);
+
+      return subjectsCache.filter(s => {
+        if (!classNames.includes(s.class_level)) return false;
+        if (classTier(s.class_level) === 'ss') {
+          if (s.department !== 'General' && s.department !== row.department) return false;
+        }
+        const cls = classesCache.find(c => c.class_name === s.class_level);
+        if (cls && cls.syllabus && s.syllabus !== cls.syllabus) return false;
+        return true;
+      });
     }
     document.getElementById('st-add-row').addEventListener('click', addAssignmentRow);
 
@@ -2405,6 +2538,19 @@
         </label>
       ` : '';
 
+      const needsDept = rowNeedsDepartment(row);
+      const deptPickerHtml = needsDept ? `
+        <div>
+          <p class="text-xs uppercase tracking-wide text-navy/50 font-medium mb-2">Department (for SS classes in this row)</p>
+          <select data-row="${row.id}" class="assign-row-department field-input max-w-xs">
+            <option value="General" ${row.department === 'General' ? 'selected' : ''}>General (core only)</option>
+            <option value="Science" ${row.department === 'Science' ? 'selected' : ''}>Science</option>
+            <option value="Commercial" ${row.department === 'Commercial' ? 'selected' : ''}>Commercial</option>
+            <option value="Art" ${row.department === 'Art' ? 'selected' : ''}>Art</option>
+          </select>
+        </div>
+      ` : '';
+
       let subjectAreaHtml;
       if (smartTier && row.allSubjects) {
         // Mapping is strictly per-class now — a row spanning e.g. Crèche
@@ -2413,7 +2559,7 @@
         const perClassHtml = Array.from(row.selectedClassIds).map(classId => {
           const cls = classesCache.find(c => c.id === classId);
           const className = cls ? cls.class_name : '';
-          const list = subjectsForClass(className);
+          const list = subjectsForClass(className, row.department).map(s => s.name);
           if (!list.length) return '';
           return `
             <div class="text-sm text-navy/70">
@@ -2425,10 +2571,16 @@
             ${perClassHtml || '<p class="text-sm text-navy/40">No classes selected yet.</p>'}
           </div>`;
       } else {
-        const subjectOpts = subjectsCache.map(s => `<option value="${s.id}" ${row.subjectId === s.id ? 'selected' : ''}>${escapeHtml(s.subject_name)}</option>`).join('');
+        // THE ACTUAL FIX: subjects are filtered to this row's selected
+        // class(es), department and syllabus — instead of showing every
+        // subject in the database regardless of relevance.
+        const rowSubjects = row.selectedClassIds.size ? subjectsForRow(row) : [];
+        const subjectOpts = rowSubjects
+          .map(s => `<option value="${s.id}" ${row.subjectId === s.id ? 'selected' : ''}>${escapeHtml(s.subject_name)}${classTier(s.class_level) === 'ss' && s.department !== 'General' ? ` (${s.department})` : ''}</option>`)
+          .join('');
         subjectAreaHtml = `
-          <select data-row="${row.id}" class="assign-row-subject field-input max-w-xs">
-            <option value="">Subject…</option>
+          <select data-row="${row.id}" class="assign-row-subject field-input max-w-xs" ${!row.selectedClassIds.size ? 'disabled' : ''}>
+            <option value="">${row.selectedClassIds.size ? 'Subject…' : 'Select a class first…'}</option>
             ${subjectOpts}
           </select>`;
       }
@@ -2442,6 +2594,7 @@
           </div>
         </div>
         ${allSubjectsToggleHtml}
+        ${deptPickerHtml}
         <div>
           <p class="text-xs uppercase tracking-wide text-navy/50 font-medium mb-2">Subject</p>
           ${subjectAreaHtml}
@@ -2456,6 +2609,10 @@
           // previously-checked ALL SUBJECTS toggle, so re-render the row.
           const newTier = rowTierSummary(row);
           if (row.allSubjects && newTier !== 'early-years' && newTier !== 'primary') row.allSubjects = false;
+          // The previously selected subject may no longer be valid for
+          // the new class selection — clear it rather than keeping a
+          // stale/wrong subjectId silently attached to the row.
+          row.subjectId = '';
           renderAssignmentRow(row);
         });
       });
@@ -2465,6 +2622,15 @@
         allSubjectsCb.addEventListener('change', () => {
           row.allSubjects = allSubjectsCb.checked;
           row.subjectId = '';
+          renderAssignmentRow(row);
+        });
+      }
+
+      const deptSelect = wrap.querySelector('.assign-row-department');
+      if (deptSelect) {
+        deptSelect.addEventListener('change', () => {
+          row.department = deptSelect.value;
+          row.subjectId = ''; // department changed -> previous pick may be invalid now
           renderAssignmentRow(row);
         });
       }
@@ -2503,20 +2669,28 @@
         for (const classId of classIds) {
           const className = classesCache.find(c => c.id === classId)?.class_name || '';
 
-          let subjectNames;
+          let subjectEntries; // [{name, department}]
           if (isSmartRow) {
             // Per-class lookup — NOT a shared tier list.
-            subjectNames = subjectsForClass(className);
+            subjectEntries = subjectsForClass(className, row.department);
           } else if (row.subjectId) {
             const s = subjectsCache.find(s => s.id === row.subjectId);
-            subjectNames = s ? [s.subject_name] : [];
+            subjectEntries = s ? [{ name: s.subject_name, department: s.department }] : [];
           } else {
             continue;
           }
 
-          for (const subjectName of subjectNames) {
-            const subj = subjectsCache.find(s => s.subject_name.toLowerCase() === subjectName.toLowerCase());
-            if (!subj) { console.warn(`Subject "${subjectName}" not found in subjects table — skipped.`); continue; }
+          for (const { name: subjectName, department } of subjectEntries) {
+            // Exact match on name + class_level (+ department for SS) —
+            // not name alone — so "Mathematics" for JSS 1 can never
+            // accidentally resolve to the Primary 5 "Mathematics" row,
+            // and JSS1's 'new' syllabus subjects never match a JSS2/3 row.
+            const subj = subjectsCache.find(s =>
+              s.subject_name.toLowerCase() === subjectName.toLowerCase() &&
+              s.class_level === className &&
+              (classTier(className) !== 'ss' || s.department === department)
+            );
+            if (!subj) { console.warn(`Subject "${subjectName}" (${className}) not found in subjects table — skipped.`); continue; }
             const key = `${classId}::${subj.id}`;
             if (seen.has(key)) continue;
             seen.add(key);
@@ -2525,6 +2699,7 @@
               className,
               subjectId: subj.id,
               subjectName: subj.subject_name,
+              department: subj.department,
               isNonNumeric: NON_NUMERIC_SUBJECTS.includes(subj.subject_name),
             });
           }
