@@ -1074,8 +1074,169 @@
           </div>
         </section>
 
+        <!-- ========================================================= -->
+        <!-- PANEL: STAFF QUERIES                                       -->
+        <!-- ========================================================= -->
+        <section id="panel-queries" class="panel">
+          <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Staff Queries</h1>
+          <p class="text-navy/60 mb-6">Issue formal queries (reprimands / warnings) to staff members and track their responses.</p>
+
+          <!-- Issue a new query -->
+          <div class="bg-white border border-navy/10 p-6 sm:p-8 mb-8">
+            <p class="text-xs uppercase tracking-wide text-sky font-medium mb-4">Issue a new query</p>
+            <div class="grid sm:grid-cols-2 gap-5 mb-5">
+              <div>
+                <label class="field-label" for="query-staff-select">Staff member</label>
+                <select id="query-staff-select" class="field-input">
+                  <option value="">— Select staff member —</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label" for="query-charge">Fine / charge amount (₦)</label>
+                <input id="query-charge" class="field-input" type="number" min="0" step="0.01" placeholder="0.00">
+              </div>
+            </div>
+            <div class="mb-5">
+              <label class="field-label" for="query-text">Query / reprimand text</label>
+              <textarea id="query-text" class="field-input" rows="4" placeholder="Describe the issue or misconduct being formally queried…"></textarea>
+            </div>
+            <div class="flex items-center gap-4">
+              <button id="query-issue-btn" class="bg-brown text-white px-6 py-2.5 font-medium hover:bg-brown/90 transition-colors">Issue query</button>
+              <p id="query-issue-status" class="hidden text-sm px-3 py-2 border"></p>
+            </div>
+          </div>
+
+          <!-- Query dashboard table -->
+          <div class="bg-white border border-navy/10">
+            <div class="px-6 py-4 border-b border-navy/10 flex flex-wrap items-center justify-between gap-3">
+              <p class="font-display text-lg text-navy">All issued queries</p>
+              <div class="flex items-center gap-3">
+                <select id="query-filter-status" class="field-input text-sm max-w-[180px]">
+                  <option value="">All statuses</option>
+                  <option value="pending">Pending (no reply)</option>
+                  <option value="answered">Answered</option>
+                </select>
+                <button id="query-refresh-btn" class="text-sky text-sm font-medium hover:underline whitespace-nowrap">Refresh</button>
+              </div>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm min-w-[720px]">
+                <thead class="bg-navy/5 text-navy text-left">
+                  <tr>
+                    <th class="px-4 py-3 font-medium">Staff member</th>
+                    <th class="px-4 py-3 font-medium">Query summary</th>
+                    <th class="px-4 py-3 font-medium text-right">Fine (₦)</th>
+                    <th class="px-4 py-3 font-medium">Issued</th>
+                    <th class="px-4 py-3 font-medium">Status</th>
+                    <th class="px-4 py-3 font-medium">Reply</th>
+                  </tr>
+                </thead>
+                <tbody id="queries-table-body" class="divide-y divide-navy/10">
+                  <tr><td class="px-4 py-6 text-navy/40" colspan="6">Loading queries…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- PANEL: GOOD PERFORMANCE                                    -->
+        <!-- ========================================================= -->
+        <section id="panel-performance" class="panel">
+          <h1 class="font-display text-2xl sm:text-3xl text-navy mb-1">Good Performance</h1>
+          <p class="text-navy/60 mb-6">Commend and recognise staff members for outstanding performance.</p>
+
+          <!-- Log a new commendation -->
+          <div class="bg-white border border-navy/10 p-6 sm:p-8 mb-8">
+            <p class="text-xs uppercase tracking-wide text-sky font-medium mb-4">Log a commendation</p>
+            <div class="grid sm:grid-cols-2 gap-5 mb-5">
+              <div>
+                <label class="field-label" for="perf-staff-select">Staff member</label>
+                <select id="perf-staff-select" class="field-input">
+                  <option value="">— Select staff member —</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label" for="perf-title">Commendation title</label>
+                <input id="perf-title" class="field-input" type="text" placeholder="e.g. Excellent lesson delivery — Week 3">
+              </div>
+            </div>
+            <div class="mb-5">
+              <label class="field-label" for="perf-details">Details (optional)</label>
+              <textarea id="perf-details" class="field-input" rows="3" placeholder="Add any specific details about the commendable behaviour or achievement…"></textarea>
+            </div>
+            <div class="flex items-center gap-4">
+              <button id="perf-issue-btn" class="bg-navy text-white px-6 py-2.5 font-medium hover:bg-navy-dark transition-colors">Log commendation</button>
+              <p id="perf-issue-status" class="hidden text-sm px-3 py-2 border"></p>
+            </div>
+          </div>
+
+          <!-- Commendation log table -->
+          <div class="bg-white border border-navy/10">
+            <div class="px-6 py-4 border-b border-navy/10 flex flex-wrap items-center justify-between gap-3">
+              <p class="font-display text-lg text-navy">Commendation log</p>
+              <button id="perf-refresh-btn" class="text-sky text-sm font-medium hover:underline">Refresh</button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm min-w-[600px]">
+                <thead class="bg-navy/5 text-navy text-left">
+                  <tr>
+                    <th class="px-4 py-3 font-medium">Staff member</th>
+                    <th class="px-4 py-3 font-medium">Title</th>
+                    <th class="px-4 py-3 font-medium">Details</th>
+                    <th class="px-4 py-3 font-medium">Commended on</th>
+                    <th class="px-4 py-3 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="perf-table-body" class="divide-y divide-navy/10">
+                  <tr><td class="px-4 py-6 text-navy/40" colspan="5">Loading commendations…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
       </div>
     </main>
+  </div>
+
+  <!-- ============ QUERY DETAIL MODAL ============ -->
+  <div id="query-detail-modal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-4">
+    <div class="bg-white w-full max-w-lg modal-enter">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-navy/10">
+        <p class="font-display text-lg text-navy">Query detail</p>
+        <button id="query-modal-close" class="text-navy/40 hover:text-navy text-2xl leading-none">&times;</button>
+      </div>
+      <div class="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
+        <div>
+          <p class="text-xs text-navy/40 uppercase tracking-wide font-medium mb-1">Staff member</p>
+          <p id="qm-staff" class="text-navy font-medium"></p>
+        </div>
+        <div>
+          <p class="text-xs text-navy/40 uppercase tracking-wide font-medium mb-1">Issued on</p>
+          <p id="qm-issued" class="text-navy/70"></p>
+        </div>
+        <div>
+          <p class="text-xs text-navy/40 uppercase tracking-wide font-medium mb-1">Fine / charge</p>
+          <p id="qm-charge" class="text-navy/70"></p>
+        </div>
+        <div>
+          <p class="text-xs text-navy/40 uppercase tracking-wide font-medium mb-1">Query text</p>
+          <p id="qm-text" class="text-navy/80 leading-relaxed whitespace-pre-wrap bg-[#F5F7FA] border border-navy/10 px-4 py-3"></p>
+        </div>
+        <div id="qm-reply-wrap" class="hidden border-t border-navy/10 pt-4">
+          <p class="text-xs text-navy/40 uppercase tracking-wide font-medium mb-1">Staff reply</p>
+          <p id="qm-replied-at" class="text-xs text-navy/40 mb-2"></p>
+          <p id="qm-reply" class="text-navy/80 leading-relaxed whitespace-pre-wrap bg-[#F5F7FA] border border-navy/10 px-4 py-3"></p>
+        </div>
+        <div id="qm-no-reply-wrap" class="hidden border-t border-navy/10 pt-4">
+          <p class="text-sm text-navy/40 italic">The staff member has not submitted a reply yet.</p>
+        </div>
+      </div>
+      <div class="px-6 py-4 border-t border-navy/10 flex justify-end">
+        <button id="query-modal-close-2" class="border border-navy/20 text-navy px-5 py-2 text-sm font-medium hover:bg-navy/5 transition-colors">Close</button>
+      </div>
+    </div>
   </div>
 
   <!-- ============ CREDENTIALS MODAL ============ -->
@@ -1181,6 +1342,8 @@
       { id: 'attendance',  label: 'Staff Attendance Log' },
       { id: 'news',       label: 'Post news' },
       { id: 'gallery',    label: 'Photo gallery' },
+      { id: 'queries',    label: 'Staff Queries' },
+      { id: 'performance', label: 'Good Performance' },
     ];
 
     function renderNav(containerId) {
@@ -1215,6 +1378,8 @@
         if (btn.dataset.panel === 'students') loadStudentFullList();
         if (btn.dataset.panel === 'current-staff') loadStaffList();
         if (btn.dataset.panel === 'gallery') loadGalleryAdminGrid();
+        if (btn.dataset.panel === 'queries') loadQueriesDashboard();
+        if (btn.dataset.panel === 'performance') loadPerformanceDashboard();
       }
     });
     showPanel('overview');
@@ -5128,6 +5293,174 @@
       const hashBuffer = await crypto.subtle.digest('SHA-256', data);
       return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
     }
+
+    // =================================================================
+    // STAFF QUERIES — Admin panel
+    // =================================================================
+
+    async function populateQueryStaffDropdowns() {
+      const { data, error } = await supabaseClient
+        .from('staff')
+        .select('id, full_name')
+        .eq('status', 'Active')
+        .order('full_name');
+      if (error || !data) return;
+      const options = data.map(s => `<option value="${s.id}">${escapeHtml(s.full_name)}</option>`).join('');
+      const querySelect = document.getElementById('query-staff-select');
+      const perfSelect  = document.getElementById('perf-staff-select');
+      if (querySelect) querySelect.innerHTML = '<option value="">— Select staff member —</option>' + options;
+      if (perfSelect)  perfSelect.innerHTML  = '<option value="">— Select staff member —</option>' + options;
+    }
+    populateQueryStaffDropdowns();
+
+    document.getElementById('query-issue-btn').addEventListener('click', async () => {
+      const statusEl  = document.getElementById('query-issue-status');
+      const staffId   = document.getElementById('query-staff-select').value;
+      const queryText = document.getElementById('query-text').value.trim();
+      const charge    = parseFloat(document.getElementById('query-charge').value || '0') || 0;
+      if (!staffId)   { showStatus(statusEl, 'Please select a staff member.', true); return; }
+      if (!queryText) { showStatus(statusEl, 'Please enter the query text.', true); return; }
+      const btn = document.getElementById('query-issue-btn');
+      btn.disabled = true; btn.textContent = 'Issuing…';
+      const { error } = await supabaseClient.from('staff_queries').insert({
+        staff_id: staffId, query_text: queryText, charge_amount: charge,
+        issued_by: 'Admin', status: 'pending',
+      });
+      btn.disabled = false; btn.textContent = 'Issue query';
+      if (error) { showStatus(statusEl, 'Could not issue the query. Please try again.', true); console.error(error); return; }
+      showStatus(statusEl, 'Query issued successfully.', false);
+      document.getElementById('query-staff-select').value = '';
+      document.getElementById('query-text').value = '';
+      document.getElementById('query-charge').value = '';
+      loadQueriesDashboard();
+    });
+
+    let queriesCache = [];
+    async function loadQueriesDashboard() {
+      const tbody = document.getElementById('queries-table-body');
+      const statusFilter = document.getElementById('query-filter-status').value;
+      tbody.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="6">Loading…</td></tr>';
+      let query = supabaseClient
+        .from('staff_queries')
+        .select('id, staff_id, query_text, charge_amount, issued_by, issued_at, status, staff_reply, replied_at, staff(full_name)')
+        .order('issued_at', { ascending: false });
+      if (statusFilter) query = query.eq('status', statusFilter);
+      const { data, error } = await query;
+      if (error) { tbody.innerHTML = '<tr><td class="px-4 py-6 text-red-500" colspan="6">Could not load queries.</td></tr>'; console.error(error); return; }
+      queriesCache = data || [];
+      if (!queriesCache.length) {
+        tbody.innerHTML = '<tr><td class="px-4 py-8 text-center text-navy/40" colspan="6">No queries issued yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = queriesCache.map(q => {
+        const badge = q.status === 'answered'
+          ? '<span class="inline-flex items-center px-2 py-1 text-xs font-medium border border-emerald-300 text-emerald-700 bg-emerald-50">Answered</span>'
+          : '<span class="inline-flex items-center px-2 py-1 text-xs font-medium border border-amber-300 text-amber-700 bg-amber-50">Pending</span>';
+        const date = new Date(q.issued_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        const snippet = q.query_text.length > 60 ? q.query_text.slice(0, 60) + '…' : q.query_text;
+        const charge = Number(q.charge_amount) > 0 ? formatNaira(q.charge_amount) : '—';
+        return `<tr>
+          <td class="px-4 py-3 font-medium text-navy whitespace-nowrap">${escapeHtml(q.staff?.full_name || 'Unknown')}</td>
+          <td class="px-4 py-3 text-navy/70 max-w-[220px]">${escapeHtml(snippet)}</td>
+          <td class="px-4 py-3 text-navy/70 text-right whitespace-nowrap">${charge}</td>
+          <td class="px-4 py-3 text-navy/60 whitespace-nowrap">${date}</td>
+          <td class="px-4 py-3">${badge}</td>
+          <td class="px-4 py-3">
+            <button data-view-query="${q.id}" class="query-view-btn text-sky text-sm font-medium hover:underline">View</button>
+          </td>
+        </tr>`;
+      }).join('');
+      tbody.querySelectorAll('.query-view-btn').forEach(btn => {
+        btn.addEventListener('click', () => openQueryModal(btn.dataset.viewQuery));
+      });
+    }
+
+    function openQueryModal(queryId) {
+      const q = queriesCache.find(r => r.id === queryId);
+      if (!q) return;
+      document.getElementById('qm-staff').textContent  = q.staff?.full_name || 'Unknown';
+      document.getElementById('qm-issued').textContent = new Date(q.issued_at).toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' });
+      document.getElementById('qm-charge').textContent = Number(q.charge_amount) > 0 ? formatNaira(q.charge_amount) : 'No financial penalty';
+      document.getElementById('qm-text').textContent   = q.query_text;
+      if (q.staff_reply) {
+        document.getElementById('qm-reply-wrap').classList.remove('hidden');
+        document.getElementById('qm-no-reply-wrap').classList.add('hidden');
+        document.getElementById('qm-reply').textContent     = q.staff_reply;
+        document.getElementById('qm-replied-at').textContent = q.replied_at
+          ? 'Replied on ' + new Date(q.replied_at).toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' }) : '';
+      } else {
+        document.getElementById('qm-reply-wrap').classList.add('hidden');
+        document.getElementById('qm-no-reply-wrap').classList.remove('hidden');
+      }
+      document.getElementById('query-detail-modal').classList.remove('hidden');
+    }
+    document.getElementById('query-modal-close').addEventListener('click',   () => document.getElementById('query-detail-modal').classList.add('hidden'));
+    document.getElementById('query-modal-close-2').addEventListener('click', () => document.getElementById('query-detail-modal').classList.add('hidden'));
+    document.getElementById('query-detail-modal').addEventListener('click', e => {
+      if (e.target.id === 'query-detail-modal') document.getElementById('query-detail-modal').classList.add('hidden');
+    });
+    document.getElementById('query-filter-status').addEventListener('change', loadQueriesDashboard);
+    document.getElementById('query-refresh-btn').addEventListener('click', loadQueriesDashboard);
+
+    // =================================================================
+    // GOOD PERFORMANCE — Admin panel
+    // =================================================================
+
+    document.getElementById('perf-issue-btn').addEventListener('click', async () => {
+      const statusEl = document.getElementById('perf-issue-status');
+      const staffId  = document.getElementById('perf-staff-select').value;
+      const title    = document.getElementById('perf-title').value.trim();
+      const details  = document.getElementById('perf-details').value.trim() || null;
+      if (!staffId) { showStatus(statusEl, 'Please select a staff member.', true); return; }
+      if (!title)   { showStatus(statusEl, 'Please enter a commendation title.', true); return; }
+      const btn = document.getElementById('perf-issue-btn');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      const { error } = await supabaseClient.from('staff_good_performance').insert({
+        staff_id: staffId, title, details, commended_by: 'Admin',
+      });
+      btn.disabled = false; btn.textContent = 'Log commendation';
+      if (error) { showStatus(statusEl, 'Could not log this commendation. Please try again.', true); console.error(error); return; }
+      showStatus(statusEl, 'Commendation logged successfully.', false);
+      document.getElementById('perf-staff-select').value = '';
+      document.getElementById('perf-title').value = '';
+      document.getElementById('perf-details').value = '';
+      loadPerformanceDashboard();
+    });
+
+    async function loadPerformanceDashboard() {
+      const tbody = document.getElementById('perf-table-body');
+      tbody.innerHTML = '<tr><td class="px-4 py-6 text-navy/40" colspan="5">Loading…</td></tr>';
+      const { data, error } = await supabaseClient
+        .from('staff_good_performance')
+        .select('id, staff_id, title, details, commended_by, commended_at, staff(full_name)')
+        .order('commended_at', { ascending: false });
+      if (error) { tbody.innerHTML = '<tr><td class="px-4 py-6 text-red-500" colspan="5">Could not load commendations.</td></tr>'; console.error(error); return; }
+      if (!data || !data.length) {
+        tbody.innerHTML = '<tr><td class="px-4 py-8 text-center text-navy/40" colspan="5">No commendations logged yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.map(p => {
+        const date = new Date(p.commended_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        return `<tr>
+          <td class="px-4 py-3 font-medium text-navy whitespace-nowrap">${escapeHtml(p.staff?.full_name || 'Unknown')}</td>
+          <td class="px-4 py-3 text-navy/80 font-medium">${escapeHtml(p.title)}</td>
+          <td class="px-4 py-3 text-navy/60 max-w-[260px]">${escapeHtml(p.details || '—')}</td>
+          <td class="px-4 py-3 text-navy/60 whitespace-nowrap">${date}</td>
+          <td class="px-4 py-3">
+            <button data-delete-perf="${p.id}" class="perf-delete-btn text-red-600 text-xs font-medium hover:underline">Delete</button>
+          </td>
+        </tr>`;
+      }).join('');
+      tbody.querySelectorAll('.perf-delete-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Delete this commendation? This cannot be undone.')) return;
+          const { error: delErr } = await supabaseClient.from('staff_good_performance').delete().eq('id', btn.dataset.deletePerf);
+          if (delErr) { alert('Could not delete. Please try again.'); console.error(delErr); return; }
+          loadPerformanceDashboard();
+        });
+      });
+    }
+    document.getElementById('perf-refresh-btn').addEventListener('click', loadPerformanceDashboard);
 
     // =================================================================
     // INIT

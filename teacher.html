@@ -116,6 +116,8 @@
         <button data-tab="materials" class="tab-btn border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">Study Materials</button>
         <button data-tab="projects" class="tab-btn border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">Projects</button>
         <button data-tab="compileca" class="tab-btn border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">Compile CA Scores</button>
+        <button data-tab="my-queries" class="tab-btn border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">My Queries</button>
+        <button data-tab="my-performance" class="tab-btn border-b-2 border-transparent px-4 py-3 text-sm font-medium whitespace-nowrap">Good Performance</button>
       </nav>
     </header>
 
@@ -423,6 +425,16 @@
                 <label class="field-label" for="qz-due">Due date &amp; time</label>
                 <input id="qz-due" class="field-input" type="datetime-local">
               </div>
+              <div class="sm:col-span-2">
+                <label class="field-label">Quiz type</label>
+                <div class="flex items-start gap-3 mt-1 bg-[#F5F7FA] border border-navy/15 px-4 py-3">
+                  <input type="checkbox" id="qz-is-class-test" class="mt-0.5 w-4 h-4 accent-navy cursor-pointer shrink-0">
+                  <div>
+                    <label for="qz-is-class-test" class="font-medium text-navy text-sm cursor-pointer">Count this quiz as the Physical / Class Test</label>
+                    <p class="text-xs text-navy/50 mt-0.5">When ticked, students' average score on this quiz (scaled to /20) will be used as their Physical Test score automatically when you click "Calculate &amp; Sync CA". You will not need to enter test scores manually.</p>
+                  </div>
+                </div>
+              </div>
             </div>
             <p id="qz-dept-note" class="text-xs text-navy/50 mt-3"></p>
           </div>
@@ -517,6 +529,14 @@
             </div>
           </div>
 
+          <!-- Notice: shown when an online Class Test quiz is detected -->
+          <div id="cca-class-test-notice" class="hidden px-6 py-3 border-b border-amber-200 bg-amber-50 flex items-start gap-2">
+            <svg class="w-4 h-4 text-amber-500 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M12 8v4m0 4h.01"/>
+            </svg>
+            <p class="text-xs text-amber-800">This subject has an online <strong>Class Test</strong> quiz. Physical test scores marked <span class="font-semibold text-amber-700">Auto</span> are taken directly from that quiz — no manual entry needed. Students who have not yet submitted the online quiz will still need a manual score.</p>
+          </div>
+
           <div class="px-6 py-3 border-b border-navy/10 bg-navy/[0.02] flex items-center justify-between flex-wrap gap-3">
             <p id="cca-status" class="hidden text-sm px-3 py-2 border"></p>
             <button id="cca-calc-btn" class="bg-brown text-white px-6 py-2.5 font-medium hover:bg-brown/90 transition-colors ml-auto">
@@ -535,6 +555,37 @@
               Save physical test scores
             </button>
           </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- TAB: MY QUERIES                                              -->
+      <!-- ============================================================ -->
+      <section id="tab-my-queries" class="panel">
+        <div id="query-alert-banner" class="hidden mb-6 border-l-4 border-amber-400 bg-amber-50 px-5 py-4 flex items-start gap-3">
+          <svg class="w-5 h-5 text-amber-500 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          </svg>
+          <div>
+            <p class="font-medium text-amber-900">You have unanswered queries</p>
+            <p id="query-alert-text" class="text-sm text-amber-700 mt-0.5"></p>
+          </div>
+        </div>
+        <h1 class="font-display text-2xl text-navy mb-1">My Queries</h1>
+        <p class="text-navy/60 mb-6">Formal queries issued to you by the administration. You must submit a written reply for each pending query.</p>
+        <div id="my-queries-list" class="space-y-5">
+          <p class="text-navy/40 text-sm">Loading your queries…</p>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- TAB: GOOD PERFORMANCE                                        -->
+      <!-- ============================================================ -->
+      <section id="tab-my-performance" class="panel">
+        <h1 class="font-display text-2xl text-navy mb-1">Good Performance</h1>
+        <p class="text-navy/60 mb-6">Commendations and recognition logged by the administration for your work.</p>
+        <div id="my-performance-list" class="space-y-4">
+          <p class="text-navy/40 text-sm">Loading your commendations…</p>
         </div>
       </section>
 
@@ -676,6 +727,9 @@
         teacherAvatarInitial.classList.remove('hidden');
       }
       await loadTeacherWorkspace();
+      loadMyQueries();
+      loadMyPerformance();
+      checkForNewQueries();
     }
 
     // Restore session on page load (e.g. after refresh)
@@ -1086,6 +1140,36 @@
       }
       ccaRoster = students;
 
+      // Check whether this teacher has marked a quiz as the Class Test
+      // for this subject + class. If so, the physical test box is auto-filled
+      // from quiz scores and the manual input is disabled for those students.
+      const { data: classTestQuiz } = await supabaseClient
+        .from('quizzes')
+        .select('id')
+        .eq('subject_id', ccaAssignment.subjectId)
+        .eq('class_level', ccaAssignment.className)
+        .eq('created_by', currentStaff.id)
+        .eq('is_class_test', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      // If a class test quiz exists, pre-compute each student's scaled score
+      // (quiz % → /20) so we can show it in the manual input as read-only.
+      const autoTestScoreMap = {};
+      if (classTestQuiz) {
+        const { data: testSubs } = await supabaseClient
+          .from('quiz_submissions')
+          .select('student_id, score_percentage')
+          .eq('quiz_id', classTestQuiz.id)
+          .in('student_id', students.map(s => s.id))
+          .not('submitted_at', 'is', null);
+        (testSubs || []).forEach(sub => {
+          // Scale: score_percentage is out of 100, physical test is out of 20.
+          autoTestScoreMap[sub.student_id] = Math.round((sub.score_percentage / 100) * 20);
+        });
+      }
+
       const { data: existing } = await supabaseClient
         .from('scores').select('student_id, physical_test_score')
         .eq('subject_id', ccaAssignment.subjectId).eq('session_id', sessionId).eq('term', term)
@@ -1093,19 +1177,37 @@
       const ptMap = {};
       (existing || []).forEach(s => { ptMap[s.student_id] = s.physical_test_score; });
 
-      rowsEl.innerHTML = students.map(s => `
-        <div class="grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 px-6 py-4" data-student-id="${s.id}">
+      // Show a notice banner if a class test quiz is controlling scores.
+      const noticeEl = document.getElementById('cca-class-test-notice');
+      if (classTestQuiz) {
+        noticeEl.classList.remove('hidden');
+      } else {
+        noticeEl.classList.add('hidden');
+      }
+
+      rowsEl.innerHTML = students.map(s => {
+        const hasAutoScore = classTestQuiz && autoTestScoreMap[s.id] !== undefined;
+        const displayVal   = hasAutoScore ? autoTestScoreMap[s.id] : (ptMap[s.id] ?? '');
+        const isDisabled   = hasAutoScore ? 'disabled title="Auto-filled from online Class Test quiz"' : '';
+        const inputClass   = hasAutoScore ? 'score-input cca-pt-input w-16 opacity-60 cursor-not-allowed' : 'score-input cca-pt-input w-16';
+        const autoTag      = hasAutoScore
+          ? `<span class="text-xs text-amber-700 font-medium ml-1" title="Scored from the online Class Test quiz">Auto</span>`
+          : '';
+        return `
+        <div class="grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 px-6 py-4" data-student-id="${s.id}" data-auto-score="${hasAutoScore ? autoTestScoreMap[s.id] : ''}">
           <p class="text-navy font-medium truncate">${escapeHtml(s.full_name)}</p>
           <span class="cca-quiz-avg text-sm text-navy/40">—</span>
           <span class="cca-proj-avg text-sm text-navy/40">—</span>
           <div class="flex items-center gap-1">
             <input type="number" min="0" max="20" placeholder="Test"
-                   value="${ptMap[s.id] ?? ''}" class="score-input cca-pt-input w-16" data-max="20">
+                   value="${displayVal}" class="${inputClass}" data-max="20" ${isDisabled}>
             <span class="text-navy/30 text-xs">/20</span>
+            ${autoTag}
           </div>
-        </div>`).join('');
+        </div>`;
+      }).join('');
 
-      rowsEl.querySelectorAll('.cca-pt-input').forEach(inp => {
+      rowsEl.querySelectorAll('.cca-pt-input:not([disabled])').forEach(inp => {
         inp.addEventListener('input', () => {
           const max = Number(inp.dataset.max);
           if (inp.value !== '' && Number(inp.value) > max) inp.value = max;
@@ -1124,7 +1226,10 @@
 
       const rows = document.querySelectorAll('#cca-rows > div[data-student-id]');
       const payload = Array.from(rows).map(row => {
-        const pt = row.querySelector('.cca-pt-input').value;
+        // If this row has an auto-score from an online class test quiz,
+        // use that value; otherwise take what the teacher typed manually.
+        const autoVal = row.dataset.autoScore;
+        const pt = autoVal !== '' ? autoVal : row.querySelector('.cca-pt-input').value;
         return {
           student_id: row.dataset.studentId, subject_id: ccaAssignment.subjectId,
           class_id: ccaAssignment.classId, session_id: sessionId, term: term,
@@ -1192,12 +1297,23 @@
         const hasGradedProjects = projSubs.length > 0;
 
         // Existing physical test scores for this subject/session/term.
+        // For students whose score comes from an online Class Test quiz,
+        // read the pre-computed auto score from the row's data attribute
+        // (set in ccaLoadRoster) rather than from the database, so the
+        // latest quiz result is always used.
         const { data: existingScores } = await supabaseClient
           .from('scores').select('student_id, physical_test_score')
           .eq('subject_id', ccaAssignment.subjectId).eq('session_id', sessionId).eq('term', term)
           .in('student_id', studentIds);
         const ptMap = {};
         (existingScores || []).forEach(s => { ptMap[s.student_id] = s.physical_test_score; });
+
+        // Override ptMap with auto-scores from class test quiz rows (data-auto-score attribute).
+        const rowsForAuto = document.querySelectorAll('#cca-rows > div[data-student-id][data-auto-score]');
+        rowsForAuto.forEach(row => {
+          const autoVal = row.dataset.autoScore;
+          if (autoVal !== '') ptMap[row.dataset.studentId] = Number(autoVal);
+        });
 
         const avgFor = (rows, sid, key) => {
           const mine = rows.filter(r => String(r.student_id) === String(sid)).map(r => Number(r[key]));
@@ -1958,7 +2074,7 @@
 
       const { data: quizzes, error } = await supabaseClient
         .from('quizzes')
-        .select('id, title, class_level, target_department, duration_minutes, due_date, created_at, subjects(subject_name)')
+        .select('id, title, class_level, target_department, duration_minutes, due_date, created_at, is_class_test, subjects(subject_name)')
         .eq('created_by', currentStaff.id)
         .order('created_at', { ascending: false });
 
@@ -1995,6 +2111,7 @@
               <p class="text-xs mt-1 ${isClosed ? 'text-red-600' : 'text-navy/40'}">
                 ${isClosed ? 'Closed' : 'Due'} ${due.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 · ${submittedCount[q.id] || 0} submitted
+                ${q.is_class_test ? ' · <span class="text-amber-700 font-medium">Class Test</span>' : ''}
               </p>
             </div>
             <div class="flex gap-2 shrink-0">
@@ -2037,6 +2154,7 @@
       document.getElementById('qz-ai-topic').value = '';
       document.getElementById('qz-ai-status').classList.add('hidden');
       document.getElementById('qz-save-status').classList.add('hidden');
+      document.getElementById('qz-is-class-test').checked = false;
 
       // Class dropdown = only the distinct classes this teacher is assigned to.
       const classes = [...new Map(eligible.map(a => [a.classId, a.className])).entries()];
@@ -2239,6 +2357,8 @@
 
       // Rule 2: class_level = the exact class string ('JSS 1'); the
       // target_department comes straight from the chosen subject row.
+      const isClassTest = document.getElementById('qz-is-class-test').checked;
+
       const { data: quizRow, error: quizErr } = await supabaseClient
         .from('quizzes')
         .insert({
@@ -2249,6 +2369,7 @@
           duration_minutes: duration,
           due_date: due.toISOString(),
           created_by: currentStaff.id,
+          is_class_test: isClassTest,
         })
         .select('id')
         .single();
@@ -2690,6 +2811,128 @@
       pjLoadList();
       pjShowView('list');
     });
+    // =================================================================
+    // MY QUERIES — Staff portal
+    // =================================================================
+    async function checkForNewQueries() {
+      if (!currentStaff) return;
+      const { data } = await supabaseClient
+        .from('staff_queries').select('id')
+        .eq('staff_id', currentStaff.id).eq('status', 'pending');
+      const count = (data || []).length;
+      const banner = document.getElementById('query-alert-banner');
+      const alertText = document.getElementById('query-alert-text');
+      if (count > 0 && banner && alertText) {
+        alertText.textContent = `You have ${count} pending quer${count === 1 ? 'y' : 'ies'} that require${count === 1 ? 's' : ''} a written reply.`;
+        banner.classList.remove('hidden');
+      } else if (banner) {
+        banner.classList.add('hidden');
+      }
+    }
+
+    async function loadMyQueries() {
+      const listEl = document.getElementById('my-queries-list');
+      if (!listEl || !currentStaff) return;
+      listEl.innerHTML = '<p class="text-navy/40 text-sm">Loading…</p>';
+      const { data, error } = await supabaseClient
+        .from('staff_queries')
+        .select('id, query_text, charge_amount, issued_by, issued_at, status, staff_reply, replied_at')
+        .eq('staff_id', currentStaff.id)
+        .order('issued_at', { ascending: false });
+      if (error) { listEl.innerHTML = '<p class="text-red-500 text-sm">Could not load your queries.</p>'; console.error(error); return; }
+      if (!data || !data.length) {
+        listEl.innerHTML = '<div class="bg-white border border-navy/10 px-6 py-10 text-center"><p class="text-navy/40">No queries have been issued to you.</p></div>';
+        return;
+      }
+      listEl.innerHTML = data.map(q => {
+        const isPending  = q.status === 'pending';
+        const issuedDate = new Date(q.issued_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+        const badge = isPending
+          ? '<span class="inline-flex items-center px-2 py-1 text-xs font-medium border border-amber-300 text-amber-700 bg-amber-50">Awaiting your reply</span>'
+          : '<span class="inline-flex items-center px-2 py-1 text-xs font-medium border border-emerald-300 text-emerald-700 bg-emerald-50">Replied</span>';
+        const chargeSection = Number(q.charge_amount) > 0
+          ? `<p class="text-sm text-red-700 font-medium mt-2">Financial penalty: ₦${Number(q.charge_amount).toLocaleString('en-NG', { minimumFractionDigits: 2 })}</p>` : '';
+        const replySection = isPending
+          ? `<div class="border-t border-navy/10 pt-4 mt-4">
+               <p class="text-sm font-medium text-navy mb-2">Your reply / defence</p>
+               <textarea id="reply-text-${q.id}" rows="4" class="field-input mb-3" placeholder="Type your formal written response here…"></textarea>
+               <div class="flex items-center gap-4">
+                 <button data-submit-reply="${q.id}" class="query-reply-btn bg-navy text-white px-5 py-2.5 text-sm font-medium hover:bg-navy-dark transition-colors">Submit reply</button>
+                 <p id="reply-status-${q.id}" class="hidden text-sm px-3 py-2 border"></p>
+               </div>
+             </div>`
+          : `<div class="border-t border-navy/10 pt-4 mt-4">
+               <p class="text-xs text-navy/40 uppercase tracking-wide font-medium mb-2">Your reply</p>
+               ${q.replied_at ? `<p class="text-xs text-navy/40 mb-2">Submitted on ${new Date(q.replied_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>` : ''}
+               <p class="text-navy/80 leading-relaxed whitespace-pre-wrap bg-[#F5F7FA] border border-navy/10 px-4 py-3 text-sm">${escapeHtml(q.staff_reply || '')}</p>
+             </div>`;
+        return `<div class="bg-white border ${isPending ? 'border-l-4 border-amber-400' : 'border-navy/10'} p-6">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <p class="text-xs text-navy/40">Issued by ${escapeHtml(q.issued_by)} · ${issuedDate}</p>
+            ${badge}
+          </div>
+          <p class="text-navy/80 leading-relaxed whitespace-pre-wrap">${escapeHtml(q.query_text)}</p>
+          ${chargeSection}
+          ${replySection}
+        </div>`;
+      }).join('');
+      listEl.querySelectorAll('.query-reply-btn').forEach(btn => {
+        btn.addEventListener('click', () => submitQueryReply(btn.dataset.submitReply));
+      });
+    }
+
+    async function submitQueryReply(queryId) {
+      const statusEl  = document.getElementById(`reply-status-${queryId}`);
+      const textEl    = document.getElementById(`reply-text-${queryId}`);
+      const replyText = textEl ? textEl.value.trim() : '';
+      if (!replyText) { showStatus(statusEl, 'Please write your reply before submitting.', true); return; }
+      const btn = document.querySelector(`[data-submit-reply="${queryId}"]`);
+      if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
+      const { error } = await supabaseClient.from('staff_queries').update({
+        staff_reply: replyText, replied_at: new Date().toISOString(), status: 'answered',
+      }).eq('id', queryId);
+      if (btn) { btn.disabled = false; btn.textContent = 'Submit reply'; }
+      if (error) { showStatus(statusEl, 'Could not submit your reply. Please try again.', true); console.error(error); return; }
+      showStatus(statusEl, 'Reply submitted successfully.', false);
+      setTimeout(() => { loadMyQueries(); checkForNewQueries(); }, 800);
+    }
+    document.querySelector('[data-tab="my-queries"]').addEventListener('click', () => { loadMyQueries(); checkForNewQueries(); });
+
+    // =================================================================
+    // GOOD PERFORMANCE — Staff portal
+    // =================================================================
+    async function loadMyPerformance() {
+      const listEl = document.getElementById('my-performance-list');
+      if (!listEl || !currentStaff) return;
+      listEl.innerHTML = '<p class="text-navy/40 text-sm">Loading…</p>';
+      const { data, error } = await supabaseClient
+        .from('staff_good_performance')
+        .select('id, title, details, commended_by, commended_at')
+        .eq('staff_id', currentStaff.id)
+        .order('commended_at', { ascending: false });
+      if (error) { listEl.innerHTML = '<p class="text-red-500 text-sm">Could not load commendations.</p>'; console.error(error); return; }
+      if (!data || !data.length) {
+        listEl.innerHTML = `<div class="bg-white border border-navy/10 px-6 py-10 text-center">
+          <p class="text-2xl mb-2">⭐</p>
+          <p class="text-navy font-medium mb-1">No commendations yet</p>
+          <p class="text-navy/40 text-sm">Keep up the great work — commendations from the administration will appear here.</p>
+        </div>`;
+        return;
+      }
+      listEl.innerHTML = data.map(p => {
+        const date = new Date(p.commended_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+        return `<div class="bg-white border border-navy/10 p-5 flex gap-4">
+          <div class="w-10 h-10 bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0 text-lg">⭐</div>
+          <div class="flex-1 min-w-0">
+            <p class="font-medium text-navy">${escapeHtml(p.title)}</p>
+            <p class="text-xs text-navy/40 mt-0.5">Commended by ${escapeHtml(p.commended_by)} · ${date}</p>
+            ${p.details ? `<p class="text-sm text-navy/70 mt-2 leading-relaxed">${escapeHtml(p.details)}</p>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+    }
+    document.querySelector('[data-tab="my-performance"]').addEventListener('click', loadMyPerformance);
+
   </script>
 </body>
 </html>
